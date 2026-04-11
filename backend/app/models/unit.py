@@ -1,0 +1,30 @@
+import uuid
+from datetime import datetime
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, Text, JSON
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
+from app.database import Base
+
+
+class Unit(Base):
+    __tablename__ = "units"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(256), nullable=False)
+    org_code = Column(String(32), unique=True, nullable=False, index=True)
+    parent_id = Column(UUID(as_uuid=True), ForeignKey("units.id", ondelete="CASCADE"), index=True)
+    unit_type = Column(String(32))  # province/city/county/department
+    level = Column(Integer, default=1)  # 1=省级, 2=市级, 3=县级
+    sort_order = Column(Integer, default=0)
+    tags = Column(JSON, default=list)
+    profile = Column(Text)  # 单位简介
+    leadership = Column(JSON)  # {"secretary": "...", "head": "..."}
+    contact = Column(JSON)  # {"phone": "...", "address": "..."}
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    parent = relationship("Unit", remote_side=[id], back_populates="children")
+    children = relationship("Unit", back_populates="parent")
+    users = relationship("User", back_populates="unit")
+    cadres = relationship("Cadre", back_populates="unit")
