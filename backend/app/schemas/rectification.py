@@ -6,7 +6,7 @@ from datetime import datetime
 
 class RectificationBase(BaseModel):
     title: str
-    unit_id: UUID
+    unit_id: Optional[UUID] = None
     problem_description: str
     rectification_requirement: Optional[str] = None
     deadline: Optional[datetime] = None

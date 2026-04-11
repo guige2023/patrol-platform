@@ -6,7 +6,7 @@ from datetime import datetime
 
 class DraftBase(BaseModel):
     title: str
-    unit_id: UUID
+    unit_id: Optional[UUID] = None
     content: Optional[str] = None
     category: Optional[str] = None
     problem_type: Optional[str] = None
@@ -15,7 +15,7 @@ class DraftBase(BaseModel):
 
 
 class DraftCreate(DraftBase):
-    group_id: UUID
+    group_id: Optional[UUID] = None
 
 
 class DraftUpdate(BaseModel):

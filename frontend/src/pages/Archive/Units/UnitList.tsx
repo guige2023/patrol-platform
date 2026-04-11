@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, message } from 'antd';
+import React, { useState, useEffect, useRef } from 'react';
+import { Table, Button, Space, Modal, message, Form, Input, Select } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import SearchForm from '@/components/common/SearchForm';
-import { getUnits, deleteUnit } from '@/api/units';
+import { getUnits, deleteUnit, createUnit, updateUnit } from '@/api/units';
 import type { ColumnsType } from 'antd/es/table';
 
 interface Unit {
@@ -12,8 +12,24 @@ interface Unit {
   org_code: string;
   unit_type?: string;
   level?: number;
+  contact_person?: string;
+  contact_phone?: string;
   is_active: boolean;
 }
+
+const UNIT_TYPE_OPTIONS = [
+  { label: '党委', value: 'party' },
+  { label: '纪委', value: 'discipline' },
+  { label: '组织部', value: 'organization' },
+  { label: '宣传部', value: 'propaganda' },
+  { label: '政府', value: 'government' },
+];
+
+const LEVEL_OPTIONS = [
+  { label: '正厅级', value: 1 },
+  { label: '副厅级', value: 2 },
+  { label: '县处级', value: 3 },
+];
 
 const UnitList: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -22,6 +38,11 @@ const UnitList: React.FC = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [searchParams, setSearchParams] = useState<any>({});
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingUnit, setEditingUnit] = useState<Unit | null>(null);
+  const [form] = Form.useForm();
+  const formRef = useRef<any>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -47,6 +68,45 @@ const UnitList: React.FC = () => {
     }});
   };
 
+  const openCreateModal = () => {
+    form.resetFields();
+    setCreateModalOpen(true);
+  };
+
+  const openEditModal = (record: Unit) => {
+    setEditingUnit(record);
+    form.setFieldsValue(record);
+    setEditModalOpen(true);
+  };
+
+  const handleCreateSubmit = async () => {
+    try {
+      const values = await form.validateFields();
+      await createUnit(values);
+      message.success('新建单位成功');
+      setCreateModalOpen(false);
+      fetchData();
+    } catch (err: any) {
+      if (err.errorFields) return;
+      message.error('新建单位失败');
+    }
+  };
+
+  const handleEditSubmit = async () => {
+    if (!editingUnit) return;
+    try {
+      const values = await form.validateFields();
+      await updateUnit(editingUnit.id, values);
+      message.success('编辑单位成功');
+      setEditModalOpen(false);
+      setEditingUnit(null);
+      fetchData();
+    } catch (err: any) {
+      if (err.errorFields) return;
+      message.error('编辑单位失败');
+    }
+  };
+
   const columns: ColumnsType<Unit> = [
     { title: '单位名称', dataIndex: 'name', key: 'name' },
     { title: '组织编码', dataIndex: 'org_code', key: 'org_code' },
@@ -57,7 +117,7 @@ const UnitList: React.FC = () => {
       key: 'action',
       render: (_, record) => (
         <Space>
-          <Button type="link" size="small">编辑</Button>
+          <Button type="link" size="small" onClick={() => openEditModal(record)}>编辑</Button>
           <Button type="link" size="small" danger onClick={() => handleDelete(record.id)}>删除</Button>
         </Space>
       ),
@@ -73,7 +133,7 @@ const UnitList: React.FC = () => {
         onReset={handleReset}
       />
       <div style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => message.info('新建单位')}>
+        <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
           新建单位
         </Button>
       </div>
@@ -90,6 +150,62 @@ const UnitList: React.FC = () => {
           showTotal: (t) => `共 ${t} 条`,
         }}
       />
+      <Modal title="新建单位" open={createModalOpen} footer={null} onCancel={() => setCreateModalOpen(false)}>
+        <Form form={form} layout="vertical">
+          <Form.Item name="name" label="单位名称" rules={[{ required: true, message: '请输入单位名称' }]}>
+            <Input placeholder="请输入单位名称" />
+          </Form.Item>
+          <Form.Item name="org_code" label="组织编码" rules={[{ required: true, message: '请输入组织编码' }]}>
+            <Input placeholder="请输入组织编码" />
+          </Form.Item>
+          <Form.Item name="unit_type" label="单位类型" rules={[{ required: true, message: '请选择单位类型' }]}>
+            <Select options={UNIT_TYPE_OPTIONS} placeholder="请选择单位类型" />
+          </Form.Item>
+          <Form.Item name="level" label="级别" rules={[{ required: true, message: '请选择级别' }]}>
+            <Select options={LEVEL_OPTIONS} placeholder="请选择级别" />
+          </Form.Item>
+          <Form.Item name="contact_person" label="联系人">
+            <Input placeholder="请输入联系人" />
+          </Form.Item>
+          <Form.Item name="contact_phone" label="联系电话">
+            <Input placeholder="请输入联系电话" />
+          </Form.Item>
+          <div style={{ textAlign: 'right', marginTop: 16 }}>
+            <Space>
+              <Button onClick={() => setCreateModalOpen(false)}>取消</Button>
+              <Button type="primary" onClick={handleCreateSubmit}>确定</Button>
+            </Space>
+          </div>
+        </Form>
+      </Modal>
+      <Modal title="编辑单位" open={editModalOpen} footer={null} onCancel={() => { setEditModalOpen(false); setEditingUnit(null); }}>
+        <Form form={form} layout="vertical">
+          <Form.Item name="name" label="单位名称" rules={[{ required: true, message: '请输入单位名称' }]}>
+            <Input placeholder="请输入单位名称" />
+          </Form.Item>
+          <Form.Item name="org_code" label="组织编码" rules={[{ required: true, message: '请输入组织编码' }]}>
+            <Input placeholder="请输入组织编码" />
+          </Form.Item>
+          <Form.Item name="unit_type" label="单位类型" rules={[{ required: true, message: '请选择单位类型' }]}>
+            <Select options={UNIT_TYPE_OPTIONS} placeholder="请选择单位类型" />
+          </Form.Item>
+          <Form.Item name="level" label="级别" rules={[{ required: true, message: '请选择级别' }]}>
+            <Select options={LEVEL_OPTIONS} placeholder="请选择级别" />
+          </Form.Item>
+          <Form.Item name="contact_person" label="联系人">
+            <Input placeholder="请输入联系人" />
+          </Form.Item>
+          <Form.Item name="contact_phone" label="联系电话">
+            <Input placeholder="请输入联系电话" />
+          </Form.Item>
+          <div style={{ textAlign: 'right', marginTop: 16 }}>
+            <Space>
+              <Button onClick={() => { setEditModalOpen(false); setEditingUnit(null); }}>取消</Button>
+              <Button type="primary" onClick={handleEditSubmit}>确定</Button>
+            </Space>
+          </div>
+        </Form>
+      </Modal>
     </div>
   );
 };

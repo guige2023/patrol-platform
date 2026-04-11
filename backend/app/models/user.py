@@ -33,6 +33,7 @@ class User(Base):
     phone = Column(String(32))
     id_card_encrypted = Column(String(512))  # Encrypted ID card number
     is_active = Column(Boolean, default=True)
+    role = Column(String(64), default="操作员")  # Simple role field (not using RBAC relation)
     unit_id = Column(Guid, ForeignKey("units.id", ondelete="SET NULL"))
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

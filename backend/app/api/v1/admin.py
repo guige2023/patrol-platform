@@ -9,6 +9,8 @@ from app.models.module_config import ModuleConfig
 from app.models.rule_config import RuleConfig
 from app.models.audit_log import AuditLog
 from app.core.security import get_password_hash
+from app.schemas.user import UserCreate, UserUpdate
+from app.core.audit import write_audit_log
 
 router = APIRouter()
 
@@ -18,34 +20,33 @@ async def list_users(db: AsyncSession = Depends(get_db), current_user: User = De
     result = await db.execute(select(User).order_by(User.created_at.desc()))
     users = result.scalars().all()
     return [
-        {"id": u.id, "username": u.username, "email": u.email, "full_name": u.full_name, "is_active": u.is_active}
+        {"id": u.id, "username": u.username, "email": u.email, "full_name": u.full_name, "role": u.role, "is_active": u.is_active}
         for u in users
     ]
 
 
 @router.post("/users")
 async def create_user(
-    username: str,
-    email: str,
-    password: str,
-    full_name: str,
-    unit_id: UUID = None,
+    user_data: UserCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    existing = await db.execute(select(User).where(User.username == username))
+    existing = await db.execute(select(User).where(User.username == user_data.username))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Username already exists")
     user = User(
-        username=username,
-        email=email,
-        hashed_password=get_password_hash(password),
-        full_name=full_name,
-        unit_id=unit_id,
+        username=user_data.username,
+        email=user_data.email,
+        hashed_password=get_password_hash(user_data.password),
+        full_name=user_data.full_name,
+        role=user_data.role,
+        unit_id=user_data.unit_id,
+        is_active=user_data.is_active,
     )
     db.add(user)
     await db.commit()
     await db.refresh(user)
+    await write_audit_log(db, current_user.id, "create", "user", user.id, {"username": user.username})
     return {"id": user.id, "username": user.username}
 
 
