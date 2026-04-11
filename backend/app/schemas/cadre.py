@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional, List
 from uuid import UUID
-from datetime import date
+from datetime import date, datetime
 
 
 class CadreBase(BaseModel):

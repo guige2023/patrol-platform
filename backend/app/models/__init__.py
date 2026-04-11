@@ -1,4 +1,4 @@
-from app.models.user import User, Role, UserRole, Permission, RolePermission
+from app.models.user import User, Role, Permission
 from app.models.unit import Unit
 from app.models.cadre import Cadre
 from app.models.knowledge import Knowledge
@@ -15,7 +15,7 @@ from app.models.rule_config import RuleConfig
 from app.models.notification import Notification
 
 __all__ = [
-    "User", "Role", "UserRole", "Permission", "RolePermission",
+    "User", "Role", "Permission",
     "Unit", "Cadre", "Knowledge",
     "Plan", "PlanVersion",
     "InspectionGroup", "GroupMember",

@@ -4,10 +4,9 @@ import sys
 sys.path.insert(0, '.')
 
 from app.database import AsyncSessionLocal, engine, Base
-from app.core.security import get_password_hash
-from app.models.user import User
+from app.services.auth import AuthService
+from app.models.user import User, Role
 from app.models.unit import Unit
-from app.models.role import Role
 from app.models.module_config import ModuleConfig
 
 
@@ -20,7 +19,7 @@ async def init_db():
         admin = User(
             username="admin",
             email="admin@patrol.local",
-            hashed_password=get_password_hash("admin123"),
+            hashed_password=AuthService.get_password_hash("admin123"),
             full_name="系统管理员",
             is_active=True,
         )

@@ -1,7 +1,8 @@
 import uuid
+from app.types import GUIDTypeDecorator as Guid
 from datetime import datetime
 from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Date, JSON, Text
-from sqlalchemy.dialects.postgresql import UUID
+# from sqlalchemy.dialects.postgresql import UUID (removed for cross-db)
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -9,7 +10,7 @@ from app.database import Base
 class Cadre(Base):
     __tablename__ = "cadres"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Guid, primary_key=True, default=uuid.uuid4)
     name = Column(String(64), nullable=False)
     id_card_encrypted = Column(String(512))  # 加密身份证
     gender = Column(String(8))  # male/female
@@ -19,7 +20,7 @@ class Cadre(Base):
     political_status = Column(String(32))  # 政治面貌
     education = Column(String(32))  # 学历
     degree = Column(String(32))  # 学位
-    unit_id = Column(UUID(as_uuid=True), ForeignKey("units.id", ondelete="SET NULL"), index=True)
+    unit_id = Column(Guid, ForeignKey("units.id", ondelete="SET NULL"), index=True)
     position = Column(String(128))  # 当前职务
     rank = Column(String(32))  # 职级
     tags = Column(JSON, default=list)  # ["纪检监察", "财务审计"]

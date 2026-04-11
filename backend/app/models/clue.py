@@ -1,14 +1,15 @@
 import uuid
+from app.types import GUIDTypeDecorator as Guid
 from datetime import datetime
 from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Text, Integer, JSON, Enum
-from sqlalchemy.dialects.postgresql import UUID
+# from sqlalchemy.dialects.postgresql import UUID (removed for cross-db)
 from app.database import Base
 
 
 class Clue(Base):
     __tablename__ = "clues"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Guid, primary_key=True, default=uuid.uuid4)
     title = Column(String(256), nullable=False)
     content = Column(Text, nullable=False)
     source = Column(String(64))  # 来信来访/上级转办/监督检查发现
@@ -21,6 +22,6 @@ class Clue(Base):
     transfer_comment = Column(Text)
     handling_result = Column(Text)
     is_high_confidential = Column(Boolean, default=False)
-    registered_by = Column(UUID(as_uuid=True), nullable=False)
+    registered_by = Column(Guid, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

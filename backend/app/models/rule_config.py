@@ -1,14 +1,15 @@
 import uuid
+from app.types import GUIDTypeDecorator as Guid
 from datetime import datetime
 from sqlalchemy import Column, String, Boolean, DateTime, Integer, JSON
-from sqlalchemy.dialects.postgresql import UUID
+# from sqlalchemy.dialects.postgresql import UUID (removed for cross-db)
 from app.database import Base
 
 
 class RuleConfig(Base):
     __tablename__ = "rule_configs"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Guid, primary_key=True, default=uuid.uuid4)
     rule_code = Column(String(64), unique=True, nullable=False, index=True)
     rule_name = Column(String(128), nullable=False)
     rule_type = Column(String(32), nullable=False)  # avoidance/scheduling/notification/validation

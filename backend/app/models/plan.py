@@ -1,7 +1,8 @@
 import uuid
+from app.types import GUIDTypeDecorator as Guid
 from datetime import datetime
 from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Integer, JSON, Text, Enum
-from sqlalchemy.dialects.postgresql import UUID
+# from sqlalchemy.dialects.postgresql import UUID (removed for cross-db)
 from sqlalchemy.orm import relationship
 from app.database import Base
 import enum
@@ -19,7 +20,7 @@ class PlanStatus(str, enum.Enum):
 class Plan(Base):
     __tablename__ = "plans"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Guid, primary_key=True, default=uuid.uuid4)
     name = Column(String(256), nullable=False)
     round_name = Column(String(64))  # 第X轮巡察
     year = Column(Integer, nullable=False)
@@ -34,9 +35,9 @@ class Plan(Base):
     version = Column(Integer, default=1)
     version_history = Column(JSON, default=list)
     approval_comment = Column(Text)
-    approved_by = Column(UUID(as_uuid=True))
+    approved_by = Column(Guid)
     is_active = Column(Boolean, default=True)
-    created_by = Column(UUID(as_uuid=True), nullable=False)
+    created_by = Column(Guid, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -44,9 +45,9 @@ class Plan(Base):
 class PlanVersion(Base):
     __tablename__ = "plan_versions"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    plan_id = Column(UUID(as_uuid=True), ForeignKey("plans.id", ondelete="CASCADE"), nullable=False)
+    id = Column(Guid, primary_key=True, default=uuid.uuid4)
+    plan_id = Column(Guid, ForeignKey("plans.id", ondelete="CASCADE"), nullable=False)
     version = Column(Integer, nullable=False)
     data = Column(JSON, nullable=False)
-    created_by = Column(UUID(as_uuid=True), nullable=False)
+    created_by = Column(Guid, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)

@@ -1,7 +1,8 @@
 import uuid
+from app.types import GUIDTypeDecorator as Guid
 from datetime import datetime
 from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, Text, JSON
-from sqlalchemy.dialects.postgresql import UUID
+# from sqlalchemy.dialects.postgresql import UUID (removed for cross-db)
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -9,10 +10,10 @@ from app.database import Base
 class Unit(Base):
     __tablename__ = "units"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Guid, primary_key=True, default=uuid.uuid4)
     name = Column(String(256), nullable=False)
     org_code = Column(String(32), unique=True, nullable=False, index=True)
-    parent_id = Column(UUID(as_uuid=True), ForeignKey("units.id", ondelete="CASCADE"), index=True)
+    parent_id = Column(Guid, ForeignKey("units.id", ondelete="CASCADE"), index=True)
     unit_type = Column(String(32))  # province/city/county/department
     level = Column(Integer, default=1)  # 1=省级, 2=市级, 3=县级
     sort_order = Column(Integer, default=0)
