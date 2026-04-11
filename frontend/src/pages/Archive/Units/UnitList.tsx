@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Table, Button, Space, Modal, message, Form, Input, Select } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Modal, message, Form, Input, Select, Upload } from 'antd';
+import { PlusOutlined, UploadOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import SearchForm from '@/components/common/SearchForm';
-import { getUnits, deleteUnit, createUnit, updateUnit } from '@/api/units';
+import { getUnits, deleteUnit, createUnit, updateUnit, importUnits } from '@/api/units';
 import type { ColumnsType } from 'antd/es/table';
 
 interface Unit {
@@ -40,6 +40,7 @@ const UnitList: React.FC = () => {
   const [searchParams, setSearchParams] = useState<any>({});
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const [editingUnit, setEditingUnit] = useState<Unit | null>(null);
   const [form] = Form.useForm();
   const formRef = useRef<any>(null);
@@ -107,6 +108,18 @@ const UnitList: React.FC = () => {
     }
   };
 
+  const handleImport = async (file: File) => {
+    try {
+      const result = await importUnits(file);
+      message.success(`导入完成：新建${result.created}条，跳过${result.skipped}条`);
+      setImportModalOpen(false);
+      fetchData();
+    } catch {
+      // error handled by axios interceptor
+    }
+    return false; // prevent default upload behavior
+  };
+
   const columns: ColumnsType<Unit> = [
     { title: '单位名称', dataIndex: 'name', key: 'name' },
     { title: '组织编码', dataIndex: 'org_code', key: 'org_code' },
@@ -133,9 +146,14 @@ const UnitList: React.FC = () => {
         onReset={handleReset}
       />
       <div style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
-          新建单位
-        </Button>
+        <Space>
+          <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
+            新建单位
+          </Button>
+          <Button icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)}>
+            导入
+          </Button>
+        </Space>
       </div>
       <Table
         columns={columns}
@@ -205,6 +223,27 @@ const UnitList: React.FC = () => {
             </Space>
           </div>
         </Form>
+      </Modal>
+      <Modal
+        title="导入单位"
+        open={importModalOpen}
+        onCancel={() => setImportModalOpen(false)}
+        footer={null}
+      >
+        <div style={{ padding: '16px 0' }}>
+          <Upload
+            accept=".xlsx"
+            showUploadList={false}
+            beforeUpload={handleImport}
+          >
+            <Button icon={<UploadOutlined />}>选择 Excel 文件 (.xlsx)</Button>
+          </Upload>
+          <div style={{ marginTop: 16, fontSize: 12, color: '#888' }}>
+            <p>必填列：name(单位名称), org_code(组织编码)</p>
+            <p>可选列：unit_type, level, sort_order, tags, profile, is_active</p>
+            <p>说明：org_code 重复的数据会自动跳过</p>
+          </div>
+        </div>
       </Modal>
     </div>
   );

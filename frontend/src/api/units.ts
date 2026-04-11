@@ -17,3 +17,11 @@ export const updateUnit = (id: string, data: any) =>
 
 export const deleteUnit = (id: string) =>
   api.delete(`/units/${id}`);
+
+export const importUnits = (file: File) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return api.post('/units/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then(res => res.data);
+};

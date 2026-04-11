@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import List, Optional
 from uuid import UUID
+import io
 from app.dependencies import get_db, get_current_user
 from app.models.cadre import Cadre
 from app.models.user import User
@@ -104,3 +105,137 @@ async def get_masked_id_card(cadre_id: UUID, db: AsyncSession = Depends(get_db),
         raise HTTPException(status_code=404, detail="Cadre or ID card not found")
     decrypted = decrypt_field(cadre.id_card_encrypted)
     return {"masked": mask_id_card(decrypted)}
+
+
+@router.post("/import")
+async def import_cadres(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    导入干部数据（Excel .xlsx）
+    必填列：name
+    可选列：gender, birth_date, ethnicity, native_place, political_status,
+            education, degree, unit_id, position, rank, tags, profile,
+            resume, achievements(JSON), is_available
+    """
+    import openpyxl
+
+    if not file.filename.endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="仅支持 .xlsx 文件")
+
+    contents = await file.read()
+    wb = openpyxl.load_workbook(io.BytesIO(contents))
+    ws = wb.active
+
+    headers = [str(h.value).strip() if h.value else "" for h in ws[1]]
+    col_map = {h.lower(): i for i, h in enumerate(headers)}
+
+    if "name" not in col_map:
+        raise HTTPException(status_code=400, detail="缺少必填列: name")
+
+    created, skipped, errors = 0, 0, []
+    first_id = None
+    for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+        try:
+            name = row[col_map["name"]]
+            if not name:
+                errors.append(f"第{row_idx}行: name 为空")
+                continue
+
+            # 按姓名查重
+            exist = await db.execute(select(Cadre).where(Cadre.name == str(name).strip()))
+            if exist.scalar_one_or_none():
+                skipped += 1
+                continue
+
+            data = {
+                "name": str(name).strip(),
+                "gender": _cell(row, col_map, "gender"),
+                "birth_date": _date_cell(row, col_map, "birth_date"),
+                "ethnicity": _cell(row, col_map, "ethnicity"),
+                "native_place": _cell(row, col_map, "native_place"),
+                "political_status": _cell(row, col_map, "political_status"),
+                "education": _cell(row, col_map, "education"),
+                "degree": _cell(row, col_map, "degree"),
+                "unit_id": None,
+                "position": _cell(row, col_map, "position"),
+                "rank": _cell(row, col_map, "rank"),
+                "tags": _list_cell(row, col_map, "tags"),
+                "profile": _cell(row, col_map, "profile"),
+                "resume": _cell(row, col_map, "resume"),
+                "achievements": _json_cell(row, col_map, "achievements"),
+                "is_available": _bool_cell(row, col_map, "is_available", default=True),
+            }
+            cadre = Cadre(**{k: v for k, v in data.items() if v is not None})
+            db.add(cadre)
+            await db.flush()
+            if first_id is None:
+                first_id = cadre.id
+            created += 1
+        except Exception as e:
+            errors.append(f"第{row_idx}行: {str(e)}")
+
+    await db.commit()
+    if errors and created == 0:
+        raise HTTPException(status_code=400, detail=f"导入失败: {'; '.join(errors[:5])}")
+
+    if first_id is not None:
+        await write_audit_log(db, current_user.id, "import", "cadre", first_id, {
+            "created": created, "skipped": skipped
+        })
+    return {
+        "message": "导入完成",
+        "created": created,
+        "skipped": skipped,
+        "errors": errors[:10],
+    } if created > 0 else {
+        "message": "无新数据导入（全部重复或为空）",
+        "created": 0,
+        "skipped": skipped,
+        "errors": errors[:10],
+    }
+
+
+def _cell(row, col_map, key):
+    if key not in col_map:
+        return None
+    v = row[col_map[key]]
+    return str(v).strip() if v is not None else None
+
+
+def _date_cell(row, col_map, key):
+    from datetime import date
+    v = _cell(row, col_map, key)
+    if not v:
+        return None
+    try:
+        return date.fromisoformat(str(v).strip())
+    except (ValueError, TypeError):
+        return None
+
+
+def _bool_cell(row, col_map, key, default=False):
+    v = _cell(row, col_map, key)
+    if v is None:
+        return default
+    return str(v).lower() in ("true", "1", "是", "yes")
+
+
+def _list_cell(row, col_map, key):
+    v = _cell(row, col_map, key)
+    if not v:
+        return []
+    return [s.strip() for s in str(v).split(",") if s.strip()]
+
+
+def _json_cell(row, col_map, key):
+    import json
+    v = _cell(row, col_map, key)
+    if not v:
+        return None
+    try:
+        return json.loads(v)
+    except (json.JSONDecodeError, TypeError):
+        return {"raw": v}

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Tag, Modal, message } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Tag, Modal, message, Upload } from 'antd';
+import { PlusOutlined, UploadOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import SearchForm from '@/components/common/SearchForm';
-import { getCadres, deleteCadre } from '@/api/cadres';
+import { getCadres, deleteCadre, importCadres } from '@/api/cadres';
 import type { ColumnsType } from 'antd/es/table';
 
 interface Cadre {
@@ -24,6 +24,7 @@ const CadreList: React.FC = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [searchParams, setSearchParams] = useState<any>({});
+  const [importModalOpen, setImportModalOpen] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -47,6 +48,18 @@ const CadreList: React.FC = () => {
       message.success('删除成功');
       fetchData();
     }});
+  };
+
+  const handleImport = async (file: File) => {
+    try {
+      const result = await importCadres(file);
+      message.success(`导入完成：新建${result.created}条，跳过${result.skipped}条`);
+      setImportModalOpen(false);
+      fetchData();
+    } catch {
+      // error handled by axios interceptor
+    }
+    return false;
   };
 
   const columns: ColumnsType<Cadre> = [
@@ -87,9 +100,14 @@ const CadreList: React.FC = () => {
         onReset={handleReset}
       />
       <div style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => message.info('新建干部')}>
-          新建干部
-        </Button>
+        <Space>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => message.info('新建干部')}>
+            新建干部
+          </Button>
+          <Button icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)}>
+            导入
+          </Button>
+        </Space>
       </div>
       <Table
         columns={columns}
@@ -104,6 +122,27 @@ const CadreList: React.FC = () => {
           showTotal: (t) => `共 ${t} 条`,
         }}
       />
+      <Modal
+        title="导入干部"
+        open={importModalOpen}
+        onCancel={() => setImportModalOpen(false)}
+        footer={null}
+      >
+        <div style={{ padding: '16px 0' }}>
+          <Upload
+            accept=".xlsx"
+            showUploadList={false}
+            beforeUpload={handleImport}
+          >
+            <Button icon={<UploadOutlined />}>选择 Excel 文件 (.xlsx)</Button>
+          </Upload>
+          <div style={{ marginTop: 16, fontSize: 12, color: '#888' }}>
+            <p>必填列：name(姓名)</p>
+            <p>可选列：gender, birth_date, ethnicity, native_place, political_status, education, degree, position, rank, tags, profile, is_available</p>
+            <p>说明：姓名重复的数据会自动跳过</p>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
