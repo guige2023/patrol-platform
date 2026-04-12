@@ -17,7 +17,6 @@ interface PlanData {
   year?: number;
   round_name?: string;
   scope?: string;
-  goals?: string;
   focus_areas?: string;
   authorization_letter?: string;
   authorization_date?: string;
@@ -64,7 +63,7 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
       };
       if (values.round_name) payload.round_name = values.round_name;
       if (values.scope) payload.scope = values.scope;
-      if (values.goals) payload.goals = values.goals;
+
       if (values.focus_areas) payload.focus_areas = values.focus_areas;
       if (values.authorization_letter) payload.authorization_letter = values.authorization_letter;
       if (values.authorization_date) payload.authorization_date = values.authorization_date.format('YYYY-MM-DD');
@@ -98,7 +97,7 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
       <Descriptions.Item label="年份">{planData?.year || '-'}</Descriptions.Item>
       <Descriptions.Item label="轮次">{planData?.round_name || '-'}</Descriptions.Item>
       <Descriptions.Item label="巡察范围">{planData?.scope || '-'}</Descriptions.Item>
-      <Descriptions.Item label="巡察目标">{planData?.goals || '-'}</Descriptions.Item>
+
       <Descriptions.Item label="重点领域">{planData?.focus_areas || '-'}</Descriptions.Item>
       <Descriptions.Item label="授权文书">{planData?.authorization_letter || '-'}</Descriptions.Item>
       <Descriptions.Item label="授权日期">
@@ -144,9 +143,6 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
           </Form.Item>
           <Form.Item name="scope" label="巡察范围">
             <Input.TextArea rows={2} placeholder="请输入巡察范围" />
-          </Form.Item>
-          <Form.Item name="goals" label="巡察目标">
-            <Input.TextArea rows={2} placeholder="请输入巡察目标" />
           </Form.Item>
           <Form.Item name="focus_areas" label="重点领域">
             <Input.TextArea rows={2} placeholder="请输入重点领域" />

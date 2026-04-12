@@ -45,7 +45,7 @@ const UserList: React.FC = () => {
     setEditingUser(record);
     form.setFieldsValue({
       ...record,
-      is_active: record.is_active ? 'true' : 'false',
+      is_active: record.is_active,
     });
     setModalVisible(true);
   };
@@ -95,8 +95,8 @@ const UserList: React.FC = () => {
           </Form.Item>
           <Form.Item name="is_active" label="状态" valuePropName="checked" initialValue={true}>
             <Select placeholder="请选择状态">
-              <Select.Option value="true">启用</Select.Option>
-              <Select.Option value="false">禁用</Select.Option>
+              <Select.Option value={true}>启用</Select.Option>
+              <Select.Option value={false}>禁用</Select.Option>
             </Select>
           </Form.Item>
           <Button type="primary" htmlType="submit" block loading={loading}>{editingUser ? '更新' : '创建'}</Button>

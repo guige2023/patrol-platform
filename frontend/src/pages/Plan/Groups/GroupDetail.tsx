@@ -3,7 +3,7 @@ import { Modal, Form, Input, Select, Button, Space, Table, Tag, message } from '
 import { createGroup, updateGroup, getGroup } from '@/api/groups';
 import { getPlans } from '@/api/plans';
 import { getUnits } from '@/api/units';
-import { getGroupMembers, removeMember } from '@/api/groups';
+import { removeMember } from '@/api/groups';
 
 interface GroupDetailProps {
   open: boolean;
@@ -45,7 +45,9 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
   const [unitOptions, setUnitOptions] = useState<UnitOption[]>([]);
   const [initialLoading, setInitialLoading] = useState(false);
   const [members, setMembers] = useState<any[]>([]);
-  const [, setGroupData] = useState<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // @ts-ignore - kept for future use (authorization_letter, authorization_date)
+  const [groupData, setGroupData] = useState<any>(null);
 
   const isEdit = mode === 'edit';
   const isView = mode === 'view';
@@ -56,7 +58,6 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
       loadOptions();
       if (mode === 'view' || mode === 'edit') {
         loadGroupData(editingId!);
-        loadGroupMembers(editingId!);
       } else {
         form.resetFields();
         setMembers([]);
@@ -96,6 +97,7 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
     try {
       const res = await getGroup(id);
       setGroupData(res);
+      setMembers(res.members || []);
       form.setFieldsValue({
         name: res.name,
         plan_id: res.plan_id,
@@ -110,21 +112,12 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
     }
   };
 
-  const loadGroupMembers = async (id: string) => {
-    try {
-      const res = await getGroupMembers(id);
-      setMembers(Array.isArray(res) ? res : res.items || []);
-    } catch (e) {
-      console.error('Failed to load members', e);
-    }
-  };
-
   const handleRemoveMember = async (cadreId: string) => {
     if (!editingId) return;
     try {
       await removeMember(editingId, cadreId);
       message.success('移除成功');
-      loadGroupMembers(editingId);
+      loadGroupData(editingId);
     } catch (e: any) {
       message.error(e.response?.data?.detail || '移除失败');
     }
@@ -161,7 +154,6 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
   const memberColumns = [
     { title: '姓名', dataIndex: 'cadre_name', key: 'cadre_name' },
     { title: '角色', dataIndex: 'role', key: 'role', render: (r: string) => <Tag color={roleColors[r] || 'default'}>{r}</Tag> },
-    { title: '单位', dataIndex: 'unit_name', key: 'unit_name' },
     { title: '操作', key: 'action', render: (_: any, record: any) => (
       <Button type="link" danger size="small" onClick={() => handleRemoveMember(record.cadre_id)}>移除</Button>
     )},

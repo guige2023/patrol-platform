@@ -12,8 +12,6 @@ interface Unit {
   org_code: string;
   unit_type?: string;
   level?: number;
-  contact_person?: string;
-  contact_phone?: string;
   is_active: boolean;
 }
 
@@ -197,12 +195,6 @@ const UnitList: React.FC = () => {
           <Form.Item name="level" label="级别" rules={[{ required: true, message: '请选择级别' }]}>
             <Select options={LEVEL_OPTIONS} placeholder="请选择级别" />
           </Form.Item>
-          <Form.Item name="contact_person" label="联系人">
-            <Input placeholder="请输入联系人" />
-          </Form.Item>
-          <Form.Item name="contact_phone" label="联系电话">
-            <Input placeholder="请输入联系电话" />
-          </Form.Item>
           <div style={{ textAlign: 'right', marginTop: 16 }}>
             <Space>
               <Button onClick={() => setCreateModalOpen(false)}>取消</Button>
@@ -224,12 +216,6 @@ const UnitList: React.FC = () => {
           </Form.Item>
           <Form.Item name="level" label="级别" rules={[{ required: true, message: '请选择级别' }]}>
             <Select options={LEVEL_OPTIONS} placeholder="请选择级别" />
-          </Form.Item>
-          <Form.Item name="contact_person" label="联系人">
-            <Input placeholder="请输入联系人" />
-          </Form.Item>
-          <Form.Item name="contact_phone" label="联系电话">
-            <Input placeholder="请输入联系电话" />
           </Form.Item>
           <div style={{ textAlign: 'right', marginTop: 16 }}>
             <Space>

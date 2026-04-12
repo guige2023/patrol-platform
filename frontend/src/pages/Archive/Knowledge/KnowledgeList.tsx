@@ -53,6 +53,28 @@ const KnowledgeList: React.FC = () => {
     regulation: 'blue',
     policy: 'green',
     dict: 'orange',
+    guide: 'purple',
+    education: 'cyan',
+    cadre: 'gold',
+    accountability: 'red',
+    inspection: 'geekblue',
+    law: 'volcano',
+    discipline: 'magenta',
+    other: 'default',
+  };
+
+const categoryLabels: Record<string, string> = {
+    regulation: '法规',
+    policy: '政策',
+    dict: '字典',
+    guide: '指南',
+    education: '教育',
+    cadre: '干部',
+    accountability: '问责',
+    inspection: '巡察',
+    law: '法律',
+    discipline: '纪律',
+    other: '其他',
   };
 
   const columns: ColumnsType<Knowledge> = [
@@ -61,7 +83,7 @@ const KnowledgeList: React.FC = () => {
       title: '分类',
       dataIndex: 'category',
       key: 'category',
-      render: (c: string) => <Tag color={categoryColors[c] || 'default'}>{c}</Tag>,
+      render: (c: string) => <Tag color={categoryColors[c] || 'default'}>{categoryLabels[c] || c}</Tag>,
     },
     { title: '版本', dataIndex: 'version', key: 'version' },
     {

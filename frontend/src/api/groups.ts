@@ -9,7 +9,7 @@ export const createGroup = (data: { name: string; plan_id: string; target_unit_i
 export const updateGroup = (id: string, data: any) =>
   api.put(`/groups/${id}`, data).then(res => res.data);
 export const addMember = (groupId: string, cadreId: string, role: string) =>
-  api.post(`/groups/${groupId}/members`, null, { params: { cadre_id: cadreId, role } }).then(res => res.data);
+  api.post(`/groups/${groupId}/members`, { cadre_id: cadreId, role, is_leader: false }).then(res => res.data);
 export const removeMember = (groupId: string, cadreId: string) =>
   api.delete(`/groups/${groupId}/members/${cadreId}`);
 export const getGroupMembers = (groupId: string) =>

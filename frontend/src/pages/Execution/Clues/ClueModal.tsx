@@ -91,14 +91,10 @@ const ClueModal: React.FC<ClueModalProps> = ({ open, clueId, onClose, onSuccess 
   const renderViewMode = () => (
     <Descriptions column={1} bordered size="small" style={{ marginTop: 16 }}>
       <Descriptions.Item label="标题">{clueData?.title || '-'}</Descriptions.Item>
-      <Descriptions.Item label="线索类型">{clueData?.clue_type || '-'}</Descriptions.Item>
       <Descriptions.Item label="状态">{STATUS_OPTIONS.find(s => s.value === clueData?.status)?.label || clueData?.status || '-'}</Descriptions.Item>
       <Descriptions.Item label="内容">{clueData?.content || '-'}</Descriptions.Item>
       <Descriptions.Item label="来源">{clueData?.source || '-'}</Descriptions.Item>
       <Descriptions.Item label="类别">{clueData?.category || '-'}</Descriptions.Item>
-      <Descriptions.Item label="接收单位">{clueData?.receive_unit || '-'}</Descriptions.Item>
-      <Descriptions.Item label="联系人">{clueData?.contact || '-'}</Descriptions.Item>
-      <Descriptions.Item label="联系电话">{clueData?.contact_phone || '-'}</Descriptions.Item>
       <Descriptions.Item label="严重程度">{SEVERITY_OPTIONS[clueData?.severity] || clueData?.severity || '-'}</Descriptions.Item>
       <Descriptions.Item label="移交日期">
         {clueData?.transfer_date ? dayjs(clueData.transfer_date).format('YYYY-MM-DD') : '-'}
@@ -134,19 +130,11 @@ const ClueModal: React.FC<ClueModalProps> = ({ open, clueId, onClose, onSuccess 
           </Form.Item>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <Form.Item name="clue_type" label="线索类型">
-              <Select placeholder="请选择线索类型" allowClear>
-                <Select.Option value="信访举报">信访举报</Select.Option>
-                <Select.Option value="上级交办">上级交办</Select.Option>
-                <Select.Option value="监督检查">监督检查</Select.Option>
-                <Select.Option value="审查调查">审查调查</Select.Option>
-                <Select.Option value="巡视巡察">巡视巡察</Select.Option>
-                <Select.Option value="其他">其他</Select.Option>
-              </Select>
-            </Form.Item>
-
             <Form.Item name="status" label="状态">
               <Select options={STATUS_OPTIONS} placeholder="请选择状态" allowClear />
+            </Form.Item>
+            <Form.Item name="category" label="类别">
+              <Input placeholder="请输入类别" />
             </Form.Item>
           </div>
 
@@ -158,25 +146,6 @@ const ClueModal: React.FC<ClueModalProps> = ({ open, clueId, onClose, onSuccess 
             <Form.Item name="source" label="来源">
               <Input placeholder="请输入来源" />
             </Form.Item>
-            <Form.Item name="category" label="类别">
-              <Input placeholder="请输入类别" />
-            </Form.Item>
-          </div>
-
-          <Form.Item name="receive_unit" label="接收单位">
-            <Input placeholder="请输入接收单位" />
-          </Form.Item>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <Form.Item name="contact" label="联系人">
-              <Input placeholder="请输入联系人" />
-            </Form.Item>
-            <Form.Item name="contact_phone" label="联系电话">
-              <Input placeholder="请输入联系电话" />
-            </Form.Item>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <Form.Item name="severity" label="严重程度">
               <Select placeholder="请选择严重程度" allowClear>
                 <Select.Option value="low">低</Select.Option>
@@ -185,8 +154,14 @@ const ClueModal: React.FC<ClueModalProps> = ({ open, clueId, onClose, onSuccess 
                 <Select.Option value="critical">严重</Select.Option>
               </Select>
             </Form.Item>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <Form.Item name="transfer_date" label="移交日期">
               <DatePicker style={{ width: '100%' }} placeholder="请选择移交日期" />
+            </Form.Item>
+            <Form.Item name="transfer_target" label="移交目标">
+              <Input placeholder="请输入移交目标" />
             </Form.Item>
           </div>
 

@@ -28,8 +28,6 @@ interface CadreData {
   unit_name?: string;
   position?: string;
   rank?: string;
-  party_join_date?: string;
-  hire_date?: string;
   tags?: string[];
   profile?: string;
   resume?: string;
@@ -78,12 +76,6 @@ const CadreModal: React.FC<CadreModalProps> = ({ open, cadreId, onClose, onSucce
       if (payload.birth_date) {
         payload.birth_date = payload.birth_date.format('YYYY-MM-DD');
       }
-      if (payload.party_join_date) {
-        payload.party_join_date = payload.party_join_date.format('YYYY-MM-DD');
-      }
-      if (payload.hire_date) {
-        payload.hire_date = payload.hire_date.format('YYYY-MM-DD');
-      }
       setLoading(true);
       if (cadreId) {
         await updateCadre(cadreId, payload);
@@ -113,12 +105,6 @@ const CadreModal: React.FC<CadreModalProps> = ({ open, cadreId, onClose, onSucce
       if (data.birth_date) {
         data.birth_date = dayjs(data.birth_date);
       }
-      if (data.party_join_date) {
-        data.party_join_date = dayjs(data.party_join_date);
-      }
-      if (data.hire_date) {
-        data.hire_date = dayjs(data.hire_date);
-      }
       form.setFieldsValue(data);
     }
     setEditMode(true);
@@ -142,12 +128,6 @@ const CadreModal: React.FC<CadreModalProps> = ({ open, cadreId, onClose, onSucce
       <Descriptions.Item label="所属单位">{cadreData?.unit_name || '-'}</Descriptions.Item>
       <Descriptions.Item label="职务">{cadreData?.position || '-'}</Descriptions.Item>
       <Descriptions.Item label="职级">{cadreData?.rank || '-'}</Descriptions.Item>
-      <Descriptions.Item label="入党日期">
-        {cadreData?.party_join_date ? dayjs(cadreData.party_join_date).format('YYYY-MM-DD') : '-'}
-      </Descriptions.Item>
-      <Descriptions.Item label="入职日期">
-        {cadreData?.hire_date ? dayjs(cadreData.hire_date).format('YYYY-MM-DD') : '-'}
-      </Descriptions.Item>
       <Descriptions.Item label="标签">
         {cadreData?.tags && cadreData.tags.length > 0
           ? cadreData.tags.map((tag: string) => <Tag key={tag}>{tag}</Tag>)
@@ -282,16 +262,6 @@ const CadreModal: React.FC<CadreModalProps> = ({ open, cadreId, onClose, onSucce
 
             <Form.Item name="rank" label="职级">
               <Input placeholder="请输入职级" />
-            </Form.Item>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <Form.Item name="party_join_date" label="入党日期">
-              <DatePicker style={{ width: '100%' }} placeholder="请选择入党日期" />
-            </Form.Item>
-
-            <Form.Item name="hire_date" label="入职日期">
-              <DatePicker style={{ width: '100%' }} placeholder="请选择入职日期" />
             </Form.Item>
           </div>
 
