@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Tag, Modal, message } from 'antd';
+import { Table, Button, Space, Tag, message } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
-import SearchForm from '@/components/common/SearchForm';
 import { getPlans, submitPlan, approvePlan, publishPlan } from '@/api/plans';
 import PlanDetail from './PlanDetail';
 import type { ColumnsType } from 'antd/es/table';
@@ -80,7 +79,6 @@ const PlanList: React.FC = () => {
   };
 
   const detailMode = editingId ? 'edit' : 'create';
-  const detailTitle = editingId ? '编辑计划' : '新建计划';
 
   const columns: ColumnsType<Plan> = [
     { title: '计划名称', dataIndex: 'name', key: 'name' },

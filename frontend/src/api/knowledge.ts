@@ -4,7 +4,9 @@ export const getKnowledgeList = (params?: { page?: number; page_size?: number; t
   api.get('/knowledge/', { params }).then(res => res.data);
 
 export const getKnowledge = (id: string) =>
-  api.get(`/knowledge/${id}`).then(res => res.data);
+  api.get(`/knowledge/${id}/`).then(res => res.data);
+
+export const getKnowledgeDetail = getKnowledge;
 
 export const createKnowledge = (data: any) =>
   api.post('/knowledge/', data).then(res => res.data);

@@ -41,7 +41,12 @@ export default function Dashboard() {
       .finally(() => setLoading(false))
   }, [])
 
-  if (loading) return <Spin tip="加载中..." style={{ marginTop: 80, marginLeft: '50%' }} />
+  if (loading) return (
+    <div style={{ marginTop: 80, textAlign: 'center' }}>
+      <Spin />
+      <div style={{ marginTop: 8, color: '#999' }}>加载中...</div>
+    </div>
+  )
 
   const cards = [
     { title: '单位档案', value: overview?.unit_count ?? 0, icon: <BankOutlined />, color: '#1890ff' },

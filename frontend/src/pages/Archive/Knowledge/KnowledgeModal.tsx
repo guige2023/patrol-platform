@@ -62,7 +62,7 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
       okText={viewMode ? '编辑' : '保存'}
       confirmLoading={loading}
       width={600}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
         <Form.Item name="title" label="标题" rules={[{ required: true, message: '请输入标题' }]}>

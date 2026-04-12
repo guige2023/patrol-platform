@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Select, Switch, Button, Card, message, Tag } from 'antd';
+import { Form, Input, Select, Switch, Button, Card, message } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';
 import PageHeader from '@/components/common/PageHeader';
 import { getCadreDetail, updateCadre } from '@/api/cadres';

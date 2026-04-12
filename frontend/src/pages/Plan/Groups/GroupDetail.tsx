@@ -135,7 +135,7 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, onCancel, on
           </Space>
         </div>
       }
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" disabled={initialLoading}>
         <Form.Item

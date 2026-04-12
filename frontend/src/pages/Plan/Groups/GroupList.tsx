@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Tag, Modal, message } from 'antd';
+import { Table, Button, Space, Tag } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import { getGroups } from '@/api/groups';
 import GroupDetail from './GroupDetail';
+import GroupMemberModal from './GroupMemberModal';
 import type { ColumnsType } from 'antd/es/table';
 
 interface Group {
@@ -34,6 +35,9 @@ const GroupList: React.FC = () => {
   const [data, setData] = useState<Group[]>([]);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [memberModalOpen, setMemberModalOpen] = useState(false);
+  const [memberGroupId, setMemberGroupId] = useState<string>('');
+  const [memberGroupName, setMemberGroupName] = useState<string>('');
 
   const fetchData = async () => {
     setLoading(true);
@@ -85,7 +89,7 @@ const GroupList: React.FC = () => {
       render: (_, record) => (
         <Space>
           <Button type="link" size="small" onClick={() => openViewModal(record)}>查看</Button>
-          <Button type="link" size="small">添加成员</Button>
+          <Button type="link" size="small" onClick={() => { setMemberGroupId(record.id); setMemberGroupName(record.name); setMemberModalOpen(true); }}>添加成员</Button>
         </Space>
       ),
     },
@@ -103,6 +107,13 @@ const GroupList: React.FC = () => {
         editingId={editingId}
         onCancel={handleDetailCancel}
         onSuccess={handleDetailSuccess}
+      />
+      <GroupMemberModal
+        open={memberModalOpen}
+        groupId={memberGroupId}
+        groupName={memberGroupName}
+        onClose={() => { setMemberModalOpen(false); setMemberGroupId(''); setMemberGroupName(''); }}
+        onSuccess={fetchData}
       />
     </div>
   );

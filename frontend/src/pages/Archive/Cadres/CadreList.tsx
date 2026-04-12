@@ -4,6 +4,8 @@ import { PlusOutlined, UploadOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import SearchForm from '@/components/common/SearchForm';
 import { getCadres, deleteCadre, importCadres } from '@/api/cadres';
+import { useAuthStore } from '@/store/auth';
+import CadreModal from './CadreModal';
 import type { ColumnsType } from 'antd/es/table';
 
 interface Cadre {
@@ -25,6 +27,8 @@ const CadreList: React.FC = () => {
   const [pageSize, setPageSize] = useState(20);
   const [searchParams, setSearchParams] = useState<any>({});
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [cadreModalOpen, setCadreModalOpen] = useState(false);
+  const [cadreId, setCadreId] = useState<string | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -84,7 +88,7 @@ const CadreList: React.FC = () => {
       key: 'action',
       render: (_, record) => (
         <Space>
-          <Button type="link" size="small">查看</Button>
+          <Button type="link" size="small" onClick={() => { setCadreId(record.id); setCadreModalOpen(true); }}>查看</Button>
           <Button type="link" size="small" danger onClick={() => handleDelete(record.id)}>删除</Button>
         </Space>
       ),
@@ -101,11 +105,33 @@ const CadreList: React.FC = () => {
       />
       <div style={{ marginBottom: 16 }}>
         <Space>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => message.info('新建干部')}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => { setCadreId(null); setCadreModalOpen(true); }}>
             新建干部
           </Button>
           <Button icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)}>
             导入
+          </Button>
+          <Button
+            icon={<UploadOutlined />}
+            onClick={async () => {
+              try {
+                const res = await fetch('/api/v1/cadres/export', {
+                  headers: { Authorization: `Bearer ${useAuthStore.getState().token}` },
+                });
+                if (!res.ok) throw new Error('导出失败');
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'cadres_export.csv';
+                a.click();
+                URL.revokeObjectURL(url);
+              } catch {
+                alert('导出失败，请重试');
+              }
+            }}
+          >
+            导出
           </Button>
         </Space>
       </div>
@@ -143,6 +169,12 @@ const CadreList: React.FC = () => {
           </div>
         </div>
       </Modal>
+      <CadreModal
+        open={cadreModalOpen}
+        cadreId={cadreId}
+        onClose={() => { setCadreModalOpen(false); setCadreId(null); }}
+        onSuccess={fetchData}
+      />
     </div>
   );
 };

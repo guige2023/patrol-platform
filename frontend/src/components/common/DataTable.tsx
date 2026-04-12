@@ -1,4 +1,3 @@
-import React from 'react';
 import { Table, Pagination, Space } from 'antd';
 import type { TableProps } from 'antd';
 

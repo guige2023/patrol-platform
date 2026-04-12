@@ -29,6 +29,11 @@ class ClueUpdate(BaseModel):
     is_high_confidential: Optional[bool] = None
 
 
+class ClueTransfer(BaseModel):
+    target: str
+    comment: Optional[str] = None
+
+
 class ClueResponse(ClueBase):
     id: UUID
     status: str

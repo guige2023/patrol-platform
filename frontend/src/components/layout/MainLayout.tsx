@@ -4,11 +4,8 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import {
   DashboardOutlined,
   BankOutlined,
-  TeamOutlined,
-  BookOutlined,
   ProjectOutlined,
   FileTextOutlined,
-  AlertOutlined,
   SettingOutlined,
   LogoutOutlined,
 } from '@ant-design/icons';

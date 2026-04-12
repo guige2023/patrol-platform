@@ -13,17 +13,6 @@ interface DraftDetailProps {
   onSuccess: () => void;
 }
 
-interface Draft {
-  id?: string;
-  title?: string;
-  group_id?: string;
-  unit_id?: string;
-  category?: string;
-  problem_type?: string;
-  severity?: string;
-  content?: string;
-  evidence_summary?: string;
-}
 
 const CATEGORY_OPTIONS = [
   { label: '官僚主义', value: '官僚主义' },

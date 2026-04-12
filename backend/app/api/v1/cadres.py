@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import List, Optional
 from uuid import UUID
-import io
+import io, csv
 from app.dependencies import get_db, get_current_user
 from app.models.cadre import Cadre
 from app.models.user import User
@@ -43,6 +44,62 @@ async def list_cadres(
     
     return PaginatedResponse(
         data=PageResult(items=items, total=total, page=page, page_size=page_size)
+    )
+
+
+@router.get("/export")
+async def export_cadres(
+    name: Optional[str] = None,
+    unit_id: Optional[UUID] = None,
+    is_available: Optional[bool] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Export cadres as CSV (max 10000 rows)."""
+    query = select(Cadre).where(Cadre.is_active == True)
+    if name:
+        query = query.where(Cadre.name.ilike(f"%{name}%"))
+    if unit_id:
+        query = query.where(Cadre.unit_id == unit_id)
+    if is_available is not None:
+        query = query.where(Cadre.is_available == is_available)
+    query = query.order_by(Cadre.created_at.desc()).limit(10000)
+    result = await db.execute(query)
+    cadres = result.scalars().all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "姓名", "性别", "出生日期", "民族", "籍贯", "政治面貌",
+        "学历", "学位", "职务", "职级", "所属单位", "标签",
+        "是否可用", "创建时间",
+    ])
+    for c in cadres:
+        writer.writerow([
+            c.name or "",
+            c.gender or "",
+            str(c.birth_date) if c.birth_date else "",
+            c.ethnicity or "",
+            c.native_place or "",
+            c.political_status or "",
+            c.education or "",
+            c.degree or "",
+            c.position or "",
+            c.rank or "",
+            "",
+            c.tags or "",
+            "是" if c.is_available else "否",
+            c.created_at.strftime("%Y-%m-%d %H:%M") if c.created_at else "",
+        ])
+
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": "attachment; filename=cadres_export.csv",
+            "Content-Type": "text/csv; charset=utf-8-sig",
+        },
     )
 
 
@@ -239,3 +296,4 @@ def _json_cell(row, col_map, key):
         return json.loads(v)
     except (json.JSONDecodeError, TypeError):
         return {"raw": v}
+

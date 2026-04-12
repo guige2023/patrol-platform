@@ -7,7 +7,9 @@ export const getUnitTree = () =>
   api.get('/units/tree').then(res => res.data);
 
 export const getUnit = (id: string) =>
-  api.get(`/units/${id}`).then(res => res.data);
+  api.get(`/units/${id}/`).then(res => res.data);
+
+export const getUnitDetail = getUnit;
 
 export const createUnit = (data: any) =>
   api.post('/units/', data).then(res => res.data);

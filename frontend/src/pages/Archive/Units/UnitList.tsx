@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Table, Button, Space, Modal, message, Form, Input, Select, Upload } from 'antd';
 import { PlusOutlined, UploadOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
@@ -43,7 +43,6 @@ const UnitList: React.FC = () => {
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [editingUnit, setEditingUnit] = useState<Unit | null>(null);
   const [form] = Form.useForm();
-  const formRef = useRef<any>(null);
 
   const fetchData = async () => {
     setLoading(true);

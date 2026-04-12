@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Tag, Modal, message } from 'antd';
+import { Table, Button, Space, Tag, Modal, message, Input } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import { getClues, transferClue } from '@/api/clues';

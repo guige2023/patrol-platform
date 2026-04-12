@@ -6,6 +6,8 @@ export const getCadres = (params?: { page?: number; page_size?: number; name?: s
 export const getCadre = (id: string) =>
   api.get(`/cadres/${id}`).then(res => res.data);
 
+export const getCadreDetail = getCadre;
+
 export const createCadre = (data: any) =>
   api.post('/cadres/', data).then(res => res.data);
 
