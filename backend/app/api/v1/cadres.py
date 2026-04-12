@@ -290,7 +290,7 @@ async def import_cadres(
         "籍贯": "native_place", "政治面貌": "political_status",
         "学历": "education", "学位": "degree",
         "职务(选填)": "position", "职务": "position",
-        "职级(选填)": "rank", "职级": "rank",
+        "职级(选填)": "rank", "职级": "rank", "职级级别": "rank",
         "人员类别": "category", "类别(选填)": "category", "类别": "category",
         "干部类别": "category",
         "标签(逗号分隔)": "tags", "标签": "tags",
