@@ -14,6 +14,7 @@ from app.models.module_config import ModuleConfig
 from app.models.rule_config import RuleConfig
 from app.models.notification import Notification
 from app.models.system_config import SystemConfig
+from app.models.field_option import FieldOption
 
 __all__ = [
     "User", "Role", "Permission",
@@ -25,4 +26,5 @@ __all__ = [
     "Attachment", "AuditLog",
     "ModuleConfig", "RuleConfig", "Notification",
     "SystemConfig",
+    "FieldOption",
 ]

@@ -13,6 +13,7 @@ import RectificationList from './pages/Execution/Rectifications/RectificationLis
 import UserList from './pages/Admin/Users/UserList'
 import AuditLog from './pages/Admin/Audit/AuditLog'
 import ModuleConfig from './pages/Admin/Modules/ModuleConfig'
+import FieldOptionsConfig from './pages/Admin/Fields/FieldOptionsConfig'
 
 function App() {
   return (
@@ -36,6 +37,7 @@ function App() {
         <Route path="admin/users" element={<UserList />} />
         <Route path="admin/audit" element={<AuditLog />} />
         <Route path="admin/modules" element={<ModuleConfig />} />
+        <Route path="admin/fields" element={<FieldOptionsConfig />} />
       </Route>
     </Routes>
   )

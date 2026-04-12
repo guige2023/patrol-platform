@@ -3,6 +3,7 @@ import { Modal, Form, Input, Select, Switch, Space, Button, DatePicker, message,
 import { createClue, updateClue, getClue } from '@/api/clues';
 import dayjs from 'dayjs';
 import { getErrorMessage } from '@/utils/error';
+import { useFieldOptions } from '@/hooks/useFieldOptions';
 
 interface ClueModalProps {
   open: boolean;
@@ -30,6 +31,11 @@ const ClueModal: React.FC<ClueModalProps> = ({ open, clueId, onClose, onSuccess 
   const [loading, setLoading] = useState(false);
   const [isViewMode, setIsViewMode] = useState(false);
   const [clueData, setClueData] = useState<any>(null);
+
+  const { getOptions } = useFieldOptions();
+  const sourceOptions = getOptions('clue_source');
+  const categoryOptions = getOptions('clue_category');
+  const severityOptions = getOptions('clue_severity');
 
   useEffect(() => {
     if (open && clueId) {
@@ -135,7 +141,7 @@ const ClueModal: React.FC<ClueModalProps> = ({ open, clueId, onClose, onSuccess 
               <Select options={STATUS_OPTIONS} placeholder="请选择状态" allowClear />
             </Form.Item>
             <Form.Item name="category" label="类别">
-              <Input placeholder="请输入类别" />
+              <Select options={categoryOptions} placeholder="请选择类别" allowClear showSearch />
             </Form.Item>
           </div>
 
@@ -145,15 +151,10 @@ const ClueModal: React.FC<ClueModalProps> = ({ open, clueId, onClose, onSuccess 
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <Form.Item name="source" label="来源">
-              <Input placeholder="请输入来源" />
+              <Select options={sourceOptions} placeholder="请选择来源" allowClear showSearch />
             </Form.Item>
             <Form.Item name="severity" label="严重程度">
-              <Select placeholder="请选择严重程度" allowClear>
-                <Select.Option value="low">低</Select.Option>
-                <Select.Option value="medium">中</Select.Option>
-                <Select.Option value="high">高</Select.Option>
-                <Select.Option value="critical">严重</Select.Option>
-              </Select>
+              <Select options={severityOptions} placeholder="请选择严重程度" allowClear />
             </Form.Item>
           </div>
 

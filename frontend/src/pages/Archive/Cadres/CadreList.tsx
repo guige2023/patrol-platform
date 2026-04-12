@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Tag, Modal, message, Upload } from 'antd';
-import { PlusOutlined, UploadOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Tag, Modal, message, Upload, List, Alert } from 'antd';
+import { PlusOutlined, UploadOutlined, DownloadOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import SearchForm from '@/components/common/SearchForm';
-import { getCadres, deleteCadre, importCadres, exportCadres } from '@/api/cadres';
+import { getCadres, deleteCadre, importCadres, exportCadres, downloadCadreTemplate } from '@/api/cadres';
 import CadreModal from './CadreModal';
 import type { ColumnsType } from 'antd/es/table';
+import { getErrorMessage } from '@/utils/error';
 
 interface Cadre {
   id: string;
@@ -29,6 +30,7 @@ const CadreList: React.FC = () => {
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [cadreModalOpen, setCadreModalOpen] = useState(false);
   const [cadreId, setCadreId] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -59,9 +61,16 @@ const CadreList: React.FC = () => {
       const result = await importCadres(file);
       message.success(`导入完成：新建${result.created}条，跳过${result.skipped}条`);
       setImportModalOpen(false);
+      setValidationErrors([]);
       fetchData();
-    } catch {
-      // error handled by axios interceptor
+    } catch (e: any) {
+      const detail = e?.response?.data?.detail;
+      if (detail && typeof detail === 'object' && Array.isArray(detail.errors)) {
+        // 字段校验错误 → 弹窗展示
+        setValidationErrors(detail.errors as string[]);
+      } else {
+        message.error(getErrorMessage(e) || '导入失败');
+      }
     }
     return false;
   };
@@ -112,6 +121,9 @@ const CadreList: React.FC = () => {
           <Button icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)}>
             导入
           </Button>
+          <Button icon={<DownloadOutlined />} onClick={() => downloadCadreTemplate()}>
+            下载模板
+          </Button>
           <Button
             icon={<UploadOutlined />}
             onClick={async () => {
@@ -120,7 +132,7 @@ const CadreList: React.FC = () => {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'cadres_export.csv';
+                a.download = '干部人才导出.xlsx';
                 a.click();
                 URL.revokeObjectURL(url);
               } catch {
@@ -148,22 +160,50 @@ const CadreList: React.FC = () => {
       <Modal
         title="导入干部"
         open={importModalOpen}
-        onCancel={() => setImportModalOpen(false)}
+        onCancel={() => { setImportModalOpen(false); setValidationErrors([]); }}
         footer={null}
+        width={640}
       >
         <div style={{ padding: '16px 0' }}>
-          <Upload
-            accept=".xlsx"
-            showUploadList={false}
-            beforeUpload={handleImport}
-          >
-            <Button icon={<UploadOutlined />}>选择 Excel 文件 (.xlsx)</Button>
-          </Upload>
-          <div style={{ marginTop: 16, fontSize: 12, color: '#888' }}>
-            <p>必填列：name(姓名)</p>
-            <p>可选列：gender, birth_date, ethnicity, native_place, political_status, education, degree, position, rank, category, tags, profile, is_available</p>
-            <p>说明：姓名重复的数据会自动跳过</p>
-          </div>
+          {validationErrors.length > 0 && (
+            <Alert
+              type="error"
+              message={`有 ${validationErrors.length} 条数据校验不通过，请修改 Excel 后重新导入`}
+              style={{ marginBottom: 16 }}
+              showIcon
+            />
+          )}
+          <List
+            size="small"
+            bordered
+            dataSource={validationErrors}
+            style={{ maxHeight: 280, overflow: 'auto', marginBottom: 16 }}
+            renderItem={(item: string) => (
+              <List.Item style={{ padding: '8px 12px', fontSize: 13 }}>
+                <span style={{ color: '#cf1322' }}>{item}</span>
+              </List.Item>
+            )}
+          />
+          {validationErrors.length === 0 && (
+            <>
+              <Upload
+                accept=".xlsx"
+                showUploadList={false}
+                beforeUpload={handleImport}
+              >
+                <Button icon={<UploadOutlined />}>选择 Excel 文件 (.xlsx)</Button>
+              </Upload>
+              <div style={{ marginTop: 16, fontSize: 12, color: '#888' }}>
+                <p>必填列：姓名*；可选列：性别、出生日期、民族、籍贯、政治面貌、学历、学位、职务、职级、类别、标签、简历、是否可用</p>
+                <p>说明：姓名重复的数据会自动跳过；职务/职级/类别字段需与"系统管理→字段配置"中的可选值一致</p>
+              </div>
+            </>
+          )}
+          {validationErrors.length > 0 && (
+            <div style={{ textAlign: 'right' }}>
+              <Button onClick={() => setValidationErrors([])}>关闭</Button>
+            </div>
+          )}
         </div>
       </Modal>
       <CadreModal

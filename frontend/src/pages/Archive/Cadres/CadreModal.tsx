@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal, Form, Input, Select, DatePicker, Switch, Space, message, Descriptions, Tag } from 'antd';
 import { getUnits } from '@/api/units';
 import { getCadre, createCadre, updateCadre } from '@/api/cadres';
+import { useFieldOptions } from '@/hooks/useFieldOptions';
 import dayjs from 'dayjs';
 import { getErrorMessage } from '@/utils/error';
 
@@ -35,20 +36,16 @@ interface CadreData {
   resume?: string;
 }
 
-const CADRE_CATEGORY_OPTIONS = [
-  { label: '纪检监察干部', value: '纪检监察干部' },
-  { label: '审计干部', value: '审计干部' },
-  { label: '财务干部', value: '财务干部' },
-  { label: '综合干部', value: '综合干部' },
-  { label: '后备干部', value: '后备干部' },
-];
-
 const CadreModal: React.FC<CadreModalProps> = ({ open, cadreId, onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [form] = Form.useForm();
   const [unitOptions, setUnitOptions] = useState<{ label: string; value: string }[]>([]);
   const [cadreData, setCadreData] = useState<CadreData | null>(null);
+
+  const { getOptions } = useFieldOptions();
+  const categoryOptions = getOptions('cadre_category');
+  const tagsOptions = getOptions('cadre_tags');
 
   useEffect(() => {
     if (open) {
@@ -268,7 +265,13 @@ const CadreModal: React.FC<CadreModalProps> = ({ open, cadreId, onClose, onSucce
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <Form.Item name="position" label="职务">
-              <Input placeholder="请输入职务" />
+              <Select
+                options={categoryOptions.length > 0 ? categoryOptions : [{ label: '请先在字段配置中添加职务选项', value: '' }]}
+                placeholder="请选择职务"
+                allowClear
+                showSearch
+                disabled={categoryOptions.length === 0}
+              />
             </Form.Item>
 
             <Form.Item name="rank" label="职级">
@@ -276,25 +279,26 @@ const CadreModal: React.FC<CadreModalProps> = ({ open, cadreId, onClose, onSucce
             </Form.Item>
           </div>
 
-          <Form.Item name="category" label="类别">
-            <Select
-              options={CADRE_CATEGORY_OPTIONS}
-              placeholder="请选择干部类别"
-              allowClear
-              showSearch
-            />
-          </Form.Item>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <Form.Item name="category" label="类别">
+              <Select
+                options={categoryOptions}
+                placeholder="请选择干部类别"
+                allowClear
+                showSearch
+              />
+            </Form.Item>
 
-          <Form.Item name="tags" label="标签" extra="多个标签用逗号分隔">
-            <Input
-              placeholder="如：优秀干部,后备干部"
-              onChange={(e) => {
-                const val = e.target.value;
-                const tags = val.split(',').map(t => t.trim()).filter(Boolean);
-                form.setFieldValue('tags', tags);
-              }}
-            />
-          </Form.Item>
+            <Form.Item name="tags" label="标签">
+              <Select
+                mode="multiple"
+                options={tagsOptions}
+                placeholder="请选择标签"
+                allowClear
+                maxTagCount={5}
+              />
+            </Form.Item>
+          </div>
 
           <Form.Item name="profile" label="简历">
             <TextArea rows={3} placeholder="请输入简历" />

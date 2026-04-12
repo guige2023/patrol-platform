@@ -4,6 +4,7 @@ import { getGroups } from '@/api/groups';
 import { getUnits } from '@/api/units';
 import { createDraft, updateDraft, getDraft, submitDraft } from '@/api/drafts';
 import { getErrorMessage } from '@/utils/error';
+import { useFieldOptions } from '@/hooks/useFieldOptions';
 
 const { TextArea } = Input;
 
@@ -14,22 +15,6 @@ interface DraftDetailProps {
   onSuccess: () => void;
 }
 
-
-const CATEGORY_OPTIONS = [
-  { label: '官僚主义', value: '官僚主义' },
-  { label: '形式主义', value: '形式主义' },
-  { label: '群众纪律', value: '群众纪律' },
-  { label: '廉洁纪律', value: '廉洁纪律' },
-  { label: '违反中央八项规定精神', value: '违反中央八项规定精神' },
-  { label: '其他', value: '其他' },
-];
-
-const SEVERITY_OPTIONS = [
-  { label: '一般', value: '一般' },
-  { label: '较重', value: '较重' },
-  { label: '严重', value: '严重' },
-];
-
 const DraftDetail: React.FC<DraftDetailProps> = ({ open, editingId, onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [isViewMode, setIsViewMode] = useState(false);
@@ -37,6 +22,11 @@ const DraftDetail: React.FC<DraftDetailProps> = ({ open, editingId, onClose, onS
   const [groupOptions, setGroupOptions] = useState<{ label: string; value: string }[]>([]);
   const [unitOptions, setUnitOptions] = useState<{ label: string; value: string }[]>([]);
   const [draftData, setDraftData] = useState<any>(null);
+
+  const { getOptions } = useFieldOptions();
+  const categoryOptions = getOptions('draft_category');
+  const severityOptions = getOptions('draft_severity');
+  const problemTypeOptions = getOptions('draft_problem_type');
 
   useEffect(() => {
     if (open) {
@@ -193,15 +183,15 @@ const DraftDetail: React.FC<DraftDetailProps> = ({ open, editingId, onClose, onS
           </Form.Item>
 
           <Form.Item name="category" label="类别">
-            <Select options={CATEGORY_OPTIONS} placeholder="请选择类别" allowClear />
+            <Select options={categoryOptions} placeholder="请选择类别" allowClear />
           </Form.Item>
 
           <Form.Item name="problem_type" label="问题类型">
-            <Input placeholder="请输入问题类型" />
+            <Select options={problemTypeOptions} placeholder="请选择问题类型" allowClear showSearch />
           </Form.Item>
 
           <Form.Item name="severity" label="严重程度">
-            <Select options={SEVERITY_OPTIONS} placeholder="请选择严重程度" allowClear />
+            <Select options={severityOptions} placeholder="请选择严重程度" allowClear />
           </Form.Item>
 
           <Form.Item name="content" label="内容">

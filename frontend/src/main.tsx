@@ -6,6 +6,7 @@ import { ConfigProvider, App as AntApp } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import App from './App'
 import './index.css'
+import { FieldOptionsProvider } from './hooks/useFieldOptions'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,9 +22,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <ConfigProvider locale={zhCN}>
         <AntApp>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
+          <FieldOptionsProvider>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </FieldOptionsProvider>
         </AntApp>
       </ConfigProvider>
     </QueryClientProvider>

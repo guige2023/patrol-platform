@@ -32,11 +32,25 @@ export const exportUnits = () => {
   return api.get('/units/export', {
     responseType: 'blob',
   }).then(res => {
-    const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8' });
+    const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = '单位档案.csv';
+    a.download = '单位档案导出.xlsx';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  });
+};
+
+export const downloadUnitTemplate = () => {
+  return api.get('/units/template', {
+    responseType: 'blob',
+  }).then(res => {
+    const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '单位档案导入模板.xlsx';
     a.click();
     window.URL.revokeObjectURL(url);
   });

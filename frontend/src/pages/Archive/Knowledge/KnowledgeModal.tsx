@@ -5,6 +5,7 @@ import { createKnowledge, updateKnowledge, getKnowledge } from '@/api/knowledge'
 import api from '@/api/client';
 import dayjs from 'dayjs';
 import { getErrorMessage } from '@/utils/error';
+import { useFieldOptions } from '@/hooks/useFieldOptions';
 
 interface KnowledgeModalProps {
   open: boolean;
@@ -41,6 +42,9 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
   const [knowledgeData, setKnowledgeData] = useState<KnowledgeData | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
+
+  const { getOptions } = useFieldOptions();
+  const categoryOptions = getOptions('knowledge_category');
 
   useEffect(() => {
     if (open) {
@@ -235,11 +239,7 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
             <Input placeholder="请输入标题" />
           </Form.Item>
           <Form.Item name="category" label="分类" rules={[{ required: true, message: '请选择分类' }]}>
-            <Select placeholder="请选择分类">
-              <Select.Option value="regulation">法规</Select.Option>
-              <Select.Option value="policy">政策</Select.Option>
-              <Select.Option value="dict">字典</Select.Option>
-            </Select>
+            <Select options={categoryOptions} placeholder="请选择分类" />
           </Form.Item>
           <Form.Item name="version" label="版本">
             <Input placeholder="请输入版本" />
