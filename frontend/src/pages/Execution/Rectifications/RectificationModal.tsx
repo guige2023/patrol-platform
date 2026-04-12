@@ -5,6 +5,7 @@ import { getClues } from '@/api/clues';
 import { getDrafts } from '@/api/drafts';
 import { createRectification, updateRectification, getRectification, updateProgress } from '@/api/rectifications';
 import dayjs from 'dayjs';
+import { getErrorMessage } from '@/utils/error';
 
 const { TextArea } = Input;
 
@@ -111,7 +112,7 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
       await updateProgress(rectificationId, values.progress || 0);
       message.success('进度更新成功');
     } catch (err: any) {
-      message.error(err.response?.data?.detail || '进度更新失败');
+      message.error(getErrorMessage(err) || '进度更新失败');
     }
   };
 
@@ -140,7 +141,7 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
       onClose();
     } catch (err: any) {
       if (err.errorFields) return;
-      message.error(err.response?.data?.detail || (rectificationId ? '编辑整改失败' : '派发整改失败'));
+      message.error(getErrorMessage(err) || (rectificationId ? '编辑整改失败' : '派发整改失败'));
     } finally {
       setLoading(false);
     }

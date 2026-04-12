@@ -5,6 +5,7 @@ import PageHeader from '@/components/common/PageHeader';
 import { getRectifications, signRectification, verifyRectification } from '@/api/rectifications';
 import RectificationModal from './RectificationModal';
 import type { ColumnsType } from 'antd/es/table';
+import { getErrorMessage } from '@/utils/error';
 
 interface Rectification {
   id: string;
@@ -70,7 +71,7 @@ const RectificationList: React.FC = () => {
       message.success('签收成功');
       fetchData();
     } catch (e: any) {
-      message.error(e.response?.data?.detail || '签收失败');
+      message.error(getErrorMessage(e) || '签收失败');
     }
   };
 
@@ -80,7 +81,7 @@ const RectificationList: React.FC = () => {
       message.success('审核销号成功');
       fetchData();
     } catch (e: any) {
-      message.error(e.response?.data?.detail || '审核失败');
+      message.error(getErrorMessage(e) || '审核失败');
     }
   };
 

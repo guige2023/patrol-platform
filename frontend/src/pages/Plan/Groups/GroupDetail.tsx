@@ -5,6 +5,7 @@ import { getPlans } from '@/api/plans';
 import { getUnits } from '@/api/units';
 import { removeMember, addMember } from '@/api/groups';
 import { getCadres } from '@/api/cadres';
+import { getErrorMessage } from '@/utils/error';
 
 interface GroupDetailProps {
   open: boolean;
@@ -151,7 +152,7 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
       message.success('移除成功');
       loadGroupData(editingId);
     } catch (e: any) {
-      message.error(e.response?.data?.detail || '移除失败');
+      message.error(getErrorMessage(e) || '移除失败');
     }
   };
 
@@ -169,7 +170,7 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
       onSuccess();
     } catch (err: any) {
       if (err.errorFields) return;
-      message.error(err.response?.data?.detail || (isEdit ? '更新失败' : '新建失败'));
+      message.error(getErrorMessage(err) || (isEdit ? '更新失败' : '新建失败'));
     } finally {
       setSubmitLoading(false);
     }

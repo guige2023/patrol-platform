@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Modal, Form, Input, Select, Switch, Space, Button, DatePicker, message, Descriptions } from 'antd';
 import { createClue, updateClue, getClue } from '@/api/clues';
 import dayjs from 'dayjs';
+import { getErrorMessage } from '@/utils/error';
 
 interface ClueModalProps {
   open: boolean;
@@ -70,7 +71,7 @@ const ClueModal: React.FC<ClueModalProps> = ({ open, clueId, onClose, onSuccess 
       onClose();
     } catch (e: any) {
       if (!e.errorFields) {
-        message.error(e.response?.data?.detail || '操作失败');
+        message.error(getErrorMessage(e) || '操作失败');
       }
     } finally {
       setLoading(false);

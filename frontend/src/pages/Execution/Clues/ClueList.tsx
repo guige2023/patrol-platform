@@ -5,6 +5,7 @@ import PageHeader from '@/components/common/PageHeader';
 import { getClues, transferClue } from '@/api/clues';
 import ClueModal from './ClueModal';
 import type { ColumnsType } from 'antd/es/table';
+import { getErrorMessage } from '@/utils/error';
 
 interface Clue {
   id: string;
@@ -90,7 +91,7 @@ const ClueList: React.FC = () => {
           message.success('移交成功');
           fetchData();
         } catch (e: any) {
-          message.error(e.response?.data?.detail || '移交失败');
+          message.error(getErrorMessage(e) || '移交失败');
         }
       },
     });

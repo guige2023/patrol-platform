@@ -3,6 +3,7 @@ import { Form, Input, Button, Card, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth';
+import { getErrorMessage } from '@/utils/error';
 
 const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -16,7 +17,7 @@ const Login: React.FC = () => {
       message.success('登录成功');
       navigate('/');
     } catch (e: any) {
-      message.error(e.response?.data?.detail || '登录失败');
+      message.error(getErrorMessage(e) || '登录失败');
     } finally {
       setLoading(false);
     }

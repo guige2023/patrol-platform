@@ -3,6 +3,7 @@ import { Modal, Form, Input, Select, DatePicker, Switch, Space, message, Descrip
 import { getUnits } from '@/api/units';
 import { getCadre, createCadre, updateCadre } from '@/api/cadres';
 import dayjs from 'dayjs';
+import { getErrorMessage } from '@/utils/error';
 
 const { TextArea } = Input;
 
@@ -97,7 +98,7 @@ const CadreModal: React.FC<CadreModalProps> = ({ open, cadreId, onClose, onSucce
       onClose();
     } catch (err: any) {
       if (err.errorFields) return;
-      message.error(err.response?.data?.detail || (cadreId ? '保存失败' : '新建失败'));
+      message.error(getErrorMessage(err) || (cadreId ? '保存失败' : '新建失败'));
     } finally {
       setLoading(false);
     }

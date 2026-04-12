@@ -3,6 +3,7 @@ import { Modal, Form, Input, Select, Button, Space, message, Descriptions, Switc
 import { getGroups } from '@/api/groups';
 import { getUnits } from '@/api/units';
 import { createDraft, updateDraft, getDraft, submitDraft } from '@/api/drafts';
+import { getErrorMessage } from '@/utils/error';
 
 const { TextArea } = Input;
 
@@ -102,7 +103,7 @@ const DraftDetail: React.FC<DraftDetailProps> = ({ open, editingId, onClose, onS
       form.resetFields();
     } catch (err: any) {
       if (err.errorFields) return;
-      message.error(err.response?.data?.detail || (editingId ? '编辑底稿失败' : '新建底稿失败'));
+      message.error(getErrorMessage(err) || (editingId ? '编辑底稿失败' : '新建底稿失败'));
     } finally {
       setLoading(false);
     }
@@ -117,7 +118,7 @@ const DraftDetail: React.FC<DraftDetailProps> = ({ open, editingId, onClose, onS
       onSuccess();
       onClose();
     } catch (err: any) {
-      message.error(err.response?.data?.detail || '提交失败');
+      message.error(getErrorMessage(err) || '提交失败');
     } finally {
       setLoading(false);
     }

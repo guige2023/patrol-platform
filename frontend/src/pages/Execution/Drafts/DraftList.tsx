@@ -6,6 +6,7 @@ import SearchForm from '@/components/common/SearchForm';
 import { getDrafts, submitDraft, deleteDraft } from '@/api/drafts';
 import DraftDetail from './DraftDetail';
 import type { ColumnsType } from 'antd/es/table';
+import { getErrorMessage } from '@/utils/error';
 
 interface Draft {
   id: string;
@@ -65,7 +66,7 @@ const DraftList: React.FC = () => {
       message.success('提交成功');
       fetchData();
     } catch (e: any) {
-      message.error(e.response?.data?.detail || '提交失败');
+      message.error(getErrorMessage(e) || '提交失败');
     }
   };
 

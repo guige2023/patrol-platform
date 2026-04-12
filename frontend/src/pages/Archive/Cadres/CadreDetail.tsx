@@ -3,6 +3,7 @@ import { Form, Input, Select, Switch, Button, Card, message } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';
 import PageHeader from '@/components/common/PageHeader';
 import { getCadreDetail, updateCadre } from '@/api/cadres';
+import { getErrorMessage } from '@/utils/error';
 
 const CadreDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -25,7 +26,7 @@ const CadreDetail: React.FC = () => {
       message.success('保存成功');
       navigate('/archive/cadres');
     } catch (e: any) {
-      message.error(e.response?.data?.detail || '保存失败');
+      message.error(getErrorMessage(e) || '保存失败');
     } finally {
       setLoading(false);
     }

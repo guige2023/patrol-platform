@@ -3,6 +3,7 @@ import { Form, Input, Select, Switch, Button, Card, message } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';
 import PageHeader from '@/components/common/PageHeader';
 import { getKnowledgeDetail, updateKnowledge } from '@/api/knowledge';
+import { getErrorMessage } from '@/utils/error';
 
 const KnowledgeDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -25,7 +26,7 @@ const KnowledgeDetail: React.FC = () => {
       message.success('保存成功');
       navigate('/archive/knowledge');
     } catch (e: any) {
-      message.error(e.response?.data?.detail || '保存失败');
+      message.error(getErrorMessage(e) || '保存失败');
     } finally {
       setLoading(false);
     }

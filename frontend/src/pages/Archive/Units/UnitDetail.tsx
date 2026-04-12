@@ -3,6 +3,7 @@ import { Form, Input, Button, Card, message } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';
 import PageHeader from '@/components/common/PageHeader';
 import { getUnitDetail, updateUnit } from '@/api/units';
+import { getErrorMessage } from '@/utils/error';
 
 const UnitDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -25,7 +26,7 @@ const UnitDetail: React.FC = () => {
       message.success('保存成功');
       navigate('/archive/units');
     } catch (e: any) {
-      message.error(e.response?.data?.detail || '保存失败');
+      message.error(getErrorMessage(e) || '保存失败');
     } finally {
       setLoading(false);
     }

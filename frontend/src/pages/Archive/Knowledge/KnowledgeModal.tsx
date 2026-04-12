@@ -4,6 +4,7 @@ import { UploadOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/ic
 import { createKnowledge, updateKnowledge, getKnowledge } from '@/api/knowledge';
 import api from '@/api/client';
 import dayjs from 'dayjs';
+import { getErrorMessage } from '@/utils/error';
 
 interface KnowledgeModalProps {
   open: boolean;
@@ -74,7 +75,7 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
       setAttachments(prev => [...prev, res.data || res]);
       message.success('上传成功');
     } catch (e: any) {
-      message.error(e.response?.data?.detail || '上传失败');
+      message.error(getErrorMessage(e) || '上传失败');
     } finally {
       setUploading(false);
     }
@@ -108,7 +109,7 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
       setAttachments(prev => prev.filter(a => a.filename !== att.filename));
       message.success('删除成功');
     } catch (e: any) {
-      message.error(e.response?.data?.detail || '删除失败');
+      message.error(getErrorMessage(e) || '删除失败');
     }
   };
 
@@ -133,7 +134,7 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
       onClose();
     } catch (e: any) {
       if (e.errorFields) return;
-      message.error(e.response?.data?.detail || '操作失败');
+      message.error(getErrorMessage(e) || '操作失败');
     } finally {
       setLoading(false);
     }

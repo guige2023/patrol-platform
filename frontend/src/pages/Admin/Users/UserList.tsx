@@ -3,6 +3,7 @@ import { Table, Button, Space, Modal, Form, Input, Select, Switch, message } fro
 import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import { getUsers, createUser, updateUser } from '@/api/admin';
+import { getErrorMessage } from '@/utils/error';
 
 const UserList: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -37,7 +38,7 @@ const UserList: React.FC = () => {
       form.resetFields();
       fetchData();
     } catch (e: any) {
-      message.error(e.response?.data?.detail || (editingUser ? '更新失败' : '创建失败'));
+      message.error(getErrorMessage(e) || (editingUser ? '更新失败' : '创建失败'));
     }
   };
 

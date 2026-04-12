@@ -8,6 +8,7 @@ import { getPlans } from '@/api/plans';
 import { getUnits } from '@/api/units';
 import { getCadres } from '@/api/cadres';
 import { createGroup } from '@/api/groups';
+import { getErrorMessage } from '@/utils/error';
 
 const { Text } = Typography;
 
@@ -203,7 +204,7 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
       onSuccess();
       onClose();
     } catch (e: any) {
-      message.error(e.response?.data?.detail || '创建失败');
+      message.error(getErrorMessage(e) || '创建失败');
     } finally {
       setSubmitting(false);
     }

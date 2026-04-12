@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Form, Input, Button, Space, Modal, message, DatePicker, Descriptions } from 'antd';
 import { getPlan, createPlan, updatePlan } from '@/api/plans';
 import dayjs from 'dayjs';
+import { getErrorMessage } from '@/utils/error';
 
 interface PlanDetailProps {
   open: boolean;
@@ -85,7 +86,7 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
       form.resetFields();
     } catch (err: any) {
       if (err.errorFields) return;
-      message.error(err.response?.data?.detail || '操作失败');
+      message.error(getErrorMessage(err) || '操作失败');
     } finally {
       setLoading(false);
     }

@@ -6,6 +6,7 @@ import { getPlans, submitPlan, approvePlan, publishPlan } from '@/api/plans';
 import PlanDetail from './PlanDetail';
 import CreatePlanModal from './CreatePlanModal';
 import type { ColumnsType } from 'antd/es/table';
+import { getErrorMessage } from '@/utils/error';
 
 interface Plan {
   id: string;
@@ -67,7 +68,7 @@ const PlanList: React.FC = () => {
       message.success(`${action} 成功`);
       fetchData();
     } catch (e: any) {
-      message.error(e.response?.data?.detail || '操作失败');
+      message.error(getErrorMessage(e) || '操作失败');
     }
   };
 
