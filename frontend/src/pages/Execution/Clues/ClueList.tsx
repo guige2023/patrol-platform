@@ -18,9 +18,23 @@ interface Clue {
 
 const statusColors: Record<string, string> = {
   registered: 'processing',
-  transferring: 'warning',
   transferred: 'success',
+  processed: 'warning',
   closed: 'default',
+};
+
+const statusLabels: Record<string, string> = {
+  registered: '已登记',
+  transferred: '已移交',
+  processed: '已处置',
+  closed: '已关闭',
+};
+
+const severityLabels: Record<string, string> = {
+  low: '一般',
+  medium: '较重',
+  high: '重要',
+  critical: '重大',
 };
 
 const ClueList: React.FC = () => {
@@ -86,12 +100,12 @@ const ClueList: React.FC = () => {
     { title: '标题', dataIndex: 'title', key: 'title' },
     { title: '来源', dataIndex: 'source', key: 'source' },
     { title: '类别', dataIndex: 'category', key: 'category' },
-    { title: '严重程度', dataIndex: 'severity', key: 'severity' },
+    { title: '严重程度', dataIndex: 'severity', key: 'severity', render: (v: string) => severityLabels[v] || v || '-' },
     {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      render: (s: string) => <Tag color={statusColors[s] || 'default'}>{s}</Tag>,
+      render: (s: string) => <Tag color={statusColors[s] || 'default'}>{statusLabels[s] || s}</Tag>,
     },
     { title: '创建时间', dataIndex: 'created_at', key: 'created_at', render: (t: string) => t?.split('T')[0] },
     {

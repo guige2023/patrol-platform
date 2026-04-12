@@ -3,8 +3,7 @@ import { Table, Button, Space, Tag, Modal, message, Upload } from 'antd';
 import { PlusOutlined, UploadOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import SearchForm from '@/components/common/SearchForm';
-import { getCadres, deleteCadre, importCadres } from '@/api/cadres';
-import { useAuthStore } from '@/store/auth';
+import { getCadres, deleteCadre, importCadres, exportCadres } from '@/api/cadres';
 import CadreModal from './CadreModal';
 import type { ColumnsType } from 'antd/es/table';
 
@@ -115,11 +114,7 @@ const CadreList: React.FC = () => {
             icon={<UploadOutlined />}
             onClick={async () => {
               try {
-                const res = await fetch('/api/v1/cadres/export', {
-                  headers: { Authorization: `Bearer ${useAuthStore.getState().token}` },
-                });
-                if (!res.ok) throw new Error('导出失败');
-                const blob = await res.blob();
+                const blob = await exportCadres();
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -127,7 +122,7 @@ const CadreList: React.FC = () => {
                 a.click();
                 URL.revokeObjectURL(url);
               } catch {
-                alert('导出失败，请重试');
+                message.error('导出失败，请重试');
               }
             }}
           >

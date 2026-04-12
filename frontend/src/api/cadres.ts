@@ -24,3 +24,6 @@ export const importCadres = (file: File) => {
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then(res => res.data);
 };
+
+export const exportCadres = () =>
+  api.get('/cadres/export', { responseType: 'blob' }).then(res => res.data);

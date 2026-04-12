@@ -31,6 +31,20 @@ const LEVEL_OPTIONS = [
   { label: '县处级', value: 3 },
 ];
 
+const UNIT_TYPE_LABELS: Record<string, string> = {
+  party: '党委',
+  discipline: '纪委',
+  organization: '组织部',
+  propaganda: '宣传部',
+  government: '政府',
+};
+
+const LEVEL_LABELS: Record<number, string> = {
+  1: '正厅级',
+  2: '副厅级',
+  3: '县处级',
+};
+
 const UnitList: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<Unit[]>([]);
@@ -124,8 +138,8 @@ const UnitList: React.FC = () => {
   const columns: ColumnsType<Unit> = [
     { title: '单位名称', dataIndex: 'name', key: 'name' },
     { title: '组织编码', dataIndex: 'org_code', key: 'org_code' },
-    { title: '类型', dataIndex: 'unit_type', key: 'unit_type' },
-    { title: '级别', dataIndex: 'level', key: 'level' },
+    { title: '类型', dataIndex: 'unit_type', key: 'unit_type', render: (v: string) => UNIT_TYPE_LABELS[v] || v },
+    { title: '级别', dataIndex: 'level', key: 'level', render: (v: number) => LEVEL_LABELS[v] || v },
     {
       title: '操作',
       key: 'action',

@@ -24,6 +24,18 @@ const statusColors: Record<string, string> = {
   rejected: 'error',
 };
 
+const statusLabels: Record<string, string> = {
+  drafted: '草稿',
+  submitted: '已提交',
+  approved: '已批准',
+  dispatched: '已派发',
+  signed: '已签收',
+  progressing: '整改中',
+  completed: '已完成',
+  verified: '已验收',
+  rejected: '已驳回',
+};
+
 const alertColors: Record<string, string> = {
   green: '#52c41a',
   yellow: '#faad14',
@@ -78,7 +90,7 @@ const RectificationList: React.FC = () => {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      render: (s: string) => <Tag color={statusColors[s] || 'default'}>{s}</Tag>,
+      render: (s: string) => <Tag color={statusColors[s] || 'default'}>{statusLabels[s] || s}</Tag>,
     },
     {
       title: '进度',

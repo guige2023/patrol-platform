@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Form, Input, Select, Button, Space, DatePicker, message } from 'antd';
+import { Modal, Form, Input, Select, Button, Space, DatePicker, message, Descriptions, Switch } from 'antd';
 import { getGroups } from '@/api/groups';
 import { getUnits } from '@/api/units';
 import { createDraft, updateDraft, getDraft, submitDraft } from '@/api/drafts';
@@ -32,17 +32,22 @@ const SEVERITY_OPTIONS = [
 
 const DraftDetail: React.FC<DraftDetailProps> = ({ open, editingId, onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
+  const [isViewMode, setIsViewMode] = useState(false);
   const [form] = Form.useForm();
   const [groupOptions, setGroupOptions] = useState<{ label: string; value: string }[]>([]);
   const [unitOptions, setUnitOptions] = useState<{ label: string; value: string }[]>([]);
+  const [draftData, setDraftData] = useState<any>(null);
 
   useEffect(() => {
     if (open) {
       fetchGroups();
       fetchUnits();
       if (editingId) {
+        setIsViewMode(true);
         fetchDraftData(editingId);
       } else {
+        setIsViewMode(false);
+        setDraftData(null);
         form.resetFields();
       }
     }
@@ -78,6 +83,7 @@ const DraftDetail: React.FC<DraftDetailProps> = ({ open, editingId, onClose, onS
       if (data.investigation_end_date) {
         data.investigation_end_date = dayjs(data.investigation_end_date);
       }
+      setDraftData(res);
       form.setFieldsValue(data);
     } catch {
       message.error('获取底稿详情失败');
@@ -136,84 +142,135 @@ const DraftDetail: React.FC<DraftDetailProps> = ({ open, editingId, onClose, onS
     onClose();
   };
 
+  const handleSwitchToEdit = () => {
+    if (draftData) {
+      const data: any = { ...draftData };
+      if (data.investigation_start_date && typeof data.investigation_start_date === 'string') {
+        data.investigation_start_date = dayjs(data.investigation_start_date);
+      }
+      if (data.investigation_end_date && typeof data.investigation_end_date === 'string') {
+        data.investigation_end_date = dayjs(data.investigation_end_date);
+      }
+      form.setFieldsValue(data);
+    }
+    setIsViewMode(false);
+  };
+
+  const getGroupName = (id: string) => groupOptions.find(g => g.value === id)?.label || id;
+  const getUnitName = (id: string) => unitOptions.find(u => u.value === id)?.label || id;
+
+  const renderViewMode = () => (
+    <Descriptions column={1} bordered size="small" style={{ marginTop: 16 }}>
+      <Descriptions.Item label="标题">{draftData?.title || '-'}</Descriptions.Item>
+      <Descriptions.Item label="巡察组">{draftData?.group_name || getGroupName(draftData?.group_id) || '-'}</Descriptions.Item>
+      <Descriptions.Item label="被巡察单位">{draftData?.unit_name || getUnitName(draftData?.unit_id) || '-'}</Descriptions.Item>
+      <Descriptions.Item label="调查开始日期">
+        {draftData?.investigation_start_date ? dayjs(draftData.investigation_start_date).format('YYYY-MM-DD') : '-'}
+      </Descriptions.Item>
+      <Descriptions.Item label="调查结束日期">
+        {draftData?.investigation_end_date ? dayjs(draftData.investigation_end_date).format('YYYY-MM-DD') : '-'}
+      </Descriptions.Item>
+      <Descriptions.Item label="地点">{draftData?.location || '-'}</Descriptions.Item>
+      <Descriptions.Item label="类别">{draftData?.category || '-'}</Descriptions.Item>
+      <Descriptions.Item label="问题类型">{draftData?.problem_type || '-'}</Descriptions.Item>
+      <Descriptions.Item label="严重程度">{draftData?.severity || '-'}</Descriptions.Item>
+      <Descriptions.Item label="参与人员">{draftData?.participants || '-'}</Descriptions.Item>
+      <Descriptions.Item label="内容">{draftData?.content || '-'}</Descriptions.Item>
+      <Descriptions.Item label="证据摘要">{draftData?.evidence_summary || '-'}</Descriptions.Item>
+    </Descriptions>
+  );
+
   return (
     <Modal
-      title={editingId ? '查看/编辑底稿' : '新建底稿'}
+      title={editingId ? '底稿详情' : '新建底稿'}
       open={open}
       onCancel={handleCancel}
       width={700}
+      footer={null}
     >
-      <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-        <Form.Item
-          name="title"
-          label="标题"
-          rules={[{ required: true, message: '请输入标题' }]}
-        >
-          <Input placeholder="请输入标题" />
-        </Form.Item>
-
-        <Form.Item
-          name="group_id"
-          label="巡察组"
-          rules={[{ required: true, message: '请选择巡察组' }]}
-        >
-          <Select options={groupOptions} placeholder="请选择巡察组" />
-        </Form.Item>
-
-        <Form.Item name="unit_id" label="被巡察单位">
-          <Select options={unitOptions} placeholder="请选择被巡察单位" allowClear showSearch />
-        </Form.Item>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <Form.Item name="investigation_start_date" label="调查开始日期">
-            <DatePicker style={{ width: '100%' }} placeholder="请选择开始日期" />
-          </Form.Item>
-          <Form.Item name="investigation_end_date" label="调查结束日期">
-            <DatePicker style={{ width: '100%' }} placeholder="请选择结束日期" />
-          </Form.Item>
+      {editingId && (
+        <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'flex-end' }}>
+          <Switch
+            checkedChildren="编辑模式"
+            unCheckedChildren="查看模式"
+            checked={!isViewMode}
+            onChange={(v) => v ? handleSwitchToEdit() : setIsViewMode(true)}
+          />
         </div>
-
-        <Form.Item name="location" label="地点">
-          <Input placeholder="请输入地点" />
-        </Form.Item>
-
-        <Form.Item name="category" label="类别">
-          <Select options={CATEGORY_OPTIONS} placeholder="请选择类别" allowClear />
-        </Form.Item>
-
-        <Form.Item name="problem_type" label="问题类型">
-          <Input placeholder="请输入问题类型" />
-        </Form.Item>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <Form.Item name="severity" label="严重程度">
-            <Select options={SEVERITY_OPTIONS} placeholder="请选择严重程度" allowClear />
+      )}
+      {editingId && isViewMode ? renderViewMode() : (
+        <Form form={form} layout="vertical" style={{ marginTop: editingId ? 0 : 0 }}>
+          <Form.Item
+            name="title"
+            label="标题"
+            rules={[{ required: true, message: '请输入标题' }]}
+          >
+            <Input placeholder="请输入标题" />
           </Form.Item>
-          <Form.Item name="participants" label="参与人员">
-            <Input placeholder="请输入参与人员" />
+
+          <Form.Item
+            name="group_id"
+            label="巡察组"
+            rules={[{ required: true, message: '请选择巡察组' }]}
+          >
+            <Select options={groupOptions} placeholder="请选择巡察组" />
           </Form.Item>
-        </div>
 
-        <Form.Item name="content" label="内容">
-          <TextArea rows={4} placeholder="请输入内容" />
-        </Form.Item>
+          <Form.Item name="unit_id" label="被巡察单位">
+            <Select options={unitOptions} placeholder="请选择被巡察单位" allowClear showSearch />
+          </Form.Item>
 
-        <Form.Item name="evidence_summary" label="证据摘要">
-          <TextArea rows={4} placeholder="请输入证据摘要" />
-        </Form.Item>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <Form.Item name="investigation_start_date" label="调查开始日期">
+              <DatePicker style={{ width: '100%' }} placeholder="请选择开始日期" />
+            </Form.Item>
+            <Form.Item name="investigation_end_date" label="调查结束日期">
+              <DatePicker style={{ width: '100%' }} placeholder="请选择结束日期" />
+            </Form.Item>
+          </div>
 
-        <div style={{ textAlign: 'right', marginTop: 16 }}>
-          <Space>
-            <Button onClick={handleCancel}>取消</Button>
-            {editingId && (
-              <Button onClick={handleSubmitDraft} loading={loading}>提交</Button>
-            )}
-            <Button type="primary" onClick={handleSubmit} loading={loading}>
-              {editingId ? '保存' : '创建'}
-            </Button>
-          </Space>
-        </div>
-      </Form>
+          <Form.Item name="location" label="地点">
+            <Input placeholder="请输入地点" />
+          </Form.Item>
+
+          <Form.Item name="category" label="类别">
+            <Select options={CATEGORY_OPTIONS} placeholder="请选择类别" allowClear />
+          </Form.Item>
+
+          <Form.Item name="problem_type" label="问题类型">
+            <Input placeholder="请输入问题类型" />
+          </Form.Item>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <Form.Item name="severity" label="严重程度">
+              <Select options={SEVERITY_OPTIONS} placeholder="请选择严重程度" allowClear />
+            </Form.Item>
+            <Form.Item name="participants" label="参与人员">
+              <Input placeholder="请输入参与人员" />
+            </Form.Item>
+          </div>
+
+          <Form.Item name="content" label="内容">
+            <TextArea rows={4} placeholder="请输入内容" />
+          </Form.Item>
+
+          <Form.Item name="evidence_summary" label="证据摘要">
+            <TextArea rows={4} placeholder="请输入证据摘要" />
+          </Form.Item>
+
+          <div style={{ textAlign: 'right', marginTop: 16, borderTop: '1px solid #f0f0f0', paddingTop: 16 }}>
+            <Space>
+              <Button onClick={handleCancel}>取消</Button>
+              {editingId && !isViewMode && (
+                <Button onClick={handleSubmitDraft} loading={loading}>提交</Button>
+              )}
+              <Button type="primary" onClick={handleSubmit} loading={loading}>
+                {editingId ? '保存' : '创建'}
+              </Button>
+            </Space>
+          </div>
+        </Form>
+      )}
     </Modal>
   );
 };
