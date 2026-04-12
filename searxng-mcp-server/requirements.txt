@@ -1,0 +1,24 @@
+# SearXNG MCP Server 依赖
+# Python >= 3.9
+
+# Web 框架
+starlette>=0.27.0
+uvicorn[standard]>=0.23.0
+
+# HTTP 客户端
+httpx[http2]>=0.25.0
+
+# HTML 解析
+beautifulsoup4>=4.12.0
+trafilatura>=1.6.0
+lxml>=4.9.0
+
+# 配置和工具
+pyyaml>=6.0.1
+python-dotenv>=1.0.0
+
+# 开发依赖（可选）
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+black>=23.0.0
+mypy>=1.5.0
