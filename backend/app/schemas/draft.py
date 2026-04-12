@@ -15,7 +15,7 @@ class DraftBase(BaseModel):
 
 
 class DraftCreate(DraftBase):
-    group_id: Optional[UUID] = None
+    group_id: UUID
 
 
 class DraftUpdate(BaseModel):
@@ -25,11 +25,12 @@ class DraftUpdate(BaseModel):
     problem_type: Optional[str] = None
     severity: Optional[str] = None
     evidence_summary: Optional[str] = None
+    group_id: Optional[UUID] = None
 
 
 class DraftResponse(DraftBase):
     id: UUID
-    group_id: UUID
+    group_id: Optional[UUID] = None
     status: str
     preliminary_reviewer: Optional[UUID] = None
     preliminary_review_comment: Optional[str] = None

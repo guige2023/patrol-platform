@@ -3,6 +3,7 @@ import { Table, Button, Space, Tag, Modal, message } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import { getGroups } from '@/api/groups';
+import GroupDetail from './GroupDetail';
 import type { ColumnsType } from 'antd/es/table';
 
 interface Group {
@@ -21,9 +22,18 @@ const statusColors: Record<string, string> = {
   completed: 'green',
 };
 
+const statusLabels: Record<string, string> = {
+  draft: '草稿',
+  approved: '已审批',
+  active: '进行中',
+  completed: '已完成',
+};
+
 const GroupList: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<Group[]>([]);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -37,6 +47,27 @@ const GroupList: React.FC = () => {
 
   useEffect(() => { fetchData(); }, []);
 
+  const openCreateModal = () => {
+    setEditingId(null);
+    setDetailModalOpen(true);
+  };
+
+  const openViewModal = (record: Group) => {
+    setEditingId(record.id);
+    setDetailModalOpen(true);
+  };
+
+  const handleDetailSuccess = () => {
+    setDetailModalOpen(false);
+    setEditingId(null);
+    fetchData();
+  };
+
+  const handleDetailCancel = () => {
+    setDetailModalOpen(false);
+    setEditingId(null);
+  };
+
   const columns: ColumnsType<Group> = [
     { title: '巡察组名称', dataIndex: 'name', key: 'name' },
     { title: '成员数量', dataIndex: 'member_count', key: 'member_count' },
@@ -44,7 +75,7 @@ const GroupList: React.FC = () => {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      render: (s: string) => <Tag color={statusColors[s] || 'default'}>{s}</Tag>,
+      render: (s: string) => <Tag color={statusColors[s] || 'default'}>{statusLabels[s] || s}</Tag>,
     },
     { title: '创建时间', dataIndex: 'created_at', key: 'created_at', render: (t: string) => t?.split('T')[0] },
     {
@@ -52,7 +83,7 @@ const GroupList: React.FC = () => {
       key: 'action',
       render: (_, record) => (
         <Space>
-          <Button type="link" size="small">查看</Button>
+          <Button type="link" size="small" onClick={() => openViewModal(record)}>查看</Button>
           <Button type="link" size="small">添加成员</Button>
         </Space>
       ),
@@ -63,9 +94,15 @@ const GroupList: React.FC = () => {
     <div>
       <PageHeader title="巡察组" breadcrumbs={[{ name: '巡察计划' }, { name: '巡察组' }]} />
       <div style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => message.info('新建巡察组')}>新建巡察组</Button>
+        <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>新建巡察组</Button>
       </div>
       <Table columns={columns} dataSource={data} rowKey="id" loading={loading} pagination={false} />
+      <GroupDetail
+        open={detailModalOpen}
+        editingId={editingId}
+        onCancel={handleDetailCancel}
+        onSuccess={handleDetailSuccess}
+      />
     </div>
   );
 };

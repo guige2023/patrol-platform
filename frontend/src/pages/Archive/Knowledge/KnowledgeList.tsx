@@ -3,6 +3,7 @@ import { Table, Button, Space, Tag, Modal, message } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import SearchForm from '@/components/common/SearchForm';
+import KnowledgeModal from './KnowledgeModal';
 import { getKnowledgeList, deleteKnowledge, publishKnowledge } from '@/api/knowledge';
 import type { ColumnsType } from 'antd/es/table';
 
@@ -23,6 +24,8 @@ const KnowledgeList: React.FC = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [searchParams, setSearchParams] = useState<any>({});
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalKnowledgeId, setModalKnowledgeId] = useState<string | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -79,7 +82,7 @@ const KnowledgeList: React.FC = () => {
       key: 'action',
       render: (_, record) => (
         <Space>
-          <Button type="link" size="small">查看</Button>
+          <Button type="link" size="small" onClick={() => { setModalKnowledgeId(record.id); setModalOpen(true); }}>查看</Button>
           {!record.is_published && (
             <Button type="link" size="small" onClick={() => handlePublish(record.id)}>发布</Button>
           )}
@@ -101,7 +104,7 @@ const KnowledgeList: React.FC = () => {
         onReset={handleReset}
       />
       <div style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => message.info('新建知识')}>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => { setModalKnowledgeId(null); setModalOpen(true); }}>
           新建知识
         </Button>
       </div>
@@ -117,6 +120,12 @@ const KnowledgeList: React.FC = () => {
           onChange: (p, ps) => { setPage(p); setPageSize(ps); },
           showTotal: (t) => `共 ${t} 条`,
         }}
+      />
+      <KnowledgeModal
+        open={modalOpen}
+        knowledgeId={modalKnowledgeId}
+        onClose={() => setModalOpen(false)}
+        onSuccess={fetchData}
       />
     </div>
   );

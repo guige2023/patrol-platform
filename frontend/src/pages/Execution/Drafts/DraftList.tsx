@@ -3,7 +3,8 @@ import { Table, Button, Space, Tag, Modal, message } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import SearchForm from '@/components/common/SearchForm';
-import { getDrafts, submitDraft } from '@/api/drafts';
+import { getDrafts, submitDraft, deleteDraft } from '@/api/drafts';
+import DraftDetail from './DraftDetail';
 import type { ColumnsType } from 'antd/es/table';
 
 interface Draft {
@@ -24,6 +25,14 @@ const statusColors: Record<string, string> = {
   rejected: 'error',
 };
 
+const statusLabels: Record<string, string> = {
+  draft: '草稿',
+  preliminary_review: '初审',
+  final_review: '终审',
+  approved: '已批准',
+  rejected: '已驳回',
+};
+
 const DraftList: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<Draft[]>([]);
@@ -31,6 +40,8 @@ const DraftList: React.FC = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [searchParams, setSearchParams] = useState<any>({});
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -45,6 +56,9 @@ const DraftList: React.FC = () => {
 
   useEffect(() => { fetchData(); }, [page, pageSize, searchParams]);
 
+  const handleSearch = (values: any) => setSearchParams(values);
+  const handleReset = () => setSearchParams({});
+
   const handleSubmit = async (id: string) => {
     try {
       await submitDraft(id, 'submit');
@@ -53,6 +67,27 @@ const DraftList: React.FC = () => {
     } catch (e: any) {
       message.error(e.response?.data?.detail || '提交失败');
     }
+  };
+
+  const handleDelete = (id: string) => {
+    Modal.confirm({
+      title: '确认删除',
+      onOk: async () => {
+        await deleteDraft(id);
+        message.success('删除成功');
+        fetchData();
+      },
+    });
+  };
+
+  const openCreateModal = () => {
+    setEditingId(null);
+    setDetailModalOpen(true);
+  };
+
+  const openEditModal = (id: string) => {
+    setEditingId(id);
+    setDetailModalOpen(true);
   };
 
   const columns: ColumnsType<Draft> = [
@@ -64,16 +99,16 @@ const DraftList: React.FC = () => {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      render: (s: string) => <Tag color={statusColors[s] || 'default'}>{s}</Tag>,
+      render: (s: string) => <Tag color={statusColors[s] || 'default'}>{statusLabels[s] || s}</Tag>,
     },
     {
       title: '操作',
       key: 'action',
       render: (_, record) => (
         <Space>
-          <Button type="link" size="small">查看</Button>
-          <Button type="link" size="small">编辑</Button>
+          <Button type="link" size="small" onClick={() => openEditModal(record.id)}>查看</Button>
           {record.status === 'draft' && <Button type="link" size="small" onClick={() => handleSubmit(record.id)}>提交</Button>}
+          <Button type="link" size="small" danger onClick={() => handleDelete(record.id)}>删除</Button>
         </Space>
       ),
     },
@@ -84,14 +119,20 @@ const DraftList: React.FC = () => {
       <PageHeader title="底稿管理" breadcrumbs={[{ name: '执纪执行' }, { name: '底稿管理' }]} />
       <SearchForm
         fields={[{ name: 'title', label: '标题', placeholder: '请输入标题' }]}
-        onSearch={setSearchParams}
-        onReset={() => setSearchParams({})}
+        onSearch={handleSearch}
+        onReset={handleReset}
       />
       <div style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => message.info('新建底稿')}>新建底稿</Button>
+        <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>新建底稿</Button>
       </div>
       <Table columns={columns} dataSource={data} rowKey="id" loading={loading}
         pagination={{ current: page, pageSize, total, onChange: (p, ps) => { setPage(p); setPageSize(ps); }, showTotal: (t) => `共 ${t} 条` }} />
+      <DraftDetail
+        open={detailModalOpen}
+        editingId={editingId}
+        onClose={() => setDetailModalOpen(false)}
+        onSuccess={() => { setDetailModalOpen(false); fetchData(); }}
+      />
     </div>
   );
 };

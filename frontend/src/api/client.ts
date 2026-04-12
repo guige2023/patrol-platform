@@ -15,7 +15,11 @@ api.interceptors.request.use((config) => {
 });
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Backend returns {data: {items, total, ...}} for list endpoints
+    // Keep the outer wrapper so components can do res.data.items
+    return response;
+  },
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token');

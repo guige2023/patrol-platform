@@ -4,6 +4,7 @@ import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import SearchForm from '@/components/common/SearchForm';
 import { getPlans, submitPlan, approvePlan, publishPlan } from '@/api/plans';
+import PlanDetail from './PlanDetail';
 import type { ColumnsType } from 'antd/es/table';
 
 interface Plan {
@@ -25,12 +26,23 @@ const statusColors: Record<string, string> = {
   completed: 'green',
 };
 
+const statusLabels: Record<string, string> = {
+  draft: '草稿',
+  submitted: '已提交',
+  approved: '已批准',
+  published: '已发布',
+  in_progress: '进行中',
+  completed: '已完成',
+};
+
 const PlanList: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<Plan[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -57,6 +69,19 @@ const PlanList: React.FC = () => {
     }
   };
 
+  const openCreateModal = () => {
+    setEditingId(null);
+    setDetailModalOpen(true);
+  };
+
+  const openEditModal = (id: string) => {
+    setEditingId(id);
+    setDetailModalOpen(true);
+  };
+
+  const detailMode = editingId ? 'edit' : 'create';
+  const detailTitle = editingId ? '编辑计划' : '新建计划';
+
   const columns: ColumnsType<Plan> = [
     { title: '计划名称', dataIndex: 'name', key: 'name' },
     { title: '轮次', dataIndex: 'round_name', key: 'round_name' },
@@ -67,14 +92,14 @@ const PlanList: React.FC = () => {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      render: (s: string) => <Tag color={statusColors[s] || 'default'}>{s}</Tag>,
+      render: (s: string) => <Tag color={statusColors[s] || 'default'}>{statusLabels[s] || s}</Tag>,
     },
     {
       title: '操作',
       key: 'action',
       render: (_, record) => (
         <Space>
-          <Button type="link" size="small">查看</Button>
+          <Button type="link" size="small" onClick={() => openEditModal(record.id)}>查看</Button>
           {record.status === 'draft' && <Button type="link" size="small" onClick={() => handleAction(record.id, 'submit')}>提交</Button>}
           {record.status === 'submitted' && <Button type="link" size="small" onClick={() => handleAction(record.id, 'approve')}>批准</Button>}
           {record.status === 'approved' && <Button type="link" size="small" onClick={() => handleAction(record.id, 'publish')}>发布</Button>}
@@ -87,10 +112,17 @@ const PlanList: React.FC = () => {
     <div>
       <PageHeader title="巡察计划" breadcrumbs={[{ name: '巡察计划' }, { name: '计划管理' }]} />
       <div style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => message.info('新建计划')}>新建计划</Button>
+        <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>新建计划</Button>
       </div>
       <Table columns={columns} dataSource={data} rowKey="id" loading={loading}
         pagination={{ current: page, pageSize, total, onChange: (p, ps) => { setPage(p); setPageSize(ps); }, showTotal: (t) => `共 ${t} 条` }} />
+      <PlanDetail
+        open={detailModalOpen}
+        planId={editingId}
+        mode={detailMode as any}
+        onClose={() => setDetailModalOpen(false)}
+        onSuccess={() => { setDetailModalOpen(false); fetchData(); }}
+      />
     </div>
   );
 };

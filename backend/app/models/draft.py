@@ -12,8 +12,8 @@ class Draft(Base):
 
     id = Column(Guid, primary_key=True, default=uuid.uuid4)
     title = Column(String(256), nullable=False)
-    group_id = Column(Guid, ForeignKey("inspection_groups.id", ondelete="CASCADE"), nullable=False)
-    unit_id = Column(Guid, ForeignKey("units.id", ondelete="CASCADE"), nullable=False)
+    group_id = Column(Guid, ForeignKey("inspection_groups.id", ondelete="CASCADE"), nullable=True)
+    unit_id = Column(Guid, ForeignKey("units.id", ondelete="CASCADE"), nullable=True)
     status = Column(String(32), default="draft", index=True)  # draft/preliminary_review/final_review/approved/rejected
     content = Column(Text)  # Markdown content
     category = Column(String(32))  # economy/politics/discipline/organization/others

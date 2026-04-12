@@ -1,11 +1,13 @@
 from typing import Annotated
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.core.security import verify_token
 from app.models.user import User
+import logging
 
+logger = logging.getLogger("uvicorn.error")
 security = HTTPBearer()
 
 
@@ -14,7 +16,9 @@ async def get_current_user(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
     token = credentials.credentials
+    logger.warning(f"[AUTH] Token received: {token[:30]}..." if token else "[AUTH] No token!")
     payload = verify_token(token)
+    logger.warning(f"[AUTH] Payload: {payload}")
     if payload is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
     user_id = payload.get("sub")
@@ -25,6 +29,7 @@ async def get_current_user(
     user = result.scalar_one_or_none()
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    logger.warning(f"[AUTH] User authenticated: {user.username}")
     return user
 
 
