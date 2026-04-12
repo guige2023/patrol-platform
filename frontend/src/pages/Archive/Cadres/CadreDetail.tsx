@@ -13,7 +13,7 @@ const CadreDetail: React.FC = () => {
   useEffect(() => {
     if (id) {
       getCadreDetail(id).then((res: any) => {
-        form.setFieldsValue(res.data);
+        form.setFieldsValue(res);
       }).catch(console.error);
     }
   }, [id]);

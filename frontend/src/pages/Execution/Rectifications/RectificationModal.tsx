@@ -38,7 +38,7 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
   const fetchUnits = async () => {
     try {
       const res = await getUnits({ page: 1, page_size: 100 });
-      const units = res.data?.items || [];
+      const units = res.items || [];
       setUnitOptions(units.map((u: any) => ({ label: u.name, value: u.id })));
     } catch {
       message.error('获取单位失败');
@@ -48,7 +48,7 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
   const fetchClues = async () => {
     try {
       const res = await getClues({ page: 1, page_size: 100 });
-      const clues = res.data?.items || [];
+      const clues = res.items || [];
       setClueOptions(clues.map((c: any) => ({ label: c.title, value: c.id })));
     } catch {
       message.error('获取线索失败');
@@ -58,7 +58,7 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
   const fetchDrafts = async () => {
     try {
       const res = await getDrafts({ page: 1, page_size: 100 });
-      const drafts = res.data?.items || [];
+      const drafts = res.items || [];
       setDraftOptions(drafts.map((d: any) => ({ label: d.title, value: d.id })));
     } catch {
       message.error('获取底稿失败');
@@ -68,7 +68,7 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
   const fetchRectificationData = async (id: string) => {
     try {
       const res = await getRectification(id);
-      const data = res.data || res;
+      const data = res;
       if (data.deadline) {
         data.deadline = dayjs(data.deadline);
       }

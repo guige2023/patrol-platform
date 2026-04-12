@@ -61,7 +61,7 @@ const DraftDetail: React.FC<DraftDetailProps> = ({ open, editingId, onClose, onS
   const fetchGroups = async () => {
     try {
       const res = await getGroups();
-      const groups = Array.isArray(res) ? res : res.data || [];
+      const groups = Array.isArray(res) ? res : res || [];
       setGroupOptions(groups.map((g: any) => ({ label: g.name, value: g.id })));
     } catch {
       message.error('获取巡察组失败');
@@ -71,7 +71,7 @@ const DraftDetail: React.FC<DraftDetailProps> = ({ open, editingId, onClose, onS
   const fetchUnits = async () => {
     try {
       const res = await getUnits({ page: 1, page_size: 100 });
-      const units = res.data?.items || [];
+      const units = res.items || [];
       setUnitOptions(units.map((u: any) => ({ label: u.name, value: u.id })));
     } catch {
       message.error('获取单位失败');
@@ -81,7 +81,7 @@ const DraftDetail: React.FC<DraftDetailProps> = ({ open, editingId, onClose, onS
   const fetchDraftData = async (id: string) => {
     try {
       const res = await getDraft(id);
-      form.setFieldsValue(res.data || res);
+      form.setFieldsValue(res);
     } catch {
       message.error('获取底稿详情失败');
     }

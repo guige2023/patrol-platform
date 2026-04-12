@@ -64,13 +64,13 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, onCancel, on
         getUnits({ page_size: 100 }),
       ]);
       setPlanOptions(
-        (plansRes.data?.items || []).map((p: any) => ({
+        (plansRes.items || []).map((p: any) => ({
           label: p.name,
           value: p.id,
         }))
       );
       setUnitOptions(
-        (unitsRes.data?.items || []).map((u: any) => ({
+        (unitsRes.items || []).map((u: any) => ({
           label: u.name,
           value: u.id,
         }))
@@ -175,14 +175,6 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, onCancel, on
         <Form.Item name="status" label="状态">
           <Select placeholder="请选择状态" options={STATUS_OPTIONS} />
         </Form.Item>
-        <div style={{ textAlign: 'right', marginTop: 16 }}>
-          <Space>
-            <Button onClick={onCancel}>取消</Button>
-            <Button type="primary" onClick={handleSubmit} disabled={initialLoading || submitLoading}>
-              {submitLoading ? '提交中...' : '确定'}
-            </Button>
-          </Space>
-        </div>
       </Form>
     </Modal>
   );

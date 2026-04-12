@@ -19,7 +19,7 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
       if (knowledgeId) {
         setViewMode(true);
         getKnowledge(knowledgeId).then((res: any) => {
-          form.setFieldsValue(res.data);
+          form.setFieldsValue(res);
         }).catch(console.error);
       } else {
         setViewMode(false);

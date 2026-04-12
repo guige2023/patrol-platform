@@ -36,8 +36,8 @@ const ClueList: React.FC = () => {
     setLoading(true);
     try {
       const res = await getClues({ page, page_size: pageSize });
-      setData(res.data.items);
-      setTotal(res.data.total);
+      setData(res.items);
+      setTotal(res.total);
     } finally {
       setLoading(false);
     }

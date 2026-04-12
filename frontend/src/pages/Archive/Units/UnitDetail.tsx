@@ -13,7 +13,7 @@ const UnitDetail: React.FC = () => {
   useEffect(() => {
     if (id) {
       getUnitDetail(id).then((res: any) => {
-        form.setFieldsValue(res.data);
+        form.setFieldsValue(res);
       }).catch(console.error);
     }
   }, [id]);

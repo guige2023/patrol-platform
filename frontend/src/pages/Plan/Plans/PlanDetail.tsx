@@ -29,7 +29,7 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
     if (open && planId && (mode === 'edit' || mode === 'view')) {
       isSettingValues.current = true;
       getPlan(planId).then((res: any) => {
-        const data = res.data;
+        const data = res;
         if (data.planned_start_date || data.planned_end_date) {
           data.planned_date_range = [
             data.planned_start_date ? new Date(data.planned_start_date) : null,

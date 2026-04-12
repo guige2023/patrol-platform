@@ -39,7 +39,8 @@ const GroupList: React.FC = () => {
     setLoading(true);
     try {
       const res = await getGroups();
-      setData(res);
+      const items = Array.isArray(res) ? res : (res.items || []);
+      setData(items);
     } finally {
       setLoading(false);
     }

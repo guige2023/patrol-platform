@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Modal, Form, Input, Select, Switch, message } from 'antd';
+import { Modal, Form, Input, Select, Switch, Space, Button, message } from 'antd';
 import { createClue, updateClue, getClue } from '@/api/clues';
 
 interface ClueModalProps {
@@ -19,7 +19,7 @@ const ClueModal: React.FC<ClueModalProps> = ({ open, clueId, onClose, onSuccess 
       setFetching(true);
       getClue(clueId)
         .then((res: any) => {
-          form.setFieldsValue(res.data);
+          form.setFieldsValue(res);
         })
         .catch(console.error)
         .finally(() => setFetching(false));

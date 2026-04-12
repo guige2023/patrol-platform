@@ -49,8 +49,8 @@ const UnitList: React.FC = () => {
     setLoading(true);
     try {
       const res = await getUnits({ page, page_size: pageSize, ...searchParams });
-      setData(res.data.items);
-      setTotal(res.data.total);
+      setData(res.items);
+      setTotal(res.total);
     } finally {
       setLoading(false);
     }
@@ -83,6 +83,7 @@ const UnitList: React.FC = () => {
   const handleCreateSubmit = async () => {
     try {
       const values = await form.validateFields();
+      if (values.level) values.level = Number(values.level);
       await createUnit(values);
       message.success('新建单位成功');
       setCreateModalOpen(false);
@@ -97,6 +98,7 @@ const UnitList: React.FC = () => {
     if (!editingUnit) return;
     try {
       const values = await form.validateFields();
+      if (values.level) values.level = Number(values.level);
       await updateUnit(editingUnit.id, values);
       message.success('编辑单位成功');
       setEditModalOpen(false);
