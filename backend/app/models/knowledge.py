@@ -20,6 +20,7 @@ class Knowledge(Base):
     effective_date = Column(DateTime)
     is_published = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
+    attachments = Column(JSON, nullable=True)  # [{"filename": "...", "url": "...", "size": 123, "upload_time": "..."}]
     created_by = Column(Guid, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

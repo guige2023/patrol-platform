@@ -17,6 +17,7 @@ class CadreBase(BaseModel):
     unit_id: Optional[UUID] = None
     position: Optional[str] = None
     rank: Optional[str] = None
+    category: Optional[str] = None
     tags: Optional[List[str]] = []
     profile: Optional[str] = None
     resume: Optional[str] = None
@@ -41,6 +42,7 @@ class CadreUpdate(BaseModel):
     unit_id: Optional[UUID] = None
     position: Optional[str] = None
     rank: Optional[str] = None
+    category: Optional[str] = None
     tags: Optional[List[str]] = None
     profile: Optional[str] = None
     resume: Optional[str] = None

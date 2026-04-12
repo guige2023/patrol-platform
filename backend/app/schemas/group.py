@@ -14,6 +14,10 @@ class GroupCreate(BaseModel):
     name: str
     plan_id: UUID
     target_unit_id: Optional[UUID] = None
+    unit_ids: List[UUID] = []
+    leader_id: Optional[UUID] = None
+    vice_leader_id: Optional[UUID] = None
+    member_ids: List[UUID] = []
 
 
 class GroupUpdate(BaseModel):

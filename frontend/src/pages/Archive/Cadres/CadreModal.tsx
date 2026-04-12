@@ -28,10 +28,19 @@ interface CadreData {
   unit_name?: string;
   position?: string;
   rank?: string;
+  category?: string;
   tags?: string[];
   profile?: string;
   resume?: string;
 }
+
+const CADRE_CATEGORY_OPTIONS = [
+  { label: '纪检监察干部', value: '纪检监察干部' },
+  { label: '审计干部', value: '审计干部' },
+  { label: '财务干部', value: '财务干部' },
+  { label: '综合干部', value: '综合干部' },
+  { label: '后备干部', value: '后备干部' },
+];
 
 const CadreModal: React.FC<CadreModalProps> = ({ open, cadreId, onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
@@ -128,6 +137,7 @@ const CadreModal: React.FC<CadreModalProps> = ({ open, cadreId, onClose, onSucce
       <Descriptions.Item label="所属单位">{cadreData?.unit_name || '-'}</Descriptions.Item>
       <Descriptions.Item label="职务">{cadreData?.position || '-'}</Descriptions.Item>
       <Descriptions.Item label="职级">{cadreData?.rank || '-'}</Descriptions.Item>
+      <Descriptions.Item label="类别">{cadreData?.category || '-'}</Descriptions.Item>
       <Descriptions.Item label="标签">
         {cadreData?.tags && cadreData.tags.length > 0
           ? cadreData.tags.map((tag: string) => <Tag key={tag}>{tag}</Tag>)
@@ -264,6 +274,15 @@ const CadreModal: React.FC<CadreModalProps> = ({ open, cadreId, onClose, onSucce
               <Input placeholder="请输入职级" />
             </Form.Item>
           </div>
+
+          <Form.Item name="category" label="类别">
+            <Select
+              options={CADRE_CATEGORY_OPTIONS}
+              placeholder="请选择干部类别"
+              allowClear
+              showSearch
+            />
+          </Form.Item>
 
           <Form.Item name="tags" label="标签" extra="多个标签用逗号分隔">
             <Input

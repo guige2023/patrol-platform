@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from uuid import UUID
-import io
+import io, csv, codecs
 
 from app.dependencies import get_db, get_current_user
 from app.models.unit import Unit
@@ -81,6 +82,46 @@ async def list_units(
     )
 
 
+@router.get("/export")
+async def export_units(
+    name: Optional[str] = None,
+    unit_type: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Export units as CSV."""
+    query = select(Unit).where(Unit.is_active == True)
+    if name:
+        query = query.where(Unit.name.ilike(f"%{name}%"))
+    if unit_type:
+        query = query.where(Unit.unit_type == unit_type)
+    query = query.order_by(Unit.sort_order or 0, Unit.created_at.desc()).limit(10000)
+    result = await db.execute(query)
+    units = result.scalars().all()
+
+    output = io.BytesIO()
+    output.write(codecs.BOM_UTF8)
+    # Write header
+    header = "单位名称,组织编码,单位类型,单位级别,上级单位,排序,标签,简介,最近巡察年份,巡察历史,是否可用\n"
+    output.write(header.encode("utf-8-sig"))
+    for u in units:
+        tags_str = ",".join(u.tags) if u.tags else ""
+        row = (
+            f"{(u.name or '')},{(u.org_code or '')},{(u.unit_type or '')},{(u.level or '')},"
+            f",{(u.sort_order or '')},{tags_str},{(u.profile or '')},"
+            f"{(u.last_inspection_year or '')},{(u.inspection_history or '')},"
+            f"{'是' if u.is_active else '否'}\n"
+        )
+        output.write(row.encode("utf-8-sig"))
+
+    output.seek(0)
+    return StreamingResponse(
+        output,
+        media_type="text/csv; charset=utf-8-sig",
+        headers={"Content-Disposition": "attachment; filename=units_export.csv"},
+    )
+
+
 @router.get("/{unit_id}", response_model=UnitResponse)
 async def get_unit(unit_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(select(Unit).where(Unit.id == unit_id))
@@ -124,6 +165,7 @@ async def delete_unit(unit_id: UUID, db: AsyncSession = Depends(get_db), current
     await db.commit()
     await write_audit_log(db, current_user.id, "delete", "unit", unit.id, {"name": unit.name})
     return {"message": "Unit deleted"}
+
 
 
 @router.post("/import")
@@ -178,7 +220,7 @@ async def import_units(
                 "name": str(name).strip(),
                 "org_code": str(org_code).strip(),
                 "unit_type": _cell(row, col_map, "unit_type"),
-                "level": _int_cell(row, col_map, "level") or 1,
+                "level": _cell(row, col_map, "level"),
                 "sort_order": _int_cell(row, col_map, "sort_order") or 0,
                 "tags": _list_cell(row, col_map, "tags"),
                 "profile": _cell(row, col_map, "profile"),
@@ -186,6 +228,8 @@ async def import_units(
                 "contact": _json_cell(row, col_map, "contact"),
                 "is_active": _bool_cell(row, col_map, "is_active", default=True),
                 "parent_id": None,
+                "last_inspection_year": _int_cell(row, col_map, "last_inspection_year"),
+                "inspection_history": _cell(row, col_map, "inspection_history"),
             }
             unit = Unit(**data)
             db.add(unit)
@@ -205,12 +249,14 @@ async def import_units(
             "created": created, "skipped": skipped
         })
     return {
-        "message": f"导入完成",
+        "message": f"导入完成：新增 {created} 条，{skipped} 条因组织编码重复被跳过",
+        "detail": f"{skipped}条记录因组织编码重复被跳过，可前往列表手动编辑覆盖",
         "created": created,
         "skipped": skipped,
         "errors": errors[:10],
     } if created > 0 else {
-        "message": "无新数据导入（全部重复或为空）",
+        "message": f"无新数据导入（{skipped}条组织编码重复）",
+        "detail": f"{skipped}条记录因组织编码重复被跳过，可前往列表手动编辑覆盖",
         "created": 0,
         "skipped": skipped,
         "errors": errors[:10],

@@ -1,6 +1,9 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from app.api.v1 import router as v1_router
+from app.api.v1 import knowledge_files
 from app.config import settings
 
 app = FastAPI(
@@ -18,6 +21,12 @@ app.add_middleware(
 )
 
 app.include_router(v1_router, prefix="/api/v1")
+app.include_router(knowledge_files.router, prefix="/api/v1")
+
+# 静态文件服务 - 知识库上传文件
+upload_dir = "backend/uploads"
+os.makedirs(os.path.join(upload_dir, "knowledge"), exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
 
 
 @app.get("/health")

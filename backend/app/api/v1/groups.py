@@ -82,13 +82,52 @@ async def create_group(
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
 
+    # Use first unit_id as target_unit_id if unit_ids provided and target_unit_id not set
+    target_unit_id = group_data.target_unit_id
+    if not target_unit_id and group_data.unit_ids:
+        target_unit_id = group_data.unit_ids[0]
+
     group = InspectionGroup(
         name=group_data.name,
         plan_id=group_data.plan_id,
-        target_unit_id=group_data.target_unit_id,
+        target_unit_id=target_unit_id,
         created_by=current_user.id,
     )
     db.add(group)
+    await db.flush()  # get group.id
+
+    # Create leader member
+    if group_data.leader_id:
+        leader_member = GroupMember(
+            group_id=group.id,
+            cadre_id=group_data.leader_id,
+            role="组长",
+            is_leader=True,
+        )
+        db.add(leader_member)
+
+    # Create vice leader member
+    if group_data.vice_leader_id:
+        vice_member = GroupMember(
+            group_id=group.id,
+            cadre_id=group_data.vice_leader_id,
+            role="副组长",
+            is_leader=False,
+        )
+        db.add(vice_member)
+
+    # Create regular members (skip leader/vice leader)
+    for cadre_id in group_data.member_ids:
+        if cadre_id == group_data.leader_id or cadre_id == group_data.vice_leader_id:
+            continue
+        member = GroupMember(
+            group_id=group.id,
+            cadre_id=cadre_id,
+            role="组员",
+            is_leader=False,
+        )
+        db.add(member)
+
     await db.commit()
     await db.refresh(group)
     await write_audit_log(db, current_user.id, "create", "inspection_group", group.id, {"name": group.name})

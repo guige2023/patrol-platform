@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Form, Input, Select, Button, Space, Table, Tag, message } from 'antd';
+import { Modal, Form, Input, Select, Button, Space, Table, Tag, message, Popconfirm } from 'antd';
 import { createGroup, updateGroup, getGroup } from '@/api/groups';
 import { getPlans } from '@/api/plans';
 import { getUnits } from '@/api/units';
-import { removeMember } from '@/api/groups';
+import { removeMember, addMember } from '@/api/groups';
+import { getCadres } from '@/api/cadres';
 
 interface GroupDetailProps {
   open: boolean;
@@ -48,6 +49,8 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   // @ts-ignore - kept for future use (authorization_letter, authorization_date)
   const [groupData, setGroupData] = useState<any>(null);
+  const [cadreOptions, setCadreOptions] = useState<any[]>([]);
+  const [replaceModal, setReplaceModal] = useState<{ visible: boolean; memberId: string; role: string } | null>(null);
 
   const isEdit = mode === 'edit';
   const isView = mode === 'view';
@@ -56,6 +59,7 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
   useEffect(() => {
     if (open) {
       loadOptions();
+      loadCadreOptions();
       if (mode === 'view' || mode === 'edit') {
         loadGroupData(editingId!);
       } else {
@@ -87,8 +91,16 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
       );
     } catch (e) {
       console.error('Failed to load options', e);
-    } finally {
-      setLoading(false);
+    }
+  };
+
+  const loadCadreOptions = async () => {
+    try {
+      const res = await getCadres({ page_size: 500 });
+      const items = res.items || res.data?.items || [];
+      setCadreOptions(items);
+    } catch (e) {
+      console.error('Failed to load cadres', e);
     }
   };
 
@@ -109,6 +121,26 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
       onCancel();
     } finally {
       setInitialLoading(false);
+    }
+  };
+
+  const handleReplaceMember = async (newCadreId: string) => {
+    if (!replaceModal || !editingId) return;
+    try {
+      await removeMember(editingId, replaceModal.memberId);
+      await addMember(editingId, newCadreId, replaceModal.role);
+      const newCadre = cadreOptions.find((c) => c.id === newCadreId);
+      setMembers((prev) =>
+        prev.map((m) =>
+          m.cadre_id === replaceModal.memberId
+            ? { ...m, cadre_id: newCadreId, cadre_name: newCadre?.name || newCadreId }
+            : m
+        )
+      );
+      message.success('成员已更换');
+      setReplaceModal(null);
+    } catch {
+      message.error('更换失败');
     }
   };
 
@@ -155,7 +187,12 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
     { title: '姓名', dataIndex: 'cadre_name', key: 'cadre_name' },
     { title: '角色', dataIndex: 'role', key: 'role', render: (r: string) => <Tag color={roleColors[r] || 'default'}>{r}</Tag> },
     { title: '操作', key: 'action', render: (_: any, record: any) => (
-      <Button type="link" danger size="small" onClick={() => handleRemoveMember(record.cadre_id)}>移除</Button>
+      <Space size="small">
+        <Button type="link" size="small" onClick={() => setReplaceModal({ visible: true, memberId: record.cadre_id, role: record.role })}>更换</Button>
+        <Popconfirm title="确认移除该成员？" onConfirm={() => handleRemoveMember(record.cadre_id)}>
+          <Button type="link" danger size="small">移除</Button>
+        </Popconfirm>
+      </Space>
     )},
   ];
 
@@ -223,7 +260,18 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
 
       {(isEdit || isView) && (
         <div style={{ marginTop: 24 }}>
-          <div style={{ fontWeight: 500, marginBottom: 8 }}>巡察组成员</div>
+          <div style={{ fontWeight: 500, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>巡察组成员（{members.length}人）</span>
+            {isEdit && (
+              <Button
+                size="small"
+                type="primary"
+                onClick={() => setReplaceModal({ visible: true, memberId: '', role: '组员' })}
+              >
+                添加成员
+              </Button>
+            )}
+          </div>
           <Table
             columns={memberColumns}
             dataSource={members}
@@ -233,6 +281,59 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
           />
         </div>
       )}
+
+      {/* Replace/Add Member Modal */}
+      <Modal
+        title={replaceModal?.memberId ? '更换成员' : '添加成员'}
+        destroyOnClose
+        open={!!replaceModal}
+        onCancel={() => setReplaceModal(null)}
+        footer={null}
+        width={400}
+      >
+        <Form layout="vertical" onFinish={async (values) => {
+          if (replaceModal?.memberId) {
+            await handleReplaceMember(values.cadre_id);
+          } else {
+            // Add new member
+            if (!editingId) return;
+            const { addMember: addM } = await import('@/api/groups');
+            await addM(editingId, values.cadre_id, values.role || '组员');
+            message.success('成员已添加');
+            loadGroupData(editingId);
+            setReplaceModal(null);
+          }
+        }}>
+          <Form.Item
+            name="cadre_id"
+            label="选择人员"
+            rules={[{ required: true, message: '请选择人员' }]}
+          >
+            <Select
+              placeholder="搜索人员姓名"
+              showSearch
+              options={cadreOptions.map(c => ({ label: `${c.name} (${c.category || '未分类'})`, value: c.id }))}
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+            />
+          </Form.Item>
+          <Form.Item name="role" label="角色" initialValue={replaceModal?.memberId ? replaceModal.role : '组员'}>
+            <Select options={[
+              { label: '组长', value: '组长' },
+              { label: '副组长', value: '副组长' },
+              { label: '组员', value: '组员' },
+              { label: '专项负责人', value: '专项负责人' },
+            ]} />
+          </Form.Item>
+          <div style={{ textAlign: 'right' }}>
+            <Space>
+              <Button onClick={() => setReplaceModal(null)}>取消</Button>
+              <Button type="primary" htmlType="submit">确认</Button>
+            </Space>
+          </div>
+        </Form>
+      </Modal>
     </Modal>
   );
 };

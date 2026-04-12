@@ -27,3 +27,17 @@ export const importUnits = (file: File) => {
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then(res => res.data);
 };
+
+export const exportUnits = () => {
+  return api.get('/units/export', {
+    responseType: 'blob',
+  }).then(res => {
+    const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '单位档案.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  });
+};

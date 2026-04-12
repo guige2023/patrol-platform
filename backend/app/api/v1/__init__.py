@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import auth, units, cadres, knowledge, plans, groups, drafts, clues, rectifications, alerts, dashboard, admin, files, notifications, search
+from app.api.v1 import auth, units, cadres, knowledge, plans, groups, drafts, clues, rectifications, alerts, dashboard, admin, files, notifications, search, system_configs
 
 router = APIRouter()
 
@@ -18,3 +18,4 @@ router.include_router(admin.router, prefix="/admin", tags=["系统管理"])
 router.include_router(files.router, prefix="/files", tags=["文件"])
 router.include_router(notifications.router, prefix="/notifications", tags=["通知"])
 router.include_router(search.router, prefix="/search", tags=["搜索"])
+router.include_router(system_configs.router, prefix="/system-configs", tags=["系统配置"])

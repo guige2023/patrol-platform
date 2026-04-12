@@ -13,6 +13,7 @@ interface Cadre {
   gender?: string;
   position?: string;
   rank?: string;
+  category?: string;
   unit_id?: string;
   tags?: string[];
   is_available: boolean;
@@ -70,6 +71,7 @@ const CadreList: React.FC = () => {
     { title: '性别', dataIndex: 'gender', key: 'gender' },
     { title: '职务', dataIndex: 'position', key: 'position' },
     { title: '职级', dataIndex: 'rank', key: 'rank' },
+    { title: '类别', dataIndex: 'category', key: 'category', render: (v: string) => v || '-' },
     {
       title: '标签',
       dataIndex: 'tags',
@@ -159,7 +161,7 @@ const CadreList: React.FC = () => {
           </Upload>
           <div style={{ marginTop: 16, fontSize: 12, color: '#888' }}>
             <p>必填列：name(姓名)</p>
-            <p>可选列：gender, birth_date, ethnicity, native_place, political_status, education, degree, position, rank, tags, profile, is_available</p>
+            <p>可选列：gender, birth_date, ethnicity, native_place, political_status, education, degree, position, rank, category, tags, profile, is_available</p>
             <p>说明：姓名重复的数据会自动跳过</p>
           </div>
         </div>

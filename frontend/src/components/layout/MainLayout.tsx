@@ -19,7 +19,7 @@ const MainLayout: React.FC = () => {
   const { user, logout } = useAuthStore();
   const [collapsed, setCollapsed] = useState(false);
   const {
-    token: { colorBgContainer, borderRadiusLG },
+    token: { borderRadiusLG },
   } = theme.useToken();
 
   const menuItems = [
@@ -57,24 +57,119 @@ const MainLayout: React.FC = () => {
     },
   };
 
+  // 判断当前路径是否被选中
+  const getSelectedKeys = () => {
+    const path = location.pathname;
+    // 精确匹配
+    if (menuItems.some(item => item.key === path)) {
+      return [path];
+    }
+    // 处理子菜单路径
+    const parentPath = '/' + path.split('/').slice(1, 3).join('/');
+    if (menuItems.some(item => item.key === parentPath)) {
+      return [parentPath];
+    }
+    return [location.pathname];
+  };
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider collapsible collapsed={collapsed} onCollapse={setCollapsed}>
-        <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 18, fontWeight: 'bold' }}>
-          {collapsed ? '巡' : '巡察工作管理平台'}
+      {/* 侧边栏 - 深红渐变背景 */}
+      <Sider 
+        collapsible 
+        collapsed={collapsed} 
+        onCollapse={setCollapsed}
+        style={{
+          background: 'linear-gradient(180deg, #9B1C1C 0%, #8B0000 50%, #6B0000 100%)',
+          minHeight: '100vh',
+          boxShadow: '2px 0 8px rgba(139, 0, 0, 0.3)',
+        }}
+      >
+        {/* Logo 区域 */}
+        <div style={{ 
+          height: 64, 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          color: 'white', 
+          fontSize: 18, 
+          fontWeight: 'bold',
+          background: 'rgba(0, 0, 0, 0.1)',
+          borderBottom: '1px solid rgba(255, 215, 0, 0.2)',
+        }}>
+          {collapsed ? (
+            <span style={{ fontSize: 24 }}>🏛️</span>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 24 }}>🏛️</span>
+              <span>巡察工作管理平台</span>
+            </div>
+          )}
         </div>
-        <Menu theme="dark" mode="inline" selectedKeys={[location.pathname]} items={menuItems} onClick={({ key }) => navigate(key)} />
+        
+        {/* 菜单 - 白色文字，选中金色左边框 */}
+        <Menu 
+          theme="dark" 
+          mode="inline" 
+          selectedKeys={getSelectedKeys()} 
+          items={menuItems} 
+          onClick={({ key }) => navigate(key)}
+          style={{ 
+            background: 'transparent',
+            borderRight: 'none',
+          }}
+        />
       </Sider>
+      
       <Layout>
-        <Header style={{ padding: '0 24px', background: colorBgContainer, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+        {/* 顶部栏 - 深红背景 */}
+        <Header style={{ 
+          padding: '0 24px', 
+          background: 'linear-gradient(90deg, #9B1C1C 0%, #8B0000 100%)', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'flex-end',
+          boxShadow: '0 2px 8px rgba(139, 0, 0, 0.3)',
+        }}>
           <Dropdown menu={userMenu}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-              <Avatar style={{ backgroundColor: '#1890ff' }}>{user?.full_name?.[0] || 'U'}</Avatar>
-              <span>{user?.full_name || '用户'}</span>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 8, 
+              cursor: 'pointer',
+              color: 'white',
+              padding: '8px 12px',
+              borderRadius: 8,
+              transition: 'all 0.3s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+            }}
+            >
+              <Avatar style={{ 
+                backgroundColor: '#FFD700', 
+                color: '#8B0000',
+                fontWeight: 'bold',
+                border: '2px solid rgba(255, 215, 0, 0.5)',
+              }}>
+                {user?.full_name?.[0] || 'U'}
+              </Avatar>
+              <span style={{ fontWeight: 500 }}>{user?.full_name || '用户'}</span>
             </div>
           </Dropdown>
         </Header>
-        <Content style={{ margin: 16, padding: 24, background: colorBgContainer, borderRadius: borderRadiusLG }}>
+        
+        {/* 内容区域 */}
+        <Content style={{ 
+          margin: 16, 
+          padding: 24, 
+          background: '#FFF5F5', 
+          borderRadius: borderRadiusLG,
+          minHeight: 'calc(100vh - 64px - 32px)',
+        }}>
           <Outlet />
         </Content>
       </Layout>

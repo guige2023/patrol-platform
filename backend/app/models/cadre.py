@@ -23,6 +23,7 @@ class Cadre(Base):
     unit_id = Column(Guid, ForeignKey("units.id", ondelete="SET NULL"), index=True)
     position = Column(String(128))  # 当前职务
     rank = Column(String(32))  # 职级
+    category = Column(String(100), nullable=True)  # 干部类别
     tags = Column(JSON, default=list)  # ["纪检监察", "财务审计"]
     profile = Column(Text)  # 干部简历
     resume = Column(Text)  # 工作经历

@@ -117,6 +117,8 @@ async def approve_plan(plan_id: UUID, comment: Optional[str] = None, db: AsyncSe
 
 @router.post("/{plan_id}/publish")
 async def publish_plan(plan_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from datetime import datetime
+    from app.models.unit import Unit
     result = await db.execute(select(Plan).where(Plan.id == plan_id))
     plan = result.scalar_one_or_none()
     if not plan:
@@ -124,9 +126,26 @@ async def publish_plan(plan_id: UUID, db: AsyncSession = Depends(get_db), curren
     if plan.status != PlanStatus.APPROVED.value:
         raise HTTPException(status_code=400, detail="Only approved plans can be published")
     plan.status = PlanStatus.PUBLISHED.value
+
+    # 自动更新被巡察单位的巡察年份和历史
+    current_year = datetime.now().year
+    updated_units = []
+    for unit_id in (plan.target_units or []):
+        unit_result = await db.execute(select(Unit).where(Unit.id == unit_id))
+        unit = unit_result.scalar_one_or_none()
+        if unit:
+            unit.last_inspection_year = current_year
+            existing = unit.inspection_history or ""
+            round_info = f"{current_year}年{plan.round_name or ('%d轮' % plan.round)}"
+            unit.inspection_history = (existing + f"; {round_info}").strip("; ")
+            updated_units.append(unit.name)
+
     await db.commit()
-    await write_audit_log(db, current_user.id, "publish", "plan", plan.id, {})
-    return {"message": "Plan published"}
+    await write_audit_log(db, current_user.id, "publish", "plan", plan.id, {
+        "target_units": plan.target_units,
+        "updated_units": updated_units,
+    })
+    return {"message": f"Plan published，{len(updated_units)}个单位巡察记录已更新"}
 
 
 @router.delete("/{plan_id}")

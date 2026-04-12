@@ -15,12 +15,14 @@ class Unit(Base):
     org_code = Column(String(32), unique=True, nullable=False, index=True)
     parent_id = Column(Guid, ForeignKey("units.id", ondelete="CASCADE"), index=True)
     unit_type = Column(String(32))  # province/city/county/department
-    level = Column(Integer, default=1)  # 1=省级, 2=市级, 3=县级
+    level = Column(String(20), nullable=True)  # 一级单位、二级单位
     sort_order = Column(Integer, default=0)
     tags = Column(JSON, default=list)
     profile = Column(Text)  # 单位简介
     leadership = Column(JSON)  # {"secretary": "...", "head": "..."}
     contact = Column(JSON)  # {"phone": "...", "address": "..."}
+    last_inspection_year = Column(Integer, nullable=True)  # 最近一次巡察年份
+    inspection_history = Column(String(1000), nullable=True)  # 巡察历史备注
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Form, Input, Select, DatePicker, message, Descriptions, Tag } from 'antd';
+import { Modal, Form, Input, Select, DatePicker, message, Descriptions, Tag, Upload, Button, List } from 'antd';
+import { UploadOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons';
 import { createKnowledge, updateKnowledge, getKnowledge } from '@/api/knowledge';
+import api from '@/api/client';
 import dayjs from 'dayjs';
 
 interface KnowledgeModalProps {
@@ -8,6 +10,13 @@ interface KnowledgeModalProps {
   knowledgeId?: string | null;
   onClose: () => void;
   onSuccess: () => void;
+}
+
+interface Attachment {
+  filename: string;
+  url: string;
+  size: number;
+  upload_time: string;
 }
 
 interface KnowledgeData {
@@ -21,6 +30,7 @@ interface KnowledgeData {
   effective_date?: string;
   is_published?: boolean;
   created_at?: string;
+  attachments?: Attachment[];
 }
 
 const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onClose, onSuccess }) => {
@@ -28,24 +38,85 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
   const [viewMode, setViewMode] = useState(false);
   const [form] = Form.useForm();
   const [knowledgeData, setKnowledgeData] = useState<KnowledgeData | null>(null);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (open) {
       if (knowledgeId) {
         setViewMode(true);
         setKnowledgeData(null);
+        setAttachments([]);
         getKnowledge(knowledgeId).then((res: any) => {
           setKnowledgeData(res);
+          setAttachments(res.attachments || []);
         }).catch(() => {
           message.error('获取知识详情失败');
         });
       } else {
         setViewMode(false);
         setKnowledgeData(null);
+        setAttachments([]);
         form.resetFields();
       }
     }
   }, [open, knowledgeId]);
+
+  const handleUpload = async (file: File) => {
+    if (!knowledgeId) return;
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await api.post(`/knowledge/${knowledgeId}/attachments`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setAttachments(prev => [...prev, res.data || res]);
+      message.success('上传成功');
+    } catch (e: any) {
+      message.error(e.response?.data?.detail || '上传失败');
+    } finally {
+      setUploading(false);
+    }
+    return false;
+  };
+
+  const handleDownload = async (att: Attachment) => {
+    if (!knowledgeId) return;
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`/api/v1/knowledge/${knowledgeId}/attachments/${att.filename}/download`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('download failed');
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = att.filename;
+      a.click();
+      window.URL.revokeObjectURL(blobUrl);
+    } catch {
+      message.error('下载失败');
+    }
+  };
+
+  const handleDeleteAttachment = async (att: Attachment) => {
+    if (!knowledgeId) return;
+    try {
+      await api.delete(`/knowledge/${knowledgeId}/attachments/${att.filename}`);
+      setAttachments(prev => prev.filter(a => a.filename !== att.filename));
+      message.success('删除成功');
+    } catch (e: any) {
+      message.error(e.response?.data?.detail || '删除失败');
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   const handleSubmit = async () => {
     try {
@@ -85,27 +156,65 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
   };
 
   const renderViewMode = () => (
-    <Descriptions column={1} bordered size="small" style={{ marginTop: 16 }}>
-      <Descriptions.Item label="标题">{knowledgeData?.title || '-'}</Descriptions.Item>
-      <Descriptions.Item label="分类">{categoryLabels[knowledgeData?.category || ''] || knowledgeData?.category || '-'}</Descriptions.Item>
-      <Descriptions.Item label="版本">{knowledgeData?.version || '-'}</Descriptions.Item>
-      <Descriptions.Item label="内容">{knowledgeData?.content || '-'}</Descriptions.Item>
-      <Descriptions.Item label="标签">
-        {knowledgeData?.tags && knowledgeData.tags.length > 0
-          ? knowledgeData.tags.map((tag: string) => <Tag key={tag}>{tag}</Tag>)
-          : '-'}
-      </Descriptions.Item>
-      <Descriptions.Item label="来源">{knowledgeData?.source || '-'}</Descriptions.Item>
-      <Descriptions.Item label="生效日期">
-        {knowledgeData?.effective_date ? dayjs(knowledgeData.effective_date).format('YYYY-MM-DD') : '-'}
-      </Descriptions.Item>
-      <Descriptions.Item label="状态">
-        {knowledgeData?.is_published ? <span style={{ color: '#52c41a' }}>已发布</span> : <span style={{ color: '#faad14' }}>草稿</span>}
-      </Descriptions.Item>
-      <Descriptions.Item label="创建时间">
-        {knowledgeData?.created_at ? dayjs(knowledgeData.created_at).format('YYYY-MM-DD HH:mm') : '-'}
-      </Descriptions.Item>
-    </Descriptions>
+    <>
+      <Descriptions column={1} bordered size="small" style={{ marginTop: 16 }}>
+        <Descriptions.Item label="标题">{knowledgeData?.title || '-'}</Descriptions.Item>
+        <Descriptions.Item label="分类">{categoryLabels[knowledgeData?.category || ''] || knowledgeData?.category || '-'}</Descriptions.Item>
+        <Descriptions.Item label="版本">{knowledgeData?.version || '-'}</Descriptions.Item>
+        <Descriptions.Item label="内容">{knowledgeData?.content || '-'}</Descriptions.Item>
+        <Descriptions.Item label="标签">
+          {knowledgeData?.tags && knowledgeData.tags.length > 0
+            ? knowledgeData.tags.map((tag: string) => <Tag key={tag}>{tag}</Tag>)
+            : '-'}
+        </Descriptions.Item>
+        <Descriptions.Item label="来源">{knowledgeData?.source || '-'}</Descriptions.Item>
+        <Descriptions.Item label="生效日期">
+          {knowledgeData?.effective_date ? dayjs(knowledgeData.effective_date).format('YYYY-MM-DD') : '-'}
+        </Descriptions.Item>
+        <Descriptions.Item label="状态">
+          {knowledgeData?.is_published ? <span style={{ color: '#52c41a' }}>已发布</span> : <span style={{ color: '#faad14' }}>草稿</span>}
+        </Descriptions.Item>
+        <Descriptions.Item label="创建时间">
+          {knowledgeData?.created_at ? dayjs(knowledgeData.created_at).format('YYYY-MM-DD HH:mm') : '-'}
+        </Descriptions.Item>
+      </Descriptions>
+      {knowledgeId && (
+        <div style={{ marginTop: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <span style={{ fontWeight: 600, fontSize: 14 }}>附件列表</span>
+            <Upload
+              accept="*"
+              showUploadList={false}
+              beforeUpload={handleUpload}
+              disabled={uploading}
+            >
+              <Button size="small" icon={<UploadOutlined />} loading={uploading}>上传附件</Button>
+            </Upload>
+          </div>
+          {attachments.length === 0 ? (
+            <div style={{ color: '#999', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>暂无附件</div>
+          ) : (
+            <List
+              size="small"
+              dataSource={attachments}
+              renderItem={(att: Attachment) => (
+                <List.Item
+                  actions={[
+                    <Button type="link" size="small" key="download" icon={<DownloadOutlined />} onClick={() => handleDownload(att)}>下载</Button>,
+                    <Button type="link" size="small" danger key="delete" icon={<DeleteOutlined />} onClick={() => handleDeleteAttachment(att)}>删除</Button>,
+                  ]}
+                >
+                  <List.Item.Meta
+                    title={att.filename}
+                    description={`${formatFileSize(att.size)} · ${att.upload_time ? dayjs(att.upload_time).format('YYYY-MM-DD HH:mm') : ''}`}
+                  />
+                </List.Item>
+              )}
+            />
+          )}
+        </div>
+      )}
+    </>
   );
 
   return (

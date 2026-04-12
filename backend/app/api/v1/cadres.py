@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import List, Optional
 from uuid import UUID
-import io, csv
+import io, csv, codecs
 from app.dependencies import get_db, get_current_user
 from app.models.cadre import Cadre
 from app.models.user import User
@@ -67,38 +67,27 @@ async def export_cadres(
     result = await db.execute(query)
     cadres = result.scalars().all()
 
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow([
-        "姓名", "性别", "出生日期", "民族", "籍贯", "政治面貌",
-        "学历", "学位", "职务", "职级", "所属单位", "标签",
-        "是否可用", "创建时间",
-    ])
+    # Build CSV string directly
+    lines = []
+    lines.append("姓名,性别,出生日期,民族,籍贯,政治面貌,学历,学位,职务,职级,类别,所属单位,标签,是否可用,创建时间")
     for c in cadres:
-        writer.writerow([
-            c.name or "",
-            c.gender or "",
-            str(c.birth_date) if c.birth_date else "",
-            c.ethnicity or "",
-            c.native_place or "",
-            c.political_status or "",
-            c.education or "",
-            c.degree or "",
-            c.position or "",
-            c.rank or "",
-            "",
-            c.tags or "",
-            "是" if c.is_available else "否",
-            c.created_at.strftime("%Y-%m-%d %H:%M") if c.created_at else "",
-        ])
+        created = c.created_at.strftime("%Y-%m-%d %H:%M") if c.created_at else ""
+        lines.append(
+            f"{(c.name or '')},{(c.gender or '')},{str(c.birth_date) if c.birth_date else ''},"
+            f"{(c.ethnicity or '')},{(c.native_place or '')},{(c.political_status or '')},"
+            f"{(c.education or '')},{(c.degree or '')},{(c.position or '')},{(c.rank or '')},"
+            f"{(c.category or '')},,{(c.tags or '')},"
+            f"{'是' if c.is_available else '否'},{created}"
+        )
+    csv_content = "\n".join(lines).encode("utf-8-sig")
+    output = io.BytesIO(csv_content)
 
     output.seek(0)
     return StreamingResponse(
-        iter([output.getvalue()]),
-        media_type="text/csv",
+        output,
+        media_type="text/csv; charset=utf-8-sig",
         headers={
             "Content-Disposition": "attachment; filename=cadres_export.csv",
-            "Content-Type": "text/csv; charset=utf-8-sig",
         },
     )
 
@@ -174,7 +163,7 @@ async def import_cadres(
     导入干部数据（Excel .xlsx）
     必填列：name
     可选列：gender, birth_date, ethnicity, native_place, political_status,
-            education, degree, unit_id, position, rank, tags, profile,
+            education, degree, unit_id, position, rank, category, tags, profile,
             resume, achievements(JSON), is_available
     """
     import openpyxl
@@ -219,6 +208,7 @@ async def import_cadres(
                 "unit_id": None,
                 "position": _cell(row, col_map, "position"),
                 "rank": _cell(row, col_map, "rank"),
+                "category": _cell(row, col_map, "category"),
                 "tags": _list_cell(row, col_map, "tags"),
                 "profile": _cell(row, col_map, "profile"),
                 "resume": _cell(row, col_map, "resume"),
@@ -243,12 +233,14 @@ async def import_cadres(
             "created": created, "skipped": skipped
         })
     return {
-        "message": "导入完成",
+        "message": f"导入完成：新增 {created} 条，{skipped} 条因姓名重复被跳过",
+        "detail": f"{skipped}条记录因姓名重复被跳过，可前往列表手动编辑覆盖",
         "created": created,
         "skipped": skipped,
         "errors": errors[:10],
     } if created > 0 else {
-        "message": "无新数据导入（全部重复或为空）",
+        "message": f"无新数据导入（{skipped}条姓名重复）",
+        "detail": f"{skipped}条记录因姓名重复被跳过，可前往列表手动编辑覆盖",
         "created": 0,
         "skipped": skipped,
         "errors": errors[:10],

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, message, Form, Input, Select, Upload } from 'antd';
+import { Table, Button, Space, Modal, message, Form, Input, Select, Upload, InputNumber } from 'antd';
 import { PlusOutlined, UploadOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import SearchForm from '@/components/common/SearchForm';
-import { getUnits, deleteUnit, createUnit, updateUnit, importUnits } from '@/api/units';
+import { getUnits, deleteUnit, createUnit, updateUnit, importUnits, exportUnits } from '@/api/units';
 import type { ColumnsType } from 'antd/es/table';
 
 interface Unit {
@@ -11,7 +11,9 @@ interface Unit {
   name: string;
   org_code: string;
   unit_type?: string;
-  level?: number;
+  level?: string;
+  last_inspection_year?: number;
+  inspection_history?: string;
   is_active: boolean;
 }
 
@@ -21,12 +23,12 @@ const UNIT_TYPE_OPTIONS = [
   { label: '组织部', value: 'organization' },
   { label: '宣传部', value: 'propaganda' },
   { label: '政府', value: 'government' },
+  { label: '其他', value: 'other' },
 ];
 
-const LEVEL_OPTIONS = [
-  { label: '正厅级', value: 1 },
-  { label: '副厅级', value: 2 },
-  { label: '县处级', value: 3 },
+const UNIT_LEVEL_OPTIONS = [
+  { label: '一级单位', value: '一级单位' },
+  { label: '二级单位', value: '二级单位' },
 ];
 
 const UNIT_TYPE_LABELS: Record<string, string> = {
@@ -35,12 +37,7 @@ const UNIT_TYPE_LABELS: Record<string, string> = {
   organization: '组织部',
   propaganda: '宣传部',
   government: '政府',
-};
-
-const LEVEL_LABELS: Record<number, string> = {
-  1: '正厅级',
-  2: '副厅级',
-  3: '县处级',
+  other: '其他',
 };
 
 const UnitList: React.FC = () => {
@@ -94,7 +91,6 @@ const UnitList: React.FC = () => {
   const handleCreateSubmit = async () => {
     try {
       const values = await form.validateFields();
-      if (values.level) values.level = Number(values.level);
       await createUnit(values);
       message.success('新建单位成功');
       setCreateModalOpen(false);
@@ -109,7 +105,6 @@ const UnitList: React.FC = () => {
     if (!editingUnit) return;
     try {
       const values = await form.validateFields();
-      if (values.level) values.level = Number(values.level);
       await updateUnit(editingUnit.id, values);
       message.success('编辑单位成功');
       setEditModalOpen(false);
@@ -137,7 +132,9 @@ const UnitList: React.FC = () => {
     { title: '单位名称', dataIndex: 'name', key: 'name' },
     { title: '组织编码', dataIndex: 'org_code', key: 'org_code' },
     { title: '类型', dataIndex: 'unit_type', key: 'unit_type', render: (v: string) => UNIT_TYPE_LABELS[v] || v },
-    { title: '级别', dataIndex: 'level', key: 'level', render: (v: number) => LEVEL_LABELS[v] || v },
+    { title: '级别', dataIndex: 'level', key: 'level', render: (v: string) => v || '-' },
+    { title: '最近巡察年份', dataIndex: 'last_inspection_year', key: 'last_inspection_year', render: (v: number) => v || '-' },
+    { title: '巡察历史', dataIndex: 'inspection_history', key: 'inspection_history', render: (v: string) => v || '-' },
     {
       title: '操作',
       key: 'action',
@@ -166,6 +163,9 @@ const UnitList: React.FC = () => {
           <Button icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)}>
             导入
           </Button>
+          <Button icon={<UploadOutlined />} onClick={exportUnits}>
+            导出
+          </Button>
         </Space>
       </div>
       <Table
@@ -192,9 +192,17 @@ const UnitList: React.FC = () => {
           <Form.Item name="unit_type" label="单位类型" rules={[{ required: true, message: '请选择单位类型' }]}>
             <Select options={UNIT_TYPE_OPTIONS} placeholder="请选择单位类型" />
           </Form.Item>
-          <Form.Item name="level" label="级别" rules={[{ required: true, message: '请选择级别' }]}>
-            <Select options={LEVEL_OPTIONS} placeholder="请选择级别" />
+          <Form.Item name="level" label="级别">
+            <Select options={UNIT_LEVEL_OPTIONS} placeholder="请选择级别（一级/二级单位）" />
           </Form.Item>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <Form.Item name="last_inspection_year" label="最近巡察年份">
+              <InputNumber style={{ width: '100%' }} placeholder="如 2021" min={1900} max={2100} />
+            </Form.Item>
+            <Form.Item name="inspection_history" label="巡察历史">
+              <Input placeholder="如 2021年第一轮、2023年第二轮" />
+            </Form.Item>
+          </div>
           <div style={{ textAlign: 'right', marginTop: 16 }}>
             <Space>
               <Button onClick={() => setCreateModalOpen(false)}>取消</Button>
@@ -214,9 +222,17 @@ const UnitList: React.FC = () => {
           <Form.Item name="unit_type" label="单位类型" rules={[{ required: true, message: '请选择单位类型' }]}>
             <Select options={UNIT_TYPE_OPTIONS} placeholder="请选择单位类型" />
           </Form.Item>
-          <Form.Item name="level" label="级别" rules={[{ required: true, message: '请选择级别' }]}>
-            <Select options={LEVEL_OPTIONS} placeholder="请选择级别" />
+          <Form.Item name="level" label="级别">
+            <Select options={UNIT_LEVEL_OPTIONS} placeholder="请选择级别（一级/二级单位）" />
           </Form.Item>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <Form.Item name="last_inspection_year" label="最近巡察年份">
+              <InputNumber style={{ width: '100%' }} placeholder="如 2021" min={1900} max={2100} />
+            </Form.Item>
+            <Form.Item name="inspection_history" label="巡察历史">
+              <Input placeholder="如 2021年第一轮、2023年第二轮" />
+            </Form.Item>
+          </div>
           <div style={{ textAlign: 'right', marginTop: 16 }}>
             <Space>
               <Button onClick={() => { setEditModalOpen(false); setEditingUnit(null); }}>取消</Button>
@@ -241,7 +257,7 @@ const UnitList: React.FC = () => {
           </Upload>
           <div style={{ marginTop: 16, fontSize: 12, color: '#888' }}>
             <p>必填列：name(单位名称), org_code(组织编码)</p>
-            <p>可选列：unit_type, level, sort_order, tags, profile, is_active</p>
+            <p>可选列：unit_type, level, sort_order, tags, profile, is_active, last_inspection_year, inspection_history</p>
             <p>说明：org_code 重复的数据会自动跳过</p>
           </div>
         </div>

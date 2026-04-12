@@ -4,6 +4,7 @@ import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import { getPlans, submitPlan, approvePlan, publishPlan } from '@/api/plans';
 import PlanDetail from './PlanDetail';
+import CreatePlanModal from './CreatePlanModal';
 import type { ColumnsType } from 'antd/es/table';
 
 interface Plan {
@@ -41,6 +42,7 @@ const PlanList: React.FC = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [detailMode, setDetailMode] = useState<'create' | 'view' | 'edit'>('create');
 
@@ -70,9 +72,7 @@ const PlanList: React.FC = () => {
   };
 
   const openCreateModal = () => {
-    setEditingId(null);
-    setDetailMode('create');
-    setDetailModalOpen(true);
+    setCreateModalOpen(true);
   };
 
   const openViewModal = (id: string) => {
@@ -123,6 +123,11 @@ const PlanList: React.FC = () => {
         mode={detailMode}
         onClose={() => setDetailModalOpen(false)}
         onSuccess={() => { setDetailModalOpen(false); fetchData(); }}
+      />
+      <CreatePlanModal
+        open={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onSuccess={() => { setCreateModalOpen(false); fetchData(); }}
       />
     </div>
   );

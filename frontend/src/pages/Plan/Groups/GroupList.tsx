@@ -5,6 +5,7 @@ import PageHeader from '@/components/common/PageHeader';
 import { getGroups } from '@/api/groups';
 import GroupDetail from './GroupDetail';
 import GroupMemberModal from './GroupMemberModal';
+import CreateGroupModal from './CreateGroupModal';
 import type { ColumnsType } from 'antd/es/table';
 
 interface Group {
@@ -39,6 +40,7 @@ const GroupList: React.FC = () => {
   const [memberModalOpen, setMemberModalOpen] = useState(false);
   const [memberGroupId, setMemberGroupId] = useState<string>('');
   const [memberGroupName, setMemberGroupName] = useState<string>('');
+  const [createModalOpen, setCreateModalOpen] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -54,9 +56,7 @@ const GroupList: React.FC = () => {
   useEffect(() => { fetchData(); }, []);
 
   const openCreateModal = () => {
-    setEditingId(null);
-    setDetailMode('create');
-    setDetailModalOpen(true);
+    setCreateModalOpen(true);
   };
 
   const openViewModal = (record: Group) => {
@@ -125,6 +125,11 @@ const GroupList: React.FC = () => {
         groupName={memberGroupName}
         onClose={() => { setMemberModalOpen(false); setMemberGroupId(''); setMemberGroupName(''); }}
         onSuccess={fetchData}
+      />
+      <CreateGroupModal
+        open={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onSuccess={() => { setCreateModalOpen(false); fetchData(); }}
       />
     </div>
   );
