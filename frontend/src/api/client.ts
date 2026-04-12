@@ -39,9 +39,22 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
-      // Don't navigate here — let the next component/auth-check handle redirect
     }
-    const msg = error.response?.data?.detail || error.message || '请求失败';
+    // FastAPI validation errors (422) have detail as an array of validation issues
+    const rawDetail = error.response?.data?.detail;
+    let msg = '请求失败';
+    if (typeof rawDetail === 'string') {
+      msg = rawDetail;
+    } else if (Array.isArray(rawDetail)) {
+      // Pydantic validation error list: extract human-readable messages
+      msg = rawDetail.map((e: any) => {
+        if (typeof e === 'string') return e;
+        const loc = Array.isArray(e.loc) ? e.loc.join(' › ') : '';
+        return loc ? `${loc}: ${e.msg}` : e.msg || String(e);
+      }).join('；');
+    } else if (typeof rawDetail === 'object' && rawDetail !== null) {
+      msg = rawDetail.msg || JSON.stringify(rawDetail);
+    }
     message.error(msg);
     return Promise.reject(error);
   }

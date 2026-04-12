@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Select, message } from 'antd';
+import { Table, Button, Space, Modal, Form, Input, Select, Switch, message } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import { getUsers, createUser, updateUser } from '@/api/admin';
@@ -89,15 +89,14 @@ const UserList: React.FC = () => {
           </Form.Item>
           <Form.Item name="role" label="角色">
             <Select placeholder="请选择角色" allowClear>
-              <Select.Option value="admin">管理员</Select.Option>
-              <Select.Option value="user">普通用户</Select.Option>
+              <Select.Option value="管理员">管理员</Select.Option>
+              <Select.Option value="操作员">操作员</Select.Option>
+              <Select.Option value="数据员">数据员</Select.Option>
+              <Select.Option value="审核员">审核员</Select.Option>
             </Select>
           </Form.Item>
           <Form.Item name="is_active" label="状态" valuePropName="checked" initialValue={true}>
-            <Select placeholder="请选择状态">
-              <Select.Option value={true}>启用</Select.Option>
-              <Select.Option value={false}>禁用</Select.Option>
-            </Select>
+            <Switch checkedChildren="启用" unCheckedChildren="禁用" />
           </Form.Item>
           <Button type="primary" htmlType="submit" block loading={loading}>{editingUser ? '更新' : '创建'}</Button>
         </Form>

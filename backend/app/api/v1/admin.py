@@ -50,6 +50,43 @@ async def create_user(
     return {"id": user.id, "username": user.username}
 
 
+@router.put("/users/{user_id}")
+async def update_user(
+    user_id: UUID,
+    user_data: UserUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    update_data = user_data.model_dump(exclude_unset=True)
+    if "password" in update_data and update_data["password"]:
+        user.hashed_password = get_password_hash(update_data.pop("password"))
+    for key, value in update_data.items():
+        setattr(user, key, value)
+    await db.commit()
+    await write_audit_log(db, current_user.id, "update", "user", user.id, {"username": user.username})
+    return {"id": user.id, "username": user.username}
+
+
+@router.delete("/users/{user_id}")
+async def delete_user(
+    user_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.is_active = False
+    await db.commit()
+    await write_audit_log(db, current_user.id, "delete", "user", user.id, {"username": user.username})
+    return {"message": "User deleted"}
+
+
 @router.get("/audit-logs")
 async def list_audit_logs(
     page: int = 1,

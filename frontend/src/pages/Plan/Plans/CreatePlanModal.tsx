@@ -205,7 +205,15 @@ const CreatePlanModal: React.FC<CreatePlanModalProps> = ({ open, onClose, onSucc
       onSuccess();
       onClose();
     } catch (e: any) {
-      message.error(e.response?.data?.detail || '创建失败');
+      const detail = e.response?.data?.detail;
+      let msg = '创建失败';
+      if (typeof detail === 'string') msg = detail;
+      else if (Array.isArray(detail)) {
+        msg = detail.map((err: any) =>
+          Array.isArray(err.loc) ? err.loc.join(' › ') + ': ' + err.msg : err.msg || String(err)
+        ).join('；');
+      }
+      message.error(msg);
     } finally {
       setSubmitting(false);
     }
