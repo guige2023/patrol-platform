@@ -11,3 +11,4 @@ dist/
 .mypy_cache/
 .env.local
 coverage/
+fix_drafts.py
