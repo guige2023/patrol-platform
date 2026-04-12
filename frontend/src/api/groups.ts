@@ -12,5 +12,7 @@ export const addMember = (groupId: string, cadreId: string, role: string) =>
   api.post(`/groups/${groupId}/members`, null, { params: { cadre_id: cadreId, role } }).then(res => res.data);
 export const removeMember = (groupId: string, cadreId: string) =>
   api.delete(`/groups/${groupId}/members/${cadreId}`);
+export const getGroupMembers = (groupId: string) =>
+  api.get(`/groups/${groupId}/members`).then(res => res.data);
 export const submitGroup = (id: string) =>
   api.post(`/groups/${id}/submit`);

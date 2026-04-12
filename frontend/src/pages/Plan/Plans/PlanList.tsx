@@ -42,6 +42,7 @@ const PlanList: React.FC = () => {
   const [pageSize, setPageSize] = useState(20);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [detailMode, setDetailMode] = useState<'create' | 'view' | 'edit'>('create');
 
   const fetchData = async () => {
     setLoading(true);
@@ -70,15 +71,17 @@ const PlanList: React.FC = () => {
 
   const openCreateModal = () => {
     setEditingId(null);
+    setDetailMode('create');
     setDetailModalOpen(true);
   };
 
-  const openEditModal = (id: string) => {
+  const openViewModal = (id: string) => {
     setEditingId(id);
+    setDetailMode('view');
     setDetailModalOpen(true);
   };
 
-  const detailMode = editingId ? 'edit' : 'create';
+
 
   const columns: ColumnsType<Plan> = [
     { title: '计划名称', dataIndex: 'name', key: 'name' },
@@ -97,7 +100,7 @@ const PlanList: React.FC = () => {
       key: 'action',
       render: (_, record) => (
         <Space>
-          <Button type="link" size="small" onClick={() => openEditModal(record.id)}>查看</Button>
+          <Button type="link" size="small" onClick={() => openViewModal(record.id)}>查看</Button>
           {record.status === 'draft' && <Button type="link" size="small" onClick={() => handleAction(record.id, 'submit')}>提交</Button>}
           {record.status === 'submitted' && <Button type="link" size="small" onClick={() => handleAction(record.id, 'approve')}>批准</Button>}
           {record.status === 'approved' && <Button type="link" size="small" onClick={() => handleAction(record.id, 'publish')}>发布</Button>}
@@ -117,7 +120,7 @@ const PlanList: React.FC = () => {
       <PlanDetail
         open={detailModalOpen}
         planId={editingId}
-        mode={detailMode as any}
+        mode={detailMode}
         onClose={() => setDetailModalOpen(false)}
         onSuccess={() => { setDetailModalOpen(false); fetchData(); }}
       />

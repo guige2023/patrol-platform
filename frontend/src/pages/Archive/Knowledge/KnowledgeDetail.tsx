@@ -12,8 +12,8 @@ const KnowledgeDetail: React.FC = () => {
 
   useEffect(() => {
     if (id) {
-      getKnowledgeDetail(id).then((res: any) => {
-        form.setFieldsValue(res.data);
+      getKnowledgeDetail(id).then((data: any) => {
+        form.setFieldsValue(data);
       }).catch(console.error);
     }
   }, [id]);

@@ -1,6 +1,7 @@
-import React, { useEffect, useRef } from 'react';
-import { Form, Input, Button, Space, Modal, message } from 'antd';
+import React, { useEffect, useState } from 'react';
+import { Form, Input, Button, Space, Modal, message, DatePicker, Descriptions } from 'antd';
 import { getPlan, createPlan, updatePlan } from '@/api/plans';
+import dayjs from 'dayjs';
 
 interface PlanDetailProps {
   open: boolean;
@@ -10,52 +11,68 @@ interface PlanDetailProps {
   onSuccess: () => void;
 }
 
+interface PlanData {
+  id?: string;
+  name?: string;
+  year?: number;
+  round_name?: string;
+  scope?: string;
+  goals?: string;
+  focus_areas?: string;
+  authorization_letter?: string;
+  authorization_date?: string;
+  planned_start_date?: string;
+  planned_end_date?: string;
+  version?: string;
+  created_at?: string;
+}
+
 const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, onSuccess }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = React.useState(false);
-  const isSettingValues = useRef(false);
+  const [planData, setPlanData] = useState<PlanData | null>(null);
 
-  // When modal opens in create mode, set default year
   useEffect(() => {
     if (open && mode === 'create') {
-      isSettingValues.current = true;
       form.setFieldsValue({ year: new Date().getFullYear() });
-      isSettingValues.current = false;
     }
   }, [open, mode]);
 
-  // Load existing plan for edit/view
   useEffect(() => {
     if (open && planId && (mode === 'edit' || mode === 'view')) {
-      isSettingValues.current = true;
+      setPlanData(null);
       getPlan(planId).then((res: any) => {
-        const data = res;
-        if (data.planned_start_date || data.planned_end_date) {
-          data.planned_date_range = [
-            data.planned_start_date ? new Date(data.planned_start_date) : null,
-            data.planned_end_date ? new Date(data.planned_end_date) : null,
-          ];
-        }
-        form.setFieldsValue(data);
-        isSettingValues.current = false;
+        setPlanData(res);
       }).catch(() => {
-        isSettingValues.current = false;
+        message.error('获取计划详情失败');
       });
+    } else if (open && !planId && mode === 'create') {
+      setPlanData(null);
     }
   }, [open, planId, mode]);
+
+  const isView = mode === 'view';
 
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
       setLoading(true);
 
-      // Build payload - only include fields that exist
       const payload: any = {
         name: values.name,
         year: values.year,
       };
       if (values.round_name) payload.round_name = values.round_name;
       if (values.scope) payload.scope = values.scope;
+      if (values.goals) payload.goals = values.goals;
+      if (values.focus_areas) payload.focus_areas = values.focus_areas;
+      if (values.authorization_letter) payload.authorization_letter = values.authorization_letter;
+      if (values.authorization_date) payload.authorization_date = values.authorization_date.format('YYYY-MM-DD');
+      if (values.planned_date_range) {
+        payload.planned_start_date = values.planned_date_range[0]?.format('YYYY-MM-DD');
+        payload.planned_end_date = values.planned_date_range[1]?.format('YYYY-MM-DD');
+      }
+      if (values.version) payload.version = values.version;
 
       if (mode === 'create') {
         await createPlan(payload);
@@ -68,17 +85,37 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
       onClose();
       form.resetFields();
     } catch (err: any) {
-      if (err.errorFields) {
-        console.log('Validation:', err.errorFields.map((f: any) => f.errors.join(', ')).join('; '));
-        return;
-      }
+      if (err.errorFields) return;
       message.error(err.response?.data?.detail || '操作失败');
     } finally {
       setLoading(false);
     }
   };
 
-  const isView = mode === 'view';
+  const renderViewMode = () => (
+    <Descriptions column={1} bordered size="small" style={{ marginTop: 16 }}>
+      <Descriptions.Item label="计划名称">{planData?.name || '-'}</Descriptions.Item>
+      <Descriptions.Item label="年份">{planData?.year || '-'}</Descriptions.Item>
+      <Descriptions.Item label="轮次">{planData?.round_name || '-'}</Descriptions.Item>
+      <Descriptions.Item label="巡察范围">{planData?.scope || '-'}</Descriptions.Item>
+      <Descriptions.Item label="巡察目标">{planData?.goals || '-'}</Descriptions.Item>
+      <Descriptions.Item label="重点领域">{planData?.focus_areas || '-'}</Descriptions.Item>
+      <Descriptions.Item label="授权文书">{planData?.authorization_letter || '-'}</Descriptions.Item>
+      <Descriptions.Item label="授权日期">
+        {planData?.authorization_date ? dayjs(planData.authorization_date).format('YYYY-MM-DD') : '-'}
+      </Descriptions.Item>
+      <Descriptions.Item label="计划巡察日期范围">
+        {planData?.planned_start_date || planData?.planned_end_date
+          ? `${planData.planned_start_date ? dayjs(planData.planned_start_date).format('YYYY-MM-DD') : '-'} ~ ${planData.planned_end_date ? dayjs(planData.planned_end_date).format('YYYY-MM-DD') : '-'}`
+          : '-'}
+      </Descriptions.Item>
+      <Descriptions.Item label="版本号">{planData?.version || '-'}</Descriptions.Item>
+      <Descriptions.Item label="创建时间">
+        {planData?.created_at ? dayjs(planData.created_at).format('YYYY-MM-DD HH:mm') : '-'}
+      </Descriptions.Item>
+    </Descriptions>
+  );
+
   const title = mode === 'create' ? '新建计划' : mode === 'view' ? '查看计划' : '编辑计划';
 
   return (
@@ -92,21 +129,42 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
           <Button type="primary" onClick={handleSubmit} loading={loading}>确定</Button>
         </Space>
       )}
-      width={600}
+      width={700}
     >
-      <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-        <Form.Item name="name" label="计划名称" rules={[{ required: true, message: '请输入计划名称' }]}>
-          <Input placeholder="请输入计划名称" disabled={isView} />
-        </Form.Item>
-
-        <Form.Item name="year" label="年份" rules={[{ required: true, message: '请输入年份' }]}>
-          <Input type="number" placeholder="如：2026" disabled={isView} style={{ width: 200 }} />
-        </Form.Item>
-
-        <Form.Item name="round_name" label="轮次">
-          <Input placeholder="如：第一轮巡察" disabled={isView} />
-        </Form.Item>
-      </Form>
+      {isView ? renderViewMode() : (
+        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item name="name" label="计划名称" rules={[{ required: true, message: '请输入计划名称' }]}>
+            <Input placeholder="请输入计划名称" />
+          </Form.Item>
+          <Form.Item name="year" label="年份" rules={[{ required: true, message: '请输入年份' }]}>
+            <Input type="number" placeholder="如：2026" style={{ width: 200 }} />
+          </Form.Item>
+          <Form.Item name="round_name" label="轮次">
+            <Input placeholder="如：第一轮巡察" />
+          </Form.Item>
+          <Form.Item name="scope" label="巡察范围">
+            <Input.TextArea rows={2} placeholder="请输入巡察范围" />
+          </Form.Item>
+          <Form.Item name="goals" label="巡察目标">
+            <Input.TextArea rows={2} placeholder="请输入巡察目标" />
+          </Form.Item>
+          <Form.Item name="focus_areas" label="重点领域">
+            <Input.TextArea rows={2} placeholder="请输入重点领域" />
+          </Form.Item>
+          <Form.Item name="authorization_letter" label="授权文书">
+            <Input placeholder="请输入授权文书" />
+          </Form.Item>
+          <Form.Item name="authorization_date" label="授权日期">
+            <DatePicker style={{ width: '100%' }} placeholder="请选择授权日期" />
+          </Form.Item>
+          <Form.Item name="planned_date_range" label="计划巡察日期范围">
+            <DatePicker.RangePicker style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="version" label="版本号">
+            <Input placeholder="如：v1.0" />
+          </Form.Item>
+        </Form>
+      )}
     </Modal>
   );
 };

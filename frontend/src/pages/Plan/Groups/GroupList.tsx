@@ -35,6 +35,7 @@ const GroupList: React.FC = () => {
   const [data, setData] = useState<Group[]>([]);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [detailMode, setDetailMode] = useState<'create' | 'view' | 'edit'>('create');
   const [memberModalOpen, setMemberModalOpen] = useState(false);
   const [memberGroupId, setMemberGroupId] = useState<string>('');
   const [memberGroupName, setMemberGroupName] = useState<string>('');
@@ -54,11 +55,19 @@ const GroupList: React.FC = () => {
 
   const openCreateModal = () => {
     setEditingId(null);
+    setDetailMode('create');
     setDetailModalOpen(true);
   };
 
   const openViewModal = (record: Group) => {
     setEditingId(record.id);
+    setDetailMode('view');
+    setDetailModalOpen(true);
+  };
+
+  const openEditModal = (record: Group) => {
+    setEditingId(record.id);
+    setDetailMode('edit');
     setDetailModalOpen(true);
   };
 
@@ -89,6 +98,7 @@ const GroupList: React.FC = () => {
       render: (_, record) => (
         <Space>
           <Button type="link" size="small" onClick={() => openViewModal(record)}>查看</Button>
+          <Button type="link" size="small" onClick={() => openEditModal(record)}>编辑</Button>
           <Button type="link" size="small" onClick={() => { setMemberGroupId(record.id); setMemberGroupName(record.name); setMemberModalOpen(true); }}>添加成员</Button>
         </Space>
       ),
@@ -105,6 +115,7 @@ const GroupList: React.FC = () => {
       <GroupDetail
         open={detailModalOpen}
         editingId={editingId}
+        mode={detailMode}
         onCancel={handleDetailCancel}
         onSuccess={handleDetailSuccess}
       />

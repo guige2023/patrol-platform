@@ -9,32 +9,33 @@
     "lint": "eslint src --ext ts,tsx"
   },
   "dependencies": {
+    "@ant-design/icons": "^5.2.6",
+    "@tanstack/react-query": "^5.17.0",
+    "@tinymce/tinymce-react": "^4.3.2",
+    "antd": "^5.14.0",
+    "axios": "^1.6.7",
+    "dayjs": "^1.11.10",
+    "echarts": "^5.5.0",
+    "echarts-for-react": "^3.0.2",
+    "lodash-es": "^4.17.21",
+    "playwright": "^1.59.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.22.0",
-    "antd": "^5.14.0",
-    "@ant-design/icons": "^5.2.6",
-    "zustand": "^4.5.0",
-    "axios": "^1.6.7",
-    "@tanstack/react-query": "^5.17.0",
-    "echarts": "^5.5.0",
-    "echarts-for-react": "^3.0.2",
-    "dayjs": "^1.11.10",
     "react-use": "^17.4.2",
-    "lodash-es": "^4.17.21",
-    "@tinymce/tinymce-react": "^4.3.2",
-    "sonner": "^1.4.0"
+    "sonner": "^1.4.0",
+    "zustand": "^4.5.0"
   },
   "devDependencies": {
+    "@types/lodash-es": "^4.17.12",
     "@types/react": "^18.2.48",
     "@types/react-dom": "^18.2.18",
-    "@types/lodash-es": "^4.17.12",
-    "@vitejs/plugin-react": "^4.2.1",
-    "typescript": "^5.3.3",
-    "vite": "^5.0.12",
-    "eslint": "^8.56.0",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",
-    "prettier": "^3.2.4"
+    "@vitejs/plugin-react": "^4.2.1",
+    "eslint": "^8.56.0",
+    "prettier": "^3.2.4",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.12"
   }
 }

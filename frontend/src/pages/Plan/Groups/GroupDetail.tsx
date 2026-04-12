@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Form, Input, Select, Button, Space, message } from 'antd';
+import { Modal, Form, Input, Select, Button, Space, Table, Tag, message } from 'antd';
 import { createGroup, updateGroup, getGroup } from '@/api/groups';
 import { getPlans } from '@/api/plans';
 import { getUnits } from '@/api/units';
+import { getGroupMembers, removeMember } from '@/api/groups';
 
 interface GroupDetailProps {
   open: boolean;
   editingId?: string | null;
+  mode: 'create' | 'view' | 'edit';
   onCancel: () => void;
   onSuccess: () => void;
 }
@@ -35,26 +37,33 @@ const STATUS_OPTIONS = [
   { label: '已完成', value: 'completed' },
 ];
 
-const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, onCancel, onSuccess }) => {
+const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCancel, onSuccess }) => {
   const [form] = Form.useForm<GroupFormData>();
   const [loading, setLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [planOptions, setPlanOptions] = useState<PlanOption[]>([]);
   const [unitOptions, setUnitOptions] = useState<UnitOption[]>([]);
   const [initialLoading, setInitialLoading] = useState(false);
+  const [members, setMembers] = useState<any[]>([]);
+  const [, setGroupData] = useState<any>(null);
 
-  const isEdit = !!editingId;
+  const isEdit = mode === 'edit';
+  const isView = mode === 'view';
+  const isCreate = mode === 'create';
 
   useEffect(() => {
     if (open) {
       loadOptions();
-      if (editingId) {
-        loadGroupData(editingId);
+      if (mode === 'view' || mode === 'edit') {
+        loadGroupData(editingId!);
+        loadGroupMembers(editingId!);
       } else {
         form.resetFields();
+        setMembers([]);
+        setGroupData(null);
       }
     }
-  }, [open, editingId]);
+  }, [open, mode, editingId]);
 
   const loadOptions = async () => {
     setLoading(true);
@@ -86,6 +95,7 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, onCancel, on
     setInitialLoading(true);
     try {
       const res = await getGroup(id);
+      setGroupData(res);
       form.setFieldsValue({
         name: res.name,
         plan_id: res.plan_id,
@@ -97,6 +107,26 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, onCancel, on
       onCancel();
     } finally {
       setInitialLoading(false);
+    }
+  };
+
+  const loadGroupMembers = async (id: string) => {
+    try {
+      const res = await getGroupMembers(id);
+      setMembers(Array.isArray(res) ? res : res.items || []);
+    } catch (e) {
+      console.error('Failed to load members', e);
+    }
+  };
+
+  const handleRemoveMember = async (cadreId: string) => {
+    if (!editingId) return;
+    try {
+      await removeMember(editingId, cadreId);
+      message.success('移除成功');
+      loadGroupMembers(editingId);
+    } catch (e: any) {
+      message.error(e.response?.data?.detail || '移除失败');
     }
   };
 
@@ -120,24 +150,46 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, onCancel, on
     }
   };
 
+  const roleColors: Record<string, string> = {
+    '组长': 'red',
+    '副组长': 'orange',
+    '联络员': 'blue',
+    '组员': 'green',
+    '专项负责人': 'purple',
+  };
+
+  const memberColumns = [
+    { title: '姓名', dataIndex: 'cadre_name', key: 'cadre_name' },
+    { title: '角色', dataIndex: 'role', key: 'role', render: (r: string) => <Tag color={roleColors[r] || 'default'}>{r}</Tag> },
+    { title: '单位', dataIndex: 'unit_name', key: 'unit_name' },
+    { title: '操作', key: 'action', render: (_: any, record: any) => (
+      <Button type="link" danger size="small" onClick={() => handleRemoveMember(record.cadre_id)}>移除</Button>
+    )},
+  ];
+
+  const modalTitle = isCreate ? '新建巡察组' : isView ? '查看巡察组' : '编辑巡察组';
+
   return (
     <Modal
-      title={isEdit ? '查看巡察组' : '新建巡察组'}
+      title={modalTitle}
       open={open}
       onCancel={onCancel}
       footer={
         <div style={{ textAlign: 'right' }}>
           <Space>
-            <Button onClick={onCancel}>取消</Button>
-            <Button type="primary" onClick={handleSubmit} disabled={initialLoading || submitLoading} loading={submitLoading}>
-              {isEdit ? '保存' : '新建'}
-            </Button>
+            <Button onClick={onCancel}>关闭</Button>
+            {isCreate && (
+              <Button type="primary" onClick={handleSubmit} disabled={initialLoading || submitLoading} loading={submitLoading}>
+                新建
+              </Button>
+            )}
           </Space>
         </div>
       }
       destroyOnHidden
+      width={700}
     >
-      <Form form={form} layout="vertical" disabled={initialLoading}>
+      <Form form={form} layout="vertical" disabled={initialLoading || isView}>
         <Form.Item
           name="name"
           label="巡察组名称"
@@ -176,6 +228,19 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, onCancel, on
           <Select placeholder="请选择状态" options={STATUS_OPTIONS} />
         </Form.Item>
       </Form>
+
+      {(isEdit || isView) && (
+        <div style={{ marginTop: 24 }}>
+          <div style={{ fontWeight: 500, marginBottom: 8 }}>巡察组成员</div>
+          <Table
+            columns={memberColumns}
+            dataSource={members}
+            rowKey="id"
+            size="small"
+            pagination={false}
+          />
+        </div>
+      )}
     </Modal>
   );
 };

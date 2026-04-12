@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Card, Row, Col, Statistic, Spin, message } from 'antd'
+import { Card, Row, Col, Statistic, Spin, message, Space, Button } from 'antd'
 import {
   BankOutlined,
   ProjectOutlined,
@@ -8,6 +8,7 @@ import {
   ExceptionOutlined,
   AuditOutlined,
 } from '@ant-design/icons'
+import { Link } from 'react-router-dom'
 import { getOverview, getIssueProfile } from '../../api/dashboard'
 
 interface Overview {
@@ -49,22 +50,24 @@ export default function Dashboard() {
   )
 
   const cards = [
-    { title: '单位档案', value: overview?.unit_count ?? 0, icon: <BankOutlined />, color: '#1890ff' },
-    { title: '巡察计划', value: overview?.plan_count ?? 0, icon: <ProjectOutlined />, color: '#52c41a' },
-    { title: '底稿数量', value: overview?.draft_count ?? 0, icon: <FileTextOutlined />, color: '#faad14' },
-    { title: '线索数量', value: overview?.clue_count ?? 0, icon: <ExceptionOutlined />, color: '#f5222d' },
-    { title: '整改数量', value: overview?.rectification_count ?? 0, icon: <WarningOutlined />, color: '#722ed1' },
+    { title: '单位档案', value: overview?.unit_count ?? 0, icon: <BankOutlined />, color: '#1890ff', path: '/archive/units' },
+    { title: '巡察计划', value: overview?.plan_count ?? 0, icon: <ProjectOutlined />, color: '#52c41a', path: '/plan/plans' },
+    { title: '底稿数量', value: overview?.draft_count ?? 0, icon: <FileTextOutlined />, color: '#faad14', path: '/execution/drafts' },
+    { title: '线索数量', value: overview?.clue_count ?? 0, icon: <ExceptionOutlined />, color: '#f5222d', path: '/execution/clues' },
+    { title: '整改数量', value: overview?.rectification_count ?? 0, icon: <WarningOutlined />, color: '#722ed1', path: '/execution/rectifications' },
     {
       title: '待整改',
       value: overview?.pending_rectification ?? 0,
       icon: <WarningOutlined />,
       color: '#fa8c16',
+      path: '/execution/rectifications?filter=pending',
     },
     {
       title: '超期整改',
       value: overview?.overdue_rectification ?? 0,
       icon: <AuditOutlined />,
       color: '#cf1322',
+      path: '/execution/rectifications?filter=overdue',
     },
   ]
 
@@ -73,16 +76,34 @@ export default function Dashboard() {
       <Row gutter={[16, 16]}>
         {cards.map((c) => (
           <Col xs={12} sm={8} md={6} lg={4} key={c.title}>
-            <Card hoverable>
-              <Statistic
-                title={c.title}
-                value={c.value}
-                prefix={<span style={{ color: c.color }}>{c.icon}</span>}
-                valueStyle={{ color: c.color, fontSize: 28 }}
-              />
-            </Card>
+            <Link to={c.path} style={{ textDecoration: 'none' }}>
+              <Card hoverable>
+                <Statistic
+                  title={c.title}
+                  value={c.value}
+                  prefix={<span style={{ color: c.color }}>{c.icon}</span>}
+                  valueStyle={{ color: c.color, fontSize: 28 }}
+                />
+              </Card>
+            </Link>
           </Col>
         ))}
+      </Row>
+
+      <Row gutter={16} style={{ marginTop: 24 }}>
+        <Col span={24}>
+          <Card title="快捷入口" size="small">
+            <Space wrap>
+              <Link to="/archive/units"><Button>单位档案</Button></Link>
+              <Link to="/plan/plans"><Button>巡察计划</Button></Link>
+              <Link to="/plan/groups"><Button>巡察组</Button></Link>
+              <Link to="/archive/cadres"><Button>干部管理</Button></Link>
+              <Link to="/execution/drafts"><Button>底稿管理</Button></Link>
+              <Link to="/execution/clues"><Button>线索管理</Button></Link>
+              <Link to="/execution/rectifications"><Button>整改管理</Button></Link>
+            </Space>
+          </Card>
+        </Col>
       </Row>
 
       <Row gutter={16} style={{ marginTop: 24 }}>

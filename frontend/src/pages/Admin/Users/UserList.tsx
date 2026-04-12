@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, message } from 'antd';
+import { Table, Button, Space, Modal, Form, Input, Select, message } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
-import { getUsers, createUser } from '@/api/admin';
+import { getUsers, createUser, updateUser } from '@/api/admin';
 
 const UserList: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
+  const [editingUser, setEditingUser] = useState<any | null>(null);
   const [form] = Form.useForm();
 
   const fetchData = async () => {
@@ -24,14 +25,35 @@ const UserList: React.FC = () => {
 
   const handleCreate = async (values: any) => {
     try {
-      await createUser(values);
-      message.success('创建成功');
+      if (editingUser) {
+        await updateUser(editingUser.id, values);
+        message.success('更新成功');
+      } else {
+        await createUser(values);
+        message.success('创建成功');
+      }
       setModalVisible(false);
+      setEditingUser(null);
       form.resetFields();
       fetchData();
     } catch (e: any) {
-      message.error(e.response?.data?.detail || '创建失败');
+      message.error(e.response?.data?.detail || (editingUser ? '更新失败' : '创建失败'));
     }
+  };
+
+  const handleEdit = (record: any) => {
+    setEditingUser(record);
+    form.setFieldsValue({
+      ...record,
+      is_active: record.is_active ? 'true' : 'false',
+    });
+    setModalVisible(true);
+  };
+
+  const handleModalClose = () => {
+    setModalVisible(false);
+    setEditingUser(null);
+    form.resetFields();
   };
 
   const columns = [
@@ -39,7 +61,7 @@ const UserList: React.FC = () => {
     { title: '邮箱', dataIndex: 'email', key: 'email' },
     { title: '姓名', dataIndex: 'full_name', key: 'full_name' },
     { title: '状态', dataIndex: 'is_active', key: 'is_active', render: (v: boolean) => <span style={{ color: v ? '#52c41a' : '#ff4d4f' }}>{v ? '启用' : '禁用'}</span> },
-    { title: '操作', key: 'action', render: () => <Space><Button type="link" size="small">编辑</Button></Space> },
+    { title: '操作', key: 'action', render: (_: any, record: any) => <Space><Button type="link" size="small" onClick={() => handleEdit(record)}>编辑</Button></Space> },
   ];
 
   return (
@@ -49,21 +71,35 @@ const UserList: React.FC = () => {
         <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalVisible(true)}>新建用户</Button>
       </div>
       <Table columns={columns} dataSource={data} rowKey="id" loading={loading} pagination={false} />
-      <Modal title="新建用户" open={modalVisible} onCancel={() => setModalVisible(false)} footer={null}>
+      <Modal title={editingUser ? '编辑用户' : '新建用户'} open={modalVisible} onCancel={handleModalClose} footer={null}>
         <Form form={form} layout="vertical" onFinish={handleCreate}>
           <Form.Item name="username" label="用户名" rules={[{ required: true }]}>
-            <Input />
+            <Input disabled={!!editingUser} />
           </Form.Item>
           <Form.Item name="email" label="邮箱" rules={[{ required: true, type: 'email' }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="password" label="密码" rules={[{ required: true }]}>
-            <Input.Password />
-          </Form.Item>
+          {!editingUser && (
+            <Form.Item name="password" label="密码" rules={[{ required: true }]}>
+              <Input.Password />
+            </Form.Item>
+          )}
           <Form.Item name="full_name" label="姓名" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Button type="primary" htmlType="submit" block>创建</Button>
+          <Form.Item name="role" label="角色">
+            <Select placeholder="请选择角色" allowClear>
+              <Select.Option value="admin">管理员</Select.Option>
+              <Select.Option value="user">普通用户</Select.Option>
+            </Select>
+          </Form.Item>
+          <Form.Item name="is_active" label="状态" valuePropName="checked" initialValue={true}>
+            <Select placeholder="请选择状态">
+              <Select.Option value="true">启用</Select.Option>
+              <Select.Option value="false">禁用</Select.Option>
+            </Select>
+          </Form.Item>
+          <Button type="primary" htmlType="submit" block loading={loading}>{editingUser ? '更新' : '创建'}</Button>
         </Form>
       </Modal>
     </div>

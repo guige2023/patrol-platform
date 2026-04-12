@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Form, Input, Select, Button, Space, message } from 'antd';
+import { Modal, Form, Input, Select, Button, Space, DatePicker, message } from 'antd';
 import { getGroups } from '@/api/groups';
 import { getUnits } from '@/api/units';
-import { createDraft, updateDraft, getDraft } from '@/api/drafts';
+import { createDraft, updateDraft, getDraft, submitDraft } from '@/api/drafts';
+import dayjs from 'dayjs';
 
 const { TextArea } = Input;
 
@@ -70,7 +71,14 @@ const DraftDetail: React.FC<DraftDetailProps> = ({ open, editingId, onClose, onS
   const fetchDraftData = async (id: string) => {
     try {
       const res = await getDraft(id);
-      form.setFieldsValue(res);
+      const data = { ...res };
+      if (data.investigation_start_date) {
+        data.investigation_start_date = dayjs(data.investigation_start_date);
+      }
+      if (data.investigation_end_date) {
+        data.investigation_end_date = dayjs(data.investigation_end_date);
+      }
+      form.setFieldsValue(data);
     } catch {
       message.error('获取底稿详情失败');
     }
@@ -80,11 +88,21 @@ const DraftDetail: React.FC<DraftDetailProps> = ({ open, editingId, onClose, onS
     try {
       const values = await form.validateFields();
       setLoading(true);
+
+      // Format dates
+      const payload: any = { ...values };
+      if (payload.investigation_start_date) {
+        payload.investigation_start_date = payload.investigation_start_date.format('YYYY-MM-DD');
+      }
+      if (payload.investigation_end_date) {
+        payload.investigation_end_date = payload.investigation_end_date.format('YYYY-MM-DD');
+      }
+
       if (editingId) {
-        await updateDraft(editingId, values);
+        await updateDraft(editingId, payload);
         message.success('编辑底稿成功');
       } else {
-        await createDraft(values);
+        await createDraft(payload);
         message.success('新建底稿成功');
       }
       onSuccess();
@@ -93,6 +111,21 @@ const DraftDetail: React.FC<DraftDetailProps> = ({ open, editingId, onClose, onS
     } catch (err: any) {
       if (err.errorFields) return;
       message.error(err.response?.data?.detail || (editingId ? '编辑底稿失败' : '新建底稿失败'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmitDraft = async () => {
+    if (!editingId) return;
+    try {
+      setLoading(true);
+      await submitDraft(editingId, 'submit');
+      message.success('提交成功');
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      message.error(err.response?.data?.detail || '提交失败');
     } finally {
       setLoading(false);
     }
@@ -108,8 +141,7 @@ const DraftDetail: React.FC<DraftDetailProps> = ({ open, editingId, onClose, onS
       title={editingId ? '查看/编辑底稿' : '新建底稿'}
       open={open}
       onCancel={handleCancel}
-      footer={null}
-      width={600}
+      width={700}
     >
       <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
         <Form.Item
@@ -132,6 +164,19 @@ const DraftDetail: React.FC<DraftDetailProps> = ({ open, editingId, onClose, onS
           <Select options={unitOptions} placeholder="请选择被巡察单位" allowClear showSearch />
         </Form.Item>
 
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <Form.Item name="investigation_start_date" label="调查开始日期">
+            <DatePicker style={{ width: '100%' }} placeholder="请选择开始日期" />
+          </Form.Item>
+          <Form.Item name="investigation_end_date" label="调查结束日期">
+            <DatePicker style={{ width: '100%' }} placeholder="请选择结束日期" />
+          </Form.Item>
+        </div>
+
+        <Form.Item name="location" label="地点">
+          <Input placeholder="请输入地点" />
+        </Form.Item>
+
         <Form.Item name="category" label="类别">
           <Select options={CATEGORY_OPTIONS} placeholder="请选择类别" allowClear />
         </Form.Item>
@@ -140,9 +185,14 @@ const DraftDetail: React.FC<DraftDetailProps> = ({ open, editingId, onClose, onS
           <Input placeholder="请输入问题类型" />
         </Form.Item>
 
-        <Form.Item name="severity" label="严重程度">
-          <Select options={SEVERITY_OPTIONS} placeholder="请选择严重程度" allowClear />
-        </Form.Item>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <Form.Item name="severity" label="严重程度">
+            <Select options={SEVERITY_OPTIONS} placeholder="请选择严重程度" allowClear />
+          </Form.Item>
+          <Form.Item name="participants" label="参与人员">
+            <Input placeholder="请输入参与人员" />
+          </Form.Item>
+        </div>
 
         <Form.Item name="content" label="内容">
           <TextArea rows={4} placeholder="请输入内容" />
@@ -155,6 +205,9 @@ const DraftDetail: React.FC<DraftDetailProps> = ({ open, editingId, onClose, onS
         <div style={{ textAlign: 'right', marginTop: 16 }}>
           <Space>
             <Button onClick={handleCancel}>取消</Button>
+            {editingId && (
+              <Button onClick={handleSubmitDraft} loading={loading}>提交</Button>
+            )}
             <Button type="primary" onClick={handleSubmit} loading={loading}>
               {editingId ? '保存' : '创建'}
             </Button>
