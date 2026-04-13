@@ -92,7 +92,12 @@ async def export_cadres(
 
     for c in cadres:
         created = c.created_at.strftime("%Y-%m-%d %H:%M") if c.created_at else ""
-        tags_str = ",".join(c.tags) if c.tags else ""
+        if isinstance(c.tags, dict):
+            tags_str = c.tags.get("熟悉领域", "") or ""
+        elif isinstance(c.tags, list):
+            tags_str = ",".join(c.tags)
+        else:
+            tags_str = str(c.tags) if c.tags else ""
         ws.append([
             c.name or "", c.gender or "",
             str(c.birth_date) if c.birth_date else "",
@@ -294,6 +299,7 @@ async def import_cadres(
         "人员类别": "category", "类别(选填)": "category", "类别": "category",
         "干部类别": "category",
         "标签(逗号分隔)": "tags", "标签": "tags",
+        "熟悉领域": "tags",
         "简历": "resume", "工作经历": "work_history",
         "所属单位": "unit_id",
         "是否可用": "is_available",
@@ -363,7 +369,7 @@ async def import_cadres(
                 "position": _cell(row, col_map, "position"),
                 "rank": _cell(row, col_map, "rank"),
                 "category": _cell(row, col_map, "category"),
-                "tags": _list_cell(row, col_map, "tags"),
+                "tags": {"熟悉领域": _cell(row, col_map, "tags")} if "tags" in col_map else {},
                 "profile": _cell(row, col_map, "profile"),
                 "resume": _cell(row, col_map, "resume"),
                 "achievements": _json_cell(row, col_map, "achievements"),

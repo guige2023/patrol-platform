@@ -19,15 +19,15 @@ interface Clue {
 
 const statusColors: Record<string, string> = {
   registered: 'processing',
+  transferring: 'warning',
   transferred: 'success',
-  processed: 'warning',
   closed: 'default',
 };
 
 const statusLabels: Record<string, string> = {
   registered: '已登记',
+  transferring: '移交中',
   transferred: '已移交',
-  processed: '已处置',
   closed: '已关闭',
 };
 

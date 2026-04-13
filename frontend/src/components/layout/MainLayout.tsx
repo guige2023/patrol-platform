@@ -103,7 +103,7 @@ const MainLayout: React.FC = () => {
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 24 }}>🏛️</span>
-              <span>巡察工作管理平台</span>
+              <span>徐圩新区巡察工作管理平台</span>
             </div>
           )}
         </div>

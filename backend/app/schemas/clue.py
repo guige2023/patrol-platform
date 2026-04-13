@@ -27,6 +27,9 @@ class ClueUpdate(BaseModel):
     status: Optional[str] = None
     handling_result: Optional[str] = None
     is_high_confidential: Optional[bool] = None
+    transfer_target: Optional[str] = None
+    transfer_date: Optional[datetime] = None
+    transfer_comment: Optional[str] = None
 
 
 class ClueTransfer(BaseModel):
@@ -39,6 +42,8 @@ class ClueResponse(ClueBase):
     status: str
     transfer_target: Optional[str] = None
     transfer_date: Optional[datetime] = None
+    transfer_comment: Optional[str] = None
+    handling_result: Optional[str] = None
     is_high_confidential: bool
     registered_by: UUID
     created_at: Optional[datetime] = None

@@ -14,8 +14,8 @@ interface ClueModalProps {
 
 const STATUS_OPTIONS = [
   { label: '已登记', value: 'registered' },
+  { label: '移交中', value: 'transferring' },
   { label: '已移交', value: 'transferred' },
-  { label: '已处置', value: 'processed' },
   { label: '已关闭', value: 'closed' },
 ];
 
@@ -106,8 +106,9 @@ const ClueModal: React.FC<ClueModalProps> = ({ open, clueId, onClose, onSuccess 
       <Descriptions.Item label="移交日期">
         {clueData?.transfer_date ? dayjs(clueData.transfer_date).format('YYYY-MM-DD') : '-'}
       </Descriptions.Item>
-      <Descriptions.Item label="移交详情">{clueData?.transfer_details || '-'}</Descriptions.Item>
+      <Descriptions.Item label="移交详情">{clueData?.transfer_comment || '-'}</Descriptions.Item>
       <Descriptions.Item label="来源详情">{clueData?.source_detail || '-'}</Descriptions.Item>
+      <Descriptions.Item label="处置结果">{clueData?.handling_result || '-'}</Descriptions.Item>
       <Descriptions.Item label="高度机密">{clueData?.is_high_confidential ? '是' : '否'}</Descriptions.Item>
     </Descriptions>
   );
@@ -167,12 +168,16 @@ const ClueModal: React.FC<ClueModalProps> = ({ open, clueId, onClose, onSuccess 
             </Form.Item>
           </div>
 
-          <Form.Item name="transfer_details" label="移交详情">
+          <Form.Item name="transfer_comment" label="移交详情">
             <Input.TextArea rows={3} placeholder="请输入移交详情" />
           </Form.Item>
 
           <Form.Item name="source_detail" label="来源详情">
             <Input.TextArea rows={2} placeholder="请输入来源详情" />
+          </Form.Item>
+
+          <Form.Item name="handling_result" label="处置结果">
+            <Input.TextArea rows={3} placeholder="请输入处置结果" />
           </Form.Item>
 
           <Form.Item name="is_high_confidential" label="高度机密" valuePropName="checked">

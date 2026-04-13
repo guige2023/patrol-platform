@@ -11,7 +11,7 @@ class UnitBase(BaseModel):
     unit_type: Optional[str] = None
     level: Optional[str] = None
     sort_order: Optional[int] = 0
-    tags: Optional[List[str]] = []
+    tags: Optional[dict] = {}
     profile: Optional[str] = None
     leadership: Optional[dict] = None
     contact: Optional[dict] = None
@@ -25,14 +25,17 @@ class UnitCreate(UnitBase):
 
 class UnitUpdate(BaseModel):
     name: Optional[str] = None
+    org_code: Optional[str] = None
     parent_id: Optional[UUID] = None
     unit_type: Optional[str] = None
     level: Optional[str] = None
     sort_order: Optional[int] = None
-    tags: Optional[List[str]] = None
+    tags: Optional[dict] = None
     profile: Optional[str] = None
     leadership: Optional[dict] = None
     contact: Optional[dict] = None
+    last_inspection_year: Optional[int] = None
+    inspection_history: Optional[str] = None
     is_active: Optional[bool] = None
 
 

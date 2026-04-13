@@ -15,6 +15,7 @@ class RectificationBase(BaseModel):
 class RectificationCreate(RectificationBase):
     clue_id: Optional[UUID] = None
     draft_id: Optional[UUID] = None
+    alert_level: Optional[str] = "green"
 
 
 class RectificationUpdate(BaseModel):
@@ -27,6 +28,7 @@ class RectificationUpdate(BaseModel):
     status: Optional[str] = None
     completion_report: Optional[str] = None
     verification_comment: Optional[str] = None
+    alert_level: Optional[str] = None
 
 
 class RectificationResponse(RectificationBase):
@@ -35,9 +37,14 @@ class RectificationResponse(RectificationBase):
     draft_id: Optional[UUID] = None
     status: str
     progress: int
+    progress_details: Optional[List[dict]] = None
     alert_level: str
     sign_date: Optional[datetime] = None
+    sign_by: Optional[UUID] = None
     completion_date: Optional[datetime] = None
+    completion_report: Optional[str] = None
+    verification_comment: Optional[str] = None
+    verified_by: Optional[UUID] = None
     verified_at: Optional[datetime] = None
     is_active: bool
     created_by: UUID

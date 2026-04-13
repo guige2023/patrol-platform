@@ -113,9 +113,9 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
     setLoading(true);
     try {
       const [plansRes, unitsRes, cadresRes] = await Promise.all([
-        getPlans({ page_size: 200 }),
-        getUnits({ page_size: 500 }),
-        getCadres({ page_size: 1000 }),
+        getPlans({ page_size: 100 }),
+        getUnits({ page_size: 100 }),
+        getCadres({ page_size: 100 }),
       ]);
 
       const publishedPlans = (plansRes.items || []).filter(

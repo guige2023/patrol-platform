@@ -97,7 +97,7 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
 
   const loadCadreOptions = async () => {
     try {
-      const res = await getCadres({ page_size: 500 });
+      const res = await getCadres({ page_size: 100 });
       const items = res.items || res.data?.items || [];
       setCadreOptions(items);
     } catch (e) {
@@ -323,6 +323,7 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
             <Select options={[
               { label: '组长', value: '组长' },
               { label: '副组长', value: '副组长' },
+              { label: '联络员', value: '联络员' },
               { label: '组员', value: '组员' },
               { label: '专项负责人', value: '专项负责人' },
             ]} />

@@ -72,7 +72,7 @@ async def init_db():
 
         # 初始化系统配置（幂等）
         default_configs = [
-            ("district_name", "XX新区", "新区名称"),
+            ("district_name", "徐圩新区", "新区名称"),
             ("patrol_cycle_years", "5", "巡察周期年数"),
             ("patrol_duration_days", "30", "每次巡察持续工作日天数"),
             ("key_areas", json.dumps([

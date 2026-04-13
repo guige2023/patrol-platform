@@ -70,7 +70,7 @@ const CreatePlanModal: React.FC<CreatePlanModalProps> = ({ open, onClose, onSucc
     try {
       const [configsRes, unitsRes, plansRes] = await Promise.all([
         getSystemConfigs(),
-        getUnits({ page_size: 500 }),
+        getUnits({ page_size: 100 }),
         getPlans({ year: new Date().getFullYear(), page_size: 100 }),
       ]);
 

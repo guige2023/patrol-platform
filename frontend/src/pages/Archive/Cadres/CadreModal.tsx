@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Form, Input, Select, DatePicker, Switch, Space, message, Descriptions, Tag } from 'antd';
+import { Modal, Form, Input, Select, DatePicker, Switch, Space, message, Descriptions } from 'antd';
 import { getUnits } from '@/api/units';
 import { getCadre, createCadre, updateCadre } from '@/api/cadres';
 import { useFieldOptions } from '@/hooks/useFieldOptions';
@@ -31,9 +31,10 @@ interface CadreData {
   position?: string;
   rank?: string;
   category?: string;
-  tags?: string[];
+  tags?: Record<string, string>;
   profile?: string;
   resume?: string;
+  achievements?: any;
 }
 
 const CadreModal: React.FC<CadreModalProps> = ({ open, cadreId, onClose, onSuccess }) => {
@@ -45,6 +46,7 @@ const CadreModal: React.FC<CadreModalProps> = ({ open, cadreId, onClose, onSucce
 
   const { getOptions } = useFieldOptions();
   const categoryOptions = getOptions('cadre_category');
+  const rankOptions = getOptions('cadre_rank');
   const tagsOptions = getOptions('cadre_tags');
 
   useEffect(() => {
@@ -68,7 +70,7 @@ const CadreModal: React.FC<CadreModalProps> = ({ open, cadreId, onClose, onSucce
 
   const fetchUnits = async () => {
     try {
-      const res = await getUnits({ page: 1, page_size: 200 });
+      const res = await getUnits({ page: 1, page_size: 100 });
       const units = res.items || [];
       setUnitOptions(units.map((u: any) => ({ label: u.name, value: u.id })));
     } catch {
@@ -82,6 +84,14 @@ const CadreModal: React.FC<CadreModalProps> = ({ open, cadreId, onClose, onSucce
       const payload: any = { ...values };
       if (payload.birth_date) {
         payload.birth_date = payload.birth_date.format('YYYY-MM-DD');
+      }
+      // 表单 tags 是 string[]，后端需要 dict 格式 {"熟悉领域": "..."}
+      if (payload.tags && Array.isArray(payload.tags)) {
+        payload.tags = { "熟悉领域": payload.tags.join("、") };
+      }
+      // achievements 处理：如果有文本内容，转换为 [{"content": ...}] 格式
+      if (payload.achievements && typeof payload.achievements === 'string') {
+        payload.achievements = [{ "content": payload.achievements }];
       }
       setLoading(true);
       if (cadreId) {
@@ -112,6 +122,18 @@ const CadreModal: React.FC<CadreModalProps> = ({ open, cadreId, onClose, onSucce
       if (data.birth_date) {
         data.birth_date = dayjs(data.birth_date);
       }
+      // tags 后端存 dict，前端 Select 需要 string[]
+      if (data.tags && typeof data.tags === 'object' && !Array.isArray(data.tags)) {
+        const expertise = data.tags["熟悉领域"];
+        data.tags = expertise ? expertise.split("、").filter(Boolean) : [];
+      }
+      // achievements 列表转文本
+      const ach = data.achievements;
+      if (Array.isArray(ach) && ach.length > 0) {
+        data.achievements = ach.map((a: any) => typeof a === 'string' ? a : a.content || '').join('；');
+      } else {
+        data.achievements = '';
+      }
       form.setFieldsValue(data);
     }
     setEditMode(true);
@@ -136,13 +158,22 @@ const CadreModal: React.FC<CadreModalProps> = ({ open, cadreId, onClose, onSucce
       <Descriptions.Item label="职务">{cadreData?.position || '-'}</Descriptions.Item>
       <Descriptions.Item label="职级">{cadreData?.rank || '-'}</Descriptions.Item>
       <Descriptions.Item label="类别">{cadreData?.category || '-'}</Descriptions.Item>
-      <Descriptions.Item label="标签">
-        {cadreData?.tags && cadreData.tags.length > 0
-          ? cadreData.tags.map((tag: string) => <Tag key={tag}>{tag}</Tag>)
-          : '-'}
+      <Descriptions.Item label="熟悉领域">
+        {cadreData?.tags?.["熟悉领域"] || '-'}
       </Descriptions.Item>
       <Descriptions.Item label="简历">{cadreData?.profile || '-'}</Descriptions.Item>
       <Descriptions.Item label="工作经历">{cadreData?.resume || '-'}</Descriptions.Item>
+      <Descriptions.Item label="工作成果">
+        {(() => {
+          const ach = cadreData?.achievements;
+          if (!ach) return '-';
+          if (typeof ach === 'string') return ach;
+          if (Array.isArray(ach) && ach.length > 0) {
+            return ach.map((a: any) => typeof a === 'string' ? a : a.content || JSON.stringify(a)).join('；');
+          }
+          return String(ach);
+        })()}
+      </Descriptions.Item>
     </Descriptions>
   );
 
@@ -265,17 +296,16 @@ const CadreModal: React.FC<CadreModalProps> = ({ open, cadreId, onClose, onSucce
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <Form.Item name="position" label="职务">
-              <Select
-                options={categoryOptions.length > 0 ? categoryOptions : [{ label: '请先在字段配置中添加职务选项', value: '' }]}
-                placeholder="请选择职务"
-                allowClear
-                showSearch
-                disabled={categoryOptions.length === 0}
-              />
+              <Input placeholder="请输入职务（选填）" />
             </Form.Item>
 
             <Form.Item name="rank" label="职级">
-              <Input placeholder="请输入职级" />
+              <Select
+                options={rankOptions}
+                placeholder="请选择职级"
+                allowClear
+                showSearch
+              />
             </Form.Item>
           </div>
 
@@ -306,6 +336,10 @@ const CadreModal: React.FC<CadreModalProps> = ({ open, cadreId, onClose, onSucce
 
           <Form.Item name="resume" label="工作经历">
             <TextArea rows={3} placeholder="请输入工作经历" />
+          </Form.Item>
+
+          <Form.Item name="achievements" label="工作成果">
+            <TextArea rows={2} placeholder="请输入主要工作成果或业绩" />
           </Form.Item>
 
           <div style={{ textAlign: 'right', marginTop: 16, borderTop: '1px solid #f0f0f0', paddingTop: 16 }}>

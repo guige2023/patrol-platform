@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Tag, Modal, message, Upload, List, Alert } from 'antd';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Table, Button, Space, Modal, message, Upload, List, Alert } from 'antd';
 import { PlusOutlined, UploadOutlined, DownloadOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import PageHeader from '@/components/common/PageHeader';
 import SearchForm from '@/components/common/SearchForm';
 import { getCadres, deleteCadre, importCadres, exportCadres, downloadCadreTemplate } from '@/api/cadres';
+import { getUnits } from '@/api/units';
 import CadreModal from './CadreModal';
 import type { ColumnsType } from 'antd/es/table';
 import { getErrorMessage } from '@/utils/error';
@@ -16,11 +18,13 @@ interface Cadre {
   rank?: string;
   category?: string;
   unit_id?: string;
-  tags?: string[];
+  unit_name?: string;
+  tags?: Record<string, string>;
   is_available: boolean;
 }
 
 const CadreList: React.FC = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<Cadre[]>([]);
   const [total, setTotal] = useState(0);
@@ -31,6 +35,15 @@ const CadreList: React.FC = () => {
   const [cadreModalOpen, setCadreModalOpen] = useState(false);
   const [cadreId, setCadreId] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  // All units for unit name lookup
+  const [allUnits, setAllUnits] = useState<{ id: string; name: string }[]>([]);
+
+  const fetchUnits = async () => {
+    try {
+      const res = await getUnits({ page: 1, page_size: 999 });
+      setAllUnits(res.items.map((u: any) => ({ id: u.id, name: u.name })));
+    } catch { /* ignore */ }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -38,23 +51,70 @@ const CadreList: React.FC = () => {
       const res = await getCadres({ page, page_size: pageSize, ...searchParams });
       setData(res.items);
       setTotal(res.total);
+    } catch (e: any) {
+      message.error(getErrorMessage(e) || '加载失败');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetchData(); }, [page, pageSize, searchParams]);
+  useEffect(() => { fetchData(); fetchUnits(); }, [page, pageSize, searchParams]);
 
-  const handleSearch = (values: any) => setSearchParams(values);
-  const handleReset = () => setSearchParams({});
+  const handleSearch = (values: any) => { setPage(1); setSearchParams(values); };
+  const handleReset = () => { setPage(1); setSearchParams({}); };
 
   const handleDelete = async (id: string) => {
     Modal.confirm({ title: '确认删除？', onOk: async () => {
-      await deleteCadre(id);
-      message.success('删除成功');
-      fetchData();
+      try {
+        await deleteCadre(id);
+        message.success('删除成功');
+        fetchData();
+      } catch (e: any) {
+        message.error(getErrorMessage(e) || '删除失败');
+      }
     }});
   };
+
+  const unitNameMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    allUnits.forEach(u => { m[u.id] = u.name; });
+    return m;
+  }, [allUnits]);
+
+  const columns: ColumnsType<Cadre> = useMemo(() => [
+    {
+      title: '姓名', dataIndex: 'name', key: 'name',
+      render: (name: string, record: Cadre) => (
+        <a onClick={() => navigate(`/archive/cadres/${record.id}`)}>{name}</a>
+      ),
+    },
+    { title: '性别', dataIndex: 'gender', key: 'gender', render: (v: string) => v || '-' },
+    { title: '职务', dataIndex: 'position', key: 'position', render: (v: string) => v || '-' },
+    { title: '职级', dataIndex: 'rank', key: 'rank', render: (v: string) => v || '-' },
+    { title: '类别', dataIndex: 'category', key: 'category', render: (v: string) => v || '-' },
+    {
+      title: '所属单位', dataIndex: 'unit_id', key: 'unit_name',
+      render: (_: any, record: Cadre) => record.unit_id ? (unitNameMap[record.unit_id] || record.unit_name || '-') : '-',
+    },
+    {
+      title: '熟悉领域', dataIndex: ['tags', '熟悉领域'], key: 'tags',
+      render: (v: string) => v || '-',
+    },
+    {
+      title: '可用', dataIndex: 'is_available', key: 'is_available',
+      render: (v: boolean) => <span style={{ color: v ? '#52c41a' : '#ff4d4f' }}>{v ? '是' : '否'}</span>,
+    },
+    {
+      title: '操作', key: 'action', width: 180,
+      render: (_, record) => (
+        <Space>
+          <Button type="link" size="small" onClick={() => { setCadreId(record.id); setCadreModalOpen(true); }}>查看</Button>
+          <Button type="link" size="small" onClick={() => navigate(`/archive/cadres/${record.id}`)}>编辑</Button>
+          <Button type="link" size="small" danger onClick={() => handleDelete(record.id)}>删除</Button>
+        </Space>
+      ),
+    },
+  ], [unitNameMap, navigate]);
 
   const handleImport = async (file: File) => {
     try {
@@ -66,7 +126,6 @@ const CadreList: React.FC = () => {
     } catch (e: any) {
       const detail = e?.response?.data?.detail;
       if (detail && typeof detail === 'object' && Array.isArray(detail.errors)) {
-        // 字段校验错误 → 弹窗展示
         setValidationErrors(detail.errors as string[]);
       } else {
         message.error(getErrorMessage(e) || '导入失败');
@@ -74,36 +133,6 @@ const CadreList: React.FC = () => {
     }
     return false;
   };
-
-  const columns: ColumnsType<Cadre> = [
-    { title: '姓名', dataIndex: 'name', key: 'name' },
-    { title: '性别', dataIndex: 'gender', key: 'gender' },
-    { title: '职务', dataIndex: 'position', key: 'position' },
-    { title: '职级', dataIndex: 'rank', key: 'rank' },
-    { title: '类别', dataIndex: 'category', key: 'category', render: (v: string) => v || '-' },
-    {
-      title: '标签',
-      dataIndex: 'tags',
-      key: 'tags',
-      render: (tags: string[]) => tags?.map(t => <Tag key={t}>{t}</Tag>) || [],
-    },
-    {
-      title: '可用',
-      dataIndex: 'is_available',
-      key: 'is_available',
-      render: (v: boolean) => <span style={{ color: v ? '#52c41a' : '#ff4d4f' }}>{v ? '是' : '否'}</span>,
-    },
-    {
-      title: '操作',
-      key: 'action',
-      render: (_, record) => (
-        <Space>
-          <Button type="link" size="small" onClick={() => { setCadreId(record.id); setCadreModalOpen(true); }}>查看</Button>
-          <Button type="link" size="small" danger onClick={() => handleDelete(record.id)}>删除</Button>
-        </Space>
-      ),
-    },
-  ];
 
   return (
     <div>
@@ -118,12 +147,8 @@ const CadreList: React.FC = () => {
           <Button type="primary" icon={<PlusOutlined />} onClick={() => { setCadreId(null); setCadreModalOpen(true); }}>
             新建干部
           </Button>
-          <Button icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)}>
-            导入
-          </Button>
-          <Button icon={<DownloadOutlined />} onClick={() => downloadCadreTemplate()}>
-            下载模板
-          </Button>
+          <Button icon={<UploadOutlined />} onClick={() => setImportModalOpen(true)}>导入</Button>
+          <Button icon={<DownloadOutlined />} onClick={() => downloadCadreTemplate()}>下载模板</Button>
           <Button
             icon={<UploadOutlined />}
             onClick={async () => {
@@ -186,11 +211,7 @@ const CadreList: React.FC = () => {
           />
           {validationErrors.length === 0 && (
             <>
-              <Upload
-                accept=".xlsx"
-                showUploadList={false}
-                beforeUpload={handleImport}
-              >
+              <Upload accept=".xlsx" showUploadList={false} beforeUpload={handleImport}>
                 <Button icon={<UploadOutlined />}>选择 Excel 文件 (.xlsx)</Button>
               </Upload>
               <div style={{ marginTop: 16, fontSize: 12, color: '#888' }}>

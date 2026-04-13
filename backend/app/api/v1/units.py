@@ -132,7 +132,13 @@ async def export_units(
             ws.append(row)
 
     for u in units:
-        tags_str = ",".join(u.tags) if u.tags else ""
+        tags_val = u.tags
+        if isinstance(tags_val, dict):
+            tags_str = ",".join(str(v) for v in tags_val.values() if v)
+        elif isinstance(tags_val, list):
+            tags_str = ",".join(str(v) for v in tags_val)
+        else:
+            tags_str = str(tags_val) if tags_val else ""
         ws.append([
             u.name or "",
             u.org_code or "",

@@ -13,7 +13,7 @@ export const updateRectification = (id: string, data: any) =>
   api.put(`/rectifications/${id}`, data).then(res => res.data);
 
 export const updateProgress = (id: string, progress: number, details?: any[]) =>
-  api.patch(`/rectifications/${id}/progress`, { progress, details });
+  api.patch(`/rectifications/${id}/progress?progress=${progress}`, details ? { details } : undefined);
 
 export const signRectification = (id: string) =>
   api.post(`/rectifications/${id}/sign`);

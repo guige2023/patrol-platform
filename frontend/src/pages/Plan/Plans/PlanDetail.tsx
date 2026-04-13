@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Form, Input, Button, Space, Modal, message, DatePicker, Descriptions } from 'antd';
+import { Form, Input, Button, Space, Modal, message, DatePicker, Descriptions, Select } from 'antd';
 import { getPlan, createPlan, updatePlan } from '@/api/plans';
 import dayjs from 'dayjs';
 import { getErrorMessage } from '@/utils/error';
@@ -23,9 +23,22 @@ interface PlanData {
   authorization_date?: string;
   planned_start_date?: string;
   planned_end_date?: string;
+  actual_start_date?: string;
+  actual_end_date?: string;
+  status?: string;
   version?: string;
+  approval_comment?: string;
   created_at?: string;
 }
+
+const STATUS_OPTIONS = [
+  { label: '草稿', value: 'draft' },
+  { label: '已提交', value: 'submitted' },
+  { label: '已批准', value: 'approved' },
+  { label: '已发布', value: 'published' },
+  { label: '进行中', value: 'in_progress' },
+  { label: '已完成', value: 'completed' },
+];
 
 const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, onSuccess }) => {
   const [form] = Form.useForm();
@@ -43,6 +56,11 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
       setPlanData(null);
       getPlan(planId).then((res: any) => {
         setPlanData(res);
+        const formData: any = { ...res };
+        if (res.actual_start_date && res.actual_end_date) {
+          formData.actual_date_range = [dayjs(res.actual_start_date), dayjs(res.actual_end_date)];
+        }
+        form.setFieldsValue(formData);
       }).catch(() => {
         message.error('获取计划详情失败');
       });
@@ -72,6 +90,12 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
         payload.planned_start_date = values.planned_date_range[0]?.format('YYYY-MM-DD');
         payload.planned_end_date = values.planned_date_range[1]?.format('YYYY-MM-DD');
       }
+      if (values.actual_date_range) {
+        payload.actual_start_date = values.actual_date_range[0]?.format('YYYY-MM-DD');
+        payload.actual_end_date = values.actual_date_range[1]?.format('YYYY-MM-DD');
+      }
+      if (values.status) payload.status = values.status;
+      if (values.approval_comment) payload.approval_comment = values.approval_comment;
       if (values.version) payload.version = values.version;
 
       if (mode === 'create') {
@@ -109,6 +133,14 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
           ? `${planData.planned_start_date ? dayjs(planData.planned_start_date).format('YYYY-MM-DD') : '-'} ~ ${planData.planned_end_date ? dayjs(planData.planned_end_date).format('YYYY-MM-DD') : '-'}`
           : '-'}
       </Descriptions.Item>
+      <Descriptions.Item label="实际开始日期">
+        {planData?.actual_start_date ? dayjs(planData.actual_start_date).format('YYYY-MM-DD') : '-'}
+      </Descriptions.Item>
+      <Descriptions.Item label="实际结束日期">
+        {planData?.actual_end_date ? dayjs(planData.actual_end_date).format('YYYY-MM-DD') : '-'}
+      </Descriptions.Item>
+      <Descriptions.Item label="状态">{planData?.status || '-'}</Descriptions.Item>
+      <Descriptions.Item label="审批意见">{planData?.approval_comment || '-'}</Descriptions.Item>
       <Descriptions.Item label="版本号">{planData?.version || '-'}</Descriptions.Item>
       <Descriptions.Item label="创建时间">
         {planData?.created_at ? dayjs(planData.created_at).format('YYYY-MM-DD HH:mm') : '-'}
@@ -157,9 +189,22 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
           <Form.Item name="planned_date_range" label="计划巡察日期范围">
             <DatePicker.RangePicker style={{ width: '100%' }} />
           </Form.Item>
+          <Form.Item name="actual_date_range" label="实际巡察日期范围">
+            <DatePicker.RangePicker style={{ width: '100%' }} />
+          </Form.Item>
           <Form.Item name="version" label="版本号">
             <Input placeholder="如：v1.0" />
           </Form.Item>
+          {mode === 'edit' && (
+            <>
+              <Form.Item name="status" label="状态">
+                <Select options={STATUS_OPTIONS} placeholder="请选择状态" allowClear />
+              </Form.Item>
+              <Form.Item name="approval_comment" label="审批意见">
+                <Input.TextArea rows={3} placeholder="请输入审批意见" />
+              </Form.Item>
+            </>
+          )}
         </Form>
       )}
     </Modal>

@@ -55,7 +55,7 @@ const DraftDetail: React.FC<DraftDetailProps> = ({ open, editingId, onClose, onS
 
   const fetchUnits = async () => {
     try {
-      const res = await getUnits({ page: 1, page_size: 100 });
+      const res = await getUnits({ page: 1, page_size: 9999 });
       const units = res.items || [];
       setUnitOptions(units.map((u: any) => ({ label: u.name, value: u.id })));
     } catch {

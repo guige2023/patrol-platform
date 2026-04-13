@@ -10,9 +10,12 @@ class PlanBase(BaseModel):
     year: int
     planned_start_date: Optional[datetime] = None
     planned_end_date: Optional[datetime] = None
+    actual_start_date: Optional[datetime] = None
+    actual_end_date: Optional[datetime] = None
     scope: Optional[str] = None
     focus_areas: Optional[List[str]] = []
     target_units: Optional[List[str]] = []
+    authorization_letter: Optional[str] = None
 
 
 class PlanCreate(PlanBase):
@@ -24,10 +27,13 @@ class PlanUpdate(BaseModel):
     round_name: Optional[str] = None
     planned_start_date: Optional[datetime] = None
     planned_end_date: Optional[datetime] = None
+    actual_start_date: Optional[datetime] = None
+    actual_end_date: Optional[datetime] = None
     scope: Optional[str] = None
     focus_areas: Optional[List[str]] = None
     target_units: Optional[List[str]] = None
     status: Optional[str] = None
+    authorization_letter: Optional[str] = None
 
 
 class PlanResponse(PlanBase):

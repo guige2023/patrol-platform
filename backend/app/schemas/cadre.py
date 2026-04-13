@@ -18,7 +18,7 @@ class CadreBase(BaseModel):
     position: Optional[str] = None
     rank: Optional[str] = None
     category: Optional[str] = None
-    tags: Optional[List[str]] = []
+    tags: Optional[dict] = {}
     profile: Optional[str] = None
     resume: Optional[str] = None
     achievements: Optional[List[dict]] = []
@@ -43,7 +43,7 @@ class CadreUpdate(BaseModel):
     position: Optional[str] = None
     rank: Optional[str] = None
     category: Optional[str] = None
-    tags: Optional[List[str]] = None
+    tags: Optional[dict] = None
     profile: Optional[str] = None
     resume: Optional[str] = None
     achievements: Optional[List[dict]] = None

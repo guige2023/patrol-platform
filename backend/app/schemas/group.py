@@ -18,11 +18,14 @@ class GroupCreate(BaseModel):
     leader_id: Optional[UUID] = None
     vice_leader_id: Optional[UUID] = None
     member_ids: List[UUID] = []
+    authorization_letter: Optional[str] = None
+    authorization_date: Optional[datetime] = None
 
 
 class GroupUpdate(BaseModel):
     name: Optional[str] = None
     status: Optional[str] = None
+    target_unit_id: Optional[UUID] = None
     authorization_letter: Optional[str] = None
     authorization_date: Optional[datetime] = None
 

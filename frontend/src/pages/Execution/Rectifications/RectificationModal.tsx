@@ -10,17 +10,18 @@ import { getErrorMessage } from '@/utils/error';
 const { TextArea } = Input;
 
 const ALERT_LEVEL_OPTIONS = [
-  { label: '红色', value: 'red' },
-  { label: '橙色', value: 'orange' },
+  { label: '绿色', value: 'green' },
   { label: '黄色', value: 'yellow' },
-  { label: '蓝色', value: 'blue' },
+  { label: '红色', value: 'red' },
 ];
 
 const STATUS_OPTIONS = [
-  { label: '待整改', value: 'pending' },
-  { label: '整改中', value: 'in_progress' },
+  { label: '已派发', value: 'dispatched' },
+  { label: '已签收', value: 'signed' },
+  { label: '整改中', value: 'progressing' },
   { label: '已完成', value: 'completed' },
   { label: '已验收', value: 'verified' },
+  { label: '已驳回', value: 'rejected' },
 ];
 
 interface RectificationModalProps {
@@ -57,7 +58,7 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
 
   const fetchUnits = async () => {
     try {
-      const res = await getUnits({ page: 1, page_size: 100 });
+      const res = await getUnits({ page: 1, page_size: 9999 });
       const units = res.items || [];
       setUnitOptions(units.map((u: any) => ({ label: u.name, value: u.id })));
     } catch {
@@ -67,7 +68,7 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
 
   const fetchClues = async () => {
     try {
-      const res = await getClues({ page: 1, page_size: 100 });
+      const res = await getClues({ page: 1, page_size: 9999 });
       const clues = res.items || [];
       setClueOptions(clues.map((c: any) => ({ label: c.title, value: c.id })));
     } catch {
@@ -77,7 +78,7 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
 
   const fetchDrafts = async () => {
     try {
-      const res = await getDrafts({ page: 1, page_size: 100 });
+      const res = await getDrafts({ page: 1, page_size: 9999 });
       const drafts = res.items || [];
       setDraftOptions(drafts.map((d: any) => ({ label: d.title, value: d.id })));
     } catch {
@@ -91,9 +92,6 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
       const data = res;
       if (data.deadline) {
         data.deadline = dayjs(data.deadline);
-      }
-      if (data.rectification_date) {
-        data.rectification_date = dayjs(data.rectification_date);
       }
       if (data.completion_date) {
         data.completion_date = dayjs(data.completion_date);
@@ -109,7 +107,18 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
     if (!rectificationId) return;
     try {
       const values = form.getFieldsValue();
-      await updateProgress(rectificationId, values.progress || 0);
+      let details;
+      if (values.progress_details) {
+        try {
+          details = typeof values.progress_details === 'string'
+            ? JSON.parse(values.progress_details)
+            : values.progress_details;
+        } catch {
+          message.warning('进度详情格式不正确，请输入有效的JSON数组');
+          return;
+        }
+      }
+      await updateProgress(rectificationId, values.progress || 0, details);
       message.success('进度更新成功');
     } catch (err: any) {
       message.error(getErrorMessage(err) || '进度更新失败');
@@ -122,9 +131,6 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
       const payload: any = { ...values };
       if (payload.deadline) {
         payload.deadline = payload.deadline.format('YYYY-MM-DD');
-      }
-      if (payload.rectification_date) {
-        payload.rectification_date = payload.rectification_date.format('YYYY-MM-DD');
       }
       if (payload.completion_date) {
         payload.completion_date = payload.completion_date.format('YYYY-MM-DD');
@@ -158,9 +164,6 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
       if (data.deadline && typeof data.deadline === 'string') {
         data.deadline = dayjs(data.deadline);
       }
-      if (data.rectification_date && typeof data.rectification_date === 'string') {
-        data.rectification_date = dayjs(data.rectification_date);
-      }
       if (data.completion_date && typeof data.completion_date === 'string') {
         data.completion_date = dayjs(data.completion_date);
       }
@@ -187,9 +190,6 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
       </Descriptions.Item>
       <Descriptions.Item label="问题描述">{rectificationData?.problem_description || '-'}</Descriptions.Item>
       <Descriptions.Item label="整改要求">{rectificationData?.rectification_requirement || '-'}</Descriptions.Item>
-      <Descriptions.Item label="整改日期">
-        {rectificationData?.rectification_date ? dayjs(rectificationData.rectification_date).format('YYYY-MM-DD') : '-'}
-      </Descriptions.Item>
       <Descriptions.Item label="截止日期">
         {rectificationData?.deadline ? dayjs(rectificationData.deadline).format('YYYY-MM-DD') : '-'}
       </Descriptions.Item>
@@ -197,6 +197,8 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
         {rectificationData?.completion_date ? dayjs(rectificationData.completion_date).format('YYYY-MM-DD') : '-'}
       </Descriptions.Item>
       <Descriptions.Item label="进度">{rectificationData?.progress !== undefined ? `${rectificationData.progress}%` : '-'}</Descriptions.Item>
+      <Descriptions.Item label="进度详情">{rectificationData?.progress_details ? (typeof rectificationData.progress_details === 'string' ? rectificationData.progress_details : JSON.stringify(rectificationData.progress_details)) : '-'}</Descriptions.Item>
+      <Descriptions.Item label="整改完成报告">{rectificationData?.completion_report || '-'}</Descriptions.Item>
       <Descriptions.Item label="验收意见">{rectificationData?.verification_comment || '-'}</Descriptions.Item>
     </Descriptions>
   );
@@ -262,10 +264,7 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
             <TextArea rows={4} placeholder="请输入整改要求" />
           </Form.Item>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
-            <Form.Item name="rectification_date" label="整改日期">
-              <DatePicker style={{ width: '100%' }} placeholder="请选择整改日期" />
-            </Form.Item>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <Form.Item name="deadline" label="截止日期">
               <DatePicker style={{ width: '100%' }} placeholder="请选择截止日期" />
             </Form.Item>
@@ -276,6 +275,18 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
 
           <Form.Item name="progress" label="进度">
             <Slider min={0} max={100} marks={{ 0: '0%', 50: '50%', 100: '100%' }} />
+          </Form.Item>
+
+          <Form.Item
+            name="progress_details"
+            label="进度详情"
+            extra={<span style={{ color: '#999' }}>格式：JSON数组，如 [{{"date": "2026-04-01", "content": "已完成部分整改", "percentage": 30}}]</span>}
+          >
+            <TextArea rows={3} placeholder="请输入进度详情（JSON数组格式）" />
+          </Form.Item>
+
+          <Form.Item name="completion_report" label="整改完成报告">
+            <TextArea rows={4} placeholder="请输入整改完成报告" />
           </Form.Item>
 
           <Form.Item name="verification_comment" label="验收意见">
