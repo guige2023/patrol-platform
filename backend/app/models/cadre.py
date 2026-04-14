@@ -14,7 +14,7 @@ class Cadre(Base):
     name = Column(String(64), nullable=False)
     id_card_encrypted = Column(String(512))  # 加密身份证
     gender = Column(String(8))  # male/female
-    birth_date = Column(Date)
+    birth_date = Column(String(32))  # 改String避免SQLAlchemy Cython str_to_date对None崩溃
     ethnicity = Column(String(32))  # 民族
     native_place = Column(String(128))  # 籍贯
     political_status = Column(String(32))  # 政治面貌
