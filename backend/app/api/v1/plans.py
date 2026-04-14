@@ -17,7 +17,7 @@ router = APIRouter()
 @router.get("/", response_model=PaginatedResponse[PlanResponse])
 async def list_plans(
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=9999),
     name: Optional[str] = None,
     year: Optional[int] = None,
     status: Optional[str] = None,

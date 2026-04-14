@@ -21,7 +21,7 @@ router = APIRouter()
 @router.get("/", response_model=PaginatedResponse[CadreResponse])
 async def list_cadres(
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=9999),
     name: Optional[str] = None,
     unit_id: Optional[UUID] = None,
     tags: Optional[str] = None,

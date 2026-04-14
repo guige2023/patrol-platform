@@ -17,7 +17,7 @@ router = APIRouter()
 @router.get("/", response_model=PaginatedResponse[KnowledgeResponse])
 async def list_knowledge(
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=9999),
     title: Optional[str] = None,
     category: Optional[str] = None,
     tags: Optional[str] = None,

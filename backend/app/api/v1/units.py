@@ -57,7 +57,7 @@ async def get_unit_tree(
 @router.get("/", response_model=PaginatedResponse[UnitResponse])
 async def list_units(
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=9999),
     name: Optional[str] = None,
     unit_type: Optional[str] = None,
     parent_id: Optional[UUID] = None,

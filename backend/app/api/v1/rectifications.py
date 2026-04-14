@@ -16,7 +16,7 @@ router = APIRouter()
 @router.get("/", response_model=PaginatedResponse[RectificationResponse])
 async def list_rectifications(
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=9999),
     title: Optional[str] = None,
     status: Optional[str] = None,
     unit_id: Optional[UUID] = None,

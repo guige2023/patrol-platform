@@ -23,7 +23,7 @@ async def list_groups(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = select(InspectionGroup).where(InspectionGroup.is_active == True).options(selectinload(InspectionGroup.members))
+    query = select(InspectionGroup).where(InspectionGroup.is_active == True).options(selectinload(InspectionGroup.members).selectinload(GroupMember.cadre))
     if plan_id:
         query = query.where(InspectionGroup.plan_id == plan_id)
     if status:
@@ -39,6 +39,7 @@ async def list_groups(
             "plan_id": g.plan_id,
             "status": g.status,
             "member_count": len(g.members),
+            "leader_cadre_name": next((m.cadre.name for m in g.members if m.is_leader and m.cadre), None),
             "created_at": g.created_at,
         }
         for g in groups
@@ -63,6 +64,7 @@ async def get_group(group_id: UUID, db: AsyncSession = Depends(get_db), current_
         "target_unit_id": group.target_unit_id,
         "authorization_letter": group.authorization_letter,
         "authorization_date": group.authorization_date,
+        "leader_cadre_name": next((m.cadre.name for m in group.members if m.is_leader and m.cadre), None),
         "members": [
             {"id": m.id, "cadre_id": m.cadre_id, "cadre_name": m.cadre.name if m.cadre else None, "role": m.role, "is_leader": m.is_leader}
             for m in group.members

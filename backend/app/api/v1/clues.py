@@ -16,7 +16,7 @@ router = APIRouter()
 @router.get("/", response_model=PaginatedResponse[ClueResponse])
 async def list_clues(
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=9999),
     title: Optional[str] = None,
     status: Optional[str] = None,
     source: Optional[str] = None,
