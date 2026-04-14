@@ -3,9 +3,9 @@ import { Table, Button, Space, Modal, message, Form, Input, Select, Upload, Inpu
 import { PlusOutlined, UploadOutlined, DownloadOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '@/components/common/PageHeader';
+import { getFieldOptions } from '@/api/fieldOptions';
 import SearchForm from '@/components/common/SearchForm';
 import { getUnits, deleteUnit, createUnit, updateUnit, importUnits, exportUnits, downloadUnitTemplate } from '@/api/units';
-import { useFieldOptions } from '@/hooks/useFieldOptions';
 import type { ColumnsType } from 'antd/es/table';
 import { getErrorMessage } from '@/utils/error';
 
@@ -41,9 +41,19 @@ const UnitList: React.FC = () => {
   const [editingUnit, setEditingUnit] = useState<Unit | null>(null);
   const [form] = Form.useForm();
 
-  const { getOptions } = useFieldOptions();
-  const unitTypeOptions = getOptions('unit_type');
-  const unitLevelOptions = getOptions('unit_level');
+  // Fetch field options directly from API to avoid context timing issues
+  const [unitTypeOptions, setUnitTypeOptions] = useState<{label:string;value:string}[]>([]);
+  const [unitLevelOptions, setUnitLevelOptions] = useState<{label:string;value:string}[]>([]);
+  useEffect(() => {
+    getFieldOptions().then((res: any) => {
+      // Backend returns raw array: [...], not {data: {items: [...]}}
+      const items: any[] = Array.isArray(res) ? res : (res?.data?.items || res?.data || []);
+      const ut = items.find((f: any) => f.field_key === 'unit_type');
+      const ul = items.find((f: any) => f.field_key === 'unit_level');
+      if (ut?.options) setUnitTypeOptions(ut.options);
+      if (ul?.options) setUnitLevelOptions(ul.options);
+    });
+  }, []);
 
   // Build parent name lookup from ALL units (not just current page)
   const [parentNameMap, setParentNameMap] = useState<Record<string, string>>({});
@@ -219,19 +229,19 @@ const UnitList: React.FC = () => {
       title: '类型', dataIndex: 'unit_type', key: 'unit_type',
       render: (v: string) => {
         const opt = unitTypeOptions.find(o => o.value === v);
-        return opt ? opt.label : (v || '-');
+        return opt ? opt.label : '-';
       },
     },
     {
       title: '级别', dataIndex: 'level', key: 'level',
       render: (v: string) => {
         const opt = unitLevelOptions.find(o => o.value === v);
-        return opt ? opt.label : (v || '-');
+        return opt ? opt.label : '-';
       },
     },
     {
       title: '上级单位', dataIndex: 'parent_id', key: 'parent_id',
-      render: (v: string) => v ? (parentNameMap[v] || v) : '-',
+      render: (v: string) => v ? (parentNameMap[v] || '-') : '-',
     },
     { title: '排序', dataIndex: 'sort_order', key: 'sort_order', render: (v: number) => v ?? '-' },
     { title: '最近巡察年份', dataIndex: 'last_inspection_year', key: 'last_inspection_year', render: (v: number) => v || '-' },
