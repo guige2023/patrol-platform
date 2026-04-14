@@ -12,13 +12,18 @@ const { TextArea } = Input;
 const ALERT_LEVEL_OPTIONS = [
   { label: '绿色', value: 'green' },
   { label: '黄色', value: 'yellow' },
+  { label: '橙色', value: 'orange' },
   { label: '红色', value: 'red' },
 ];
 
 const STATUS_OPTIONS = [
+  { label: '草稿', value: 'drafted' },
+  { label: '已提交', value: 'submitted' },
+  { label: '已批准', value: 'approved' },
   { label: '已派发', value: 'dispatched' },
   { label: '已签收', value: 'signed' },
   { label: '整改中', value: 'progressing' },
+  { label: '整改中', value: 'in_progress' },
   { label: '已完成', value: 'completed' },
   { label: '已验收', value: 'verified' },
   { label: '已驳回', value: 'rejected' },
@@ -59,7 +64,7 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
   const fetchUnits = async () => {
     try {
       const res = await getUnits({ page: 1, page_size: 9999 });
-      const units = res.items || [];
+      const units = (res && Array.isArray(res.items)) ? res.items : [];
       setUnitOptions(units.map((u: any) => ({ label: u.name, value: u.id })));
     } catch {
       message.error('获取单位失败');
@@ -69,7 +74,7 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
   const fetchClues = async () => {
     try {
       const res = await getClues({ page: 1, page_size: 9999 });
-      const clues = res.items || [];
+      const clues = (res && Array.isArray(res.items)) ? res.items : [];
       setClueOptions(clues.map((c: any) => ({ label: c.title, value: c.id })));
     } catch {
       message.error('获取线索失败');
@@ -79,7 +84,7 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
   const fetchDrafts = async () => {
     try {
       const res = await getDrafts({ page: 1, page_size: 9999 });
-      const drafts = res.items || [];
+      const drafts = (res && Array.isArray(res.items)) ? res.items : [];
       setDraftOptions(drafts.map((d: any) => ({ label: d.title, value: d.id })));
     } catch {
       message.error('获取底稿失败');
@@ -96,12 +101,18 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
       if (data.completion_date) {
         data.completion_date = dayjs(data.completion_date);
       }
-      setRectificationData(res);
-      form.setFieldsValue(data);
+      setRectificationData(data);
     } catch {
       message.error('获取整改详情失败');
     }
   };
+
+  // Only set form values after options are loaded to avoid Select crashes
+  useEffect(() => {
+    if (rectificationData && unitOptions.length > 0) {
+      form.setFieldsValue(rectificationData);
+    }
+  }, [rectificationData, unitOptions]);
 
   const handleUpdateProgress = async () => {
     if (!rectificationId) return;
@@ -120,6 +131,8 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
       }
       await updateProgress(rectificationId, values.progress || 0, details);
       message.success('进度更新成功');
+      onSuccess();
+      onClose();
     } catch (err: any) {
       message.error(getErrorMessage(err) || '进度更新失败');
     }
@@ -159,16 +172,6 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
   };
 
   const handleSwitchToEdit = () => {
-    if (rectificationData) {
-      const data: any = { ...rectificationData };
-      if (data.deadline && typeof data.deadline === 'string') {
-        data.deadline = dayjs(data.deadline);
-      }
-      if (data.completion_date && typeof data.completion_date === 'string') {
-        data.completion_date = dayjs(data.completion_date);
-      }
-      form.setFieldsValue(data);
-    }
     setIsViewMode(false);
   };
 
@@ -233,23 +236,23 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <Form.Item name="unit_id" label="被整改单位" rules={[{ required: true, message: '请选择被整改单位' }]}>
-              <Select options={unitOptions} placeholder="请选择被整改单位" allowClear showSearch />
+              <Select placeholder="请选择被整改单位" options={unitOptions} showSearch filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())} />
             </Form.Item>
             <Form.Item name="alert_level" label="预警级别">
-              <Select options={ALERT_LEVEL_OPTIONS} placeholder="请选择预警级别" allowClear />
+              <Select placeholder="请选择预警级别" options={ALERT_LEVEL_OPTIONS} />
             </Form.Item>
           </div>
 
           <Form.Item name="clue_id" label="关联线索">
-            <Select options={clueOptions} placeholder="请选择关联线索" allowClear showSearch />
+            <Select placeholder="请选择关联线索" options={clueOptions} />
           </Form.Item>
 
           <Form.Item name="draft_id" label="关联底稿">
-            <Select options={draftOptions} placeholder="请选择关联底稿" allowClear showSearch />
+            <Select placeholder="请选择关联底稿" options={draftOptions} />
           </Form.Item>
 
           <Form.Item name="status" label="整改状态">
-            <Select options={STATUS_OPTIONS} placeholder="请选择整改状态" allowClear />
+            <Select placeholder="请选择整改状态" options={STATUS_OPTIONS} />
           </Form.Item>
 
           <Form.Item
@@ -280,9 +283,9 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
           <Form.Item
             name="progress_details"
             label="进度详情"
-            extra={<span style={{ color: '#999' }}>格式：JSON数组，如 [{{"date": "2026-04-01", "content": "已完成部分整改", "percentage": 30}}]</span>}
+            extra="格式：JSON数组，示例：[{date: '2026-04-01', content: '已完成部分整改', percentage: 30}]"
           >
-            <TextArea rows={3} placeholder="请输入进度详情（JSON数组格式）" />
+            <TextArea rows={3} placeholder="JSON数组格式" />
           </Form.Item>
 
           <Form.Item name="completion_report" label="整改完成报告">
