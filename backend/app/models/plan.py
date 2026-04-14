@@ -34,6 +34,7 @@ class Plan(Base):
     target_units = Column(JSON, default=list)  # 目标单位 [unit_id, ...]
     version = Column(Integer, default=1)
     version_history = Column(JSON, default=list)
+    authorization_letter = Column(Text)  # 授权书
     approval_comment = Column(Text)
     approved_by = Column(Guid)
     is_active = Column(Boolean, default=True)
