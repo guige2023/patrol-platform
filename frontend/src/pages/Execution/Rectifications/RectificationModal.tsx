@@ -22,7 +22,6 @@ const STATUS_OPTIONS = [
   { label: '已批准', value: 'approved' },
   { label: '已派发', value: 'dispatched' },
   { label: '已签收', value: 'signed' },
-  { label: '整改中', value: 'progressing' },
   { label: '整改中', value: 'in_progress' },
   { label: '已完成', value: 'completed' },
   { label: '已验收', value: 'verified' },
