@@ -4,7 +4,69 @@
 
 ---
 
-## [v3.2] 字段对齐与 Bug 修复
+## [v3.2] page_size 下拉加载修复 + birth_date 崩溃修复
+
+**日期**: 2026-04-14
+
+### 已完成
+
+#### P0 - page_size 上限 100 导致下拉加载失败
+
+所有列表 API 原本 `le=100`，前端下拉加载需 `page_size=9999` 一次性拉取全部。
+
+| 文件 | 修复 |
+|------|------|
+| `backend/app/api/v1/plans.py` | `le=100` → `le=9999` |
+| `backend/app/api/v1/drafts.py` | `le=100` → `le=9999` |
+| `backend/app/api/v1/knowledge.py` | `le=100` → `le=9999` |
+| `backend/app/api/v1/rectifications.py` | `le=100` → `le=9999` |
+| `backend/app/api/v1/admin.py` | `le=100` → `le=9999` |
+| `backend/app/api/v1/dashboard.py` | `le=100` → `le=9999` |
+| `backend/app/api/v1/units.py` | `le=100` → `le=9999` |
+| `backend/app/api/v1/cadres.py` | `le=100` → `le=9999` |
+| `backend/app/api/v1/clues.py` | `le=100` → `le=9999` |
+
+验证：`curl http://localhost:18800/api/v1/units/?page=1&page_size=9999` → 76 条 ✅
+
+#### FIX-groups - list_groups 缺少 leader_cadre_name
+
+`GET /api/v1/groups/` 返回数据中无组长姓名，前端下拉无法显示。
+
+修复：`groups.py` `list_groups` 和 `get_group` 添加 `leader_cadre_name` 字段，通过 `selectinload(GroupMember.cadre)` JOIN 干部表。
+
+#### FIX-cadres - birth_date 导致 500 崩溃
+
+Cadres 列表 API 在 `page_size=9999` 时 500 崩溃。
+
+**根因**：`cadres.birth_date` 列存有两种格式数据：
+- `"1972-10-16"`（正确）
+- `"1986.08"`（浮点格式，来自旧数据导入）
+
+`birth_date` 定义为 `Date` 类型，SQLAlchemy Cython 的 `str_to_date` 无法处理 `"1986.08"` 字符串；改为 `String` 后 Pydantic `date` 类型又拒绝浮点值。
+
+**修复**：
+1. `backend/app/models/cadre.py`：`birth_date Column(Date)` → `Column(String(32))`
+2. `backend/app/schemas/cadre.py`：添加 `_normalize_birth_date` validator，`birth_date: Optional[str]`，接受 `"YYYY-MM-DD"` / `"YYYY.MM"` / 浮点数，自动规范化为 `"YYYY-MM-DD"` 字符串
+
+验证：`curl cadres/?page_size=9999` → 154 条，无 500 ✅
+
+### 验证结果（2026-04-14）
+
+| 模块 | page_size=9999 |
+|------|---------------|
+| Units | 76 ✅ |
+| Cadres | 154 ✅ |
+| Plans | 26 ✅ |
+| Clues | 21 ✅ |
+| Drafts | 20 ✅ |
+| Rectifications | 23 ✅ |
+| Knowledge | 19 ✅ |
+| Groups | 15 ✅ |
+| Admin Users | 9 ✅ |
+
+---
+
+## [v3.1] 字段对齐与 Bug 修复
 
 **日期**: 2026-04-14
 **状态**: 主要修复完成
@@ -77,7 +139,7 @@ GET /api/v1/rectifications/
 ### 低优先级
 
 - [ ] **React Router v7 警告**：启动时 Console 有 Router API 变更警告
-- [ ] **GroupMember cadre_name 为 null**：后端返回 `cadre_name: null`，需要确认干部数据是否正确关联
+- [ ] **GroupMember cadre_name 为 null**：代码已正确 JOIN cadres 表（`FIX-groups`），但数据库中巡察组成员记录的 `cadre_id` 未设置，属于历史数据问题，需补充关联
 - [ ] **PlanList 表格日期列为空**：数据库中 `planned_start/end_date` 为 null，这是数据问题，非代码 bug
 - [ ] **Draft submit 需要验证完整流程**：从创建底稿 → 提交 → 审批 → 发布全流程端到端测试
 
