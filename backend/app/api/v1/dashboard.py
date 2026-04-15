@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, extract
+from datetime import date
 from app.dependencies import get_db, get_current_user
 from app.models.user import User
 from app.models.unit import Unit
@@ -8,6 +9,7 @@ from app.models.plan import Plan
 from app.models.draft import Draft
 from app.models.rectification import Rectification
 from app.models.clue import Clue
+from app.models.inspection_group import InspectionGroup
 
 router = APIRouter()
 
@@ -66,4 +68,49 @@ async def get_issue_profile(db: AsyncSession = Depends(get_db), current_user: Us
         "drafts_by_category": [{"category": r[0], "count": r[1]} for r in drafts_by_category.all()],
         "clues_by_source": [{"source": r[0], "count": r[1]} for r in clues_by_source.all()],
         "rectifications_by_alert_level": [{"level": r[0], "count": r[1]} for r in rect_by_level.all()],
+    }
+
+
+@router.get("/yearly-stats")
+async def get_yearly_stats(
+    year: int = date.today().year,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Monthly counts of plans and inspection groups for a given year."""
+    months = list(range(1, 13))
+    plan_counts = [0] * 12
+    group_counts = [0] * 12
+
+    # Plans per month
+    plan_result = await db.execute(
+        select(
+            extract("month", Plan.created_at).label("month"),
+            func.count(Plan.id).label("count"),
+        )
+        .where(extract("year", Plan.created_at) == year)
+        .group_by(extract("month", Plan.created_at))
+    )
+    for row in plan_result.all():
+        m = int(row.month)
+        plan_counts[m - 1] = row.count
+
+    # Groups per month
+    group_result = await db.execute(
+        select(
+            extract("month", InspectionGroup.created_at).label("month"),
+            func.count(InspectionGroup.id).label("count"),
+        )
+        .where(extract("year", InspectionGroup.created_at) == year)
+        .group_by(extract("month", InspectionGroup.created_at))
+    )
+    for row in group_result.all():
+        m = int(row.month)
+        group_counts[m - 1] = row.count
+
+    return {
+        "year": year,
+        "months": months,
+        "plan_counts": plan_counts,
+        "group_counts": group_counts,
     }

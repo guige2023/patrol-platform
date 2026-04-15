@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Card, Row, Col, Spin, message, Timeline, Progress, Tag, Badge } from 'antd'
+import { Card, Row, Col, Spin, message, Timeline, Progress, Tag, Badge, Select } from 'antd'
 import {
   BankOutlined,
   ProjectOutlined,
@@ -8,9 +8,11 @@ import {
   ClockCircleOutlined,
   FileTextOutlined,
   ExceptionOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons'
 import { Link, useNavigate } from 'react-router-dom'
-import { getOverview, getIssueProfile } from '../../api/dashboard'
+import ReactECharts from 'echarts-for-react'
+import { getOverview, getIssueProfile, getYearlyStats } from '../../api/dashboard'
 
 interface Overview {
   unit_count: number
@@ -31,10 +33,19 @@ interface IssueProfile {
   plan_progress?: { name: string; progress: number; status: string }[]
 }
 
+interface YearlyStats {
+  year: number
+  months: number[]
+  plan_counts: number[]
+  group_counts: number[]
+}
+
 export default function Dashboard() {
   const [overview, setOverview] = useState<Overview | null>(null)
   const [issues, setIssues] = useState<IssueProfile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [yearlyStats, setYearlyStats] = useState<YearlyStats | null>(null)
+  const [statsYear, setStatsYear] = useState(new Date().getFullYear())
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -46,6 +57,12 @@ export default function Dashboard() {
       .catch(() => message.error('加载数据失败'))
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    getYearlyStats(statsYear)
+      .then(setYearlyStats)
+      .catch(console.error)
+  }, [statsYear])
 
   if (loading) return (
     <div style={{ marginTop: 80, textAlign: 'center' }}>
@@ -188,6 +205,68 @@ export default function Dashboard() {
             </Card>
           </Col>
         ))}
+      </Row>
+
+      {/* 年度工作量统计 */}
+      <Row style={{ marginBottom: 24 }}>
+        <Col span={24}>
+          <Card
+            className="panel-card"
+            title={
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <BarChartOutlined />
+                年度工作量统计
+              </span>
+            }
+            extra={
+              <Select
+                value={statsYear}
+                onChange={setStatsYear}
+                style={{ width: 120 }}
+                options={[
+                  { value: new Date().getFullYear(), label: String(new Date().getFullYear()) },
+                  { value: new Date().getFullYear() - 1, label: String(new Date().getFullYear() - 1) },
+                  { value: new Date().getFullYear() - 2, label: String(new Date().getFullYear() - 2) },
+                ]}
+              />
+            }
+          >
+            <ReactECharts
+              option={{
+                tooltip: { trigger: 'axis' },
+                legend: {
+                  data: ['巡察计划', '巡察组'],
+                  bottom: 0,
+                },
+                grid: { left: 40, right: 20, top: 20, bottom: 50 },
+                xAxis: {
+                  type: 'category',
+                  data: ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
+                  axisLabel: { fontSize: 11 },
+                },
+                yAxis: { type: 'value', minInterval: 1, axisLabel: { fontSize: 11 } },
+                series: [
+                  {
+                    name: '巡察计划',
+                    type: 'bar',
+                    itemStyle: { color: '#C80000', borderRadius: [4, 4, 0, 0] },
+                    barMaxWidth: 36,
+                    data: yearlyStats?.plan_counts || Array(12).fill(0),
+                  },
+                  {
+                    name: '巡察组',
+                    type: 'bar',
+                    itemStyle: { color: '#1677FF', borderRadius: [4, 4, 0, 0] },
+                    barMaxWidth: 36,
+                    data: yearlyStats?.group_counts || Array(12).fill(0),
+                  },
+                ],
+              }}
+              style={{ height: 280 }}
+              opts={{ renderer: 'canvas' }}
+            />
+          </Card>
+        </Col>
       </Row>
 
       {/* 巡察进度 + 最新动态 */}
