@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Button, Card, message, Select, InputNumber, Space } from 'antd';
+import { Form, Input, Button, Card, message, Select, InputNumber, Space, Tabs, Table, Tag } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';
+import { TeamOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import { getUnitDetail, updateUnit, getUnits } from '@/api/units';
+import { getCadres } from '@/api/cadres';
 import { useFieldOptions } from '@/hooks/useFieldOptions';
 import { getErrorMessage } from '@/utils/error';
 
@@ -32,6 +34,11 @@ const UnitDetail: React.FC = () => {
   const { getOptions } = useFieldOptions();
   const unitTypeOptions = getOptions('unit_type');
   const unitLevelOptions = getOptions('unit_level');
+  const [activeTab, setActiveTab] = useState('info');
+
+  // 关联干部
+  const [cadres, setCadres] = useState<any[]>([]);
+  const [cadresLoading, setCadresLoading] = useState(false);
 
   // Parent unit options
   const [parentOptions, setParentOptions] = useState<{ label: string; value: string }[]>([]);
@@ -74,6 +81,26 @@ const UnitDetail: React.FC = () => {
       );
     }).catch(console.error);
   }, [id]);
+
+  // 加载关联干部
+  const loadCadres = async () => {
+    if (!id) return;
+    setCadresLoading(true);
+    try {
+      const res = await getCadres({ unit_id: id as string, page: 1, page_size: 999 });
+      setCadres(res.items || []);
+    } catch {
+      message.error('加载干部列表失败');
+    } finally {
+      setCadresLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'cadres') {
+      loadCadres();
+    }
+  }, [activeTab, id]);
 
   const handleSubmit = async (values: any) => {
     setLoading(true);
@@ -120,21 +147,28 @@ const UnitDetail: React.FC = () => {
     }
   };
 
+  const cadreColumns = [
+    { title: '姓名', dataIndex: 'name', key: 'name' },
+    { title: '职务', dataIndex: 'position', key: 'position', render: (v: string) => v || '-' },
+    { title: '职级', dataIndex: 'rank', key: 'rank', render: (v: string) => v || '-' },
+    { title: '类别', dataIndex: 'category', key: 'category', render: (v: string) => v || '-' },
+    {
+      title: '是否可用',
+      dataIndex: 'is_available',
+      key: 'is_available',
+      render: (v: boolean) => v ? <Tag color="green">可用</Tag> : <Tag color="red">不可用</Tag>,
+    },
+  ];
+
   const formItemRow = (children: React.ReactNode) => (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>{children}</div>
   );
 
-  return (
-    <div>
-      <PageHeader
-        title="单位详情"
-        breadcrumbs={[
-          { name: '档案管理' },
-          { name: '单位档案', path: '/archive/units' },
-          { name: unit?.name || '单位详情' },
-        ]}
-      />
-      <Card>
+  const tabItems = [
+    {
+      key: 'info',
+      label: '基本信息',
+      children: (
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
           <Form.Item name="name" label="单位名称" rules={[{ required: true, message: '请输入单位名称' }]}>
             <Input placeholder="请输入单位名称" />
@@ -226,6 +260,41 @@ const UnitDetail: React.FC = () => {
             </Space>
           </Form.Item>
         </Form>
+      ),
+    },
+    {
+      key: 'cadres',
+      label: (
+        <span>
+          <TeamOutlined /> 关联干部（{cadres.length > 0 ? cadres.length : ''}）
+        </span>
+      ),
+      children: (
+        <Table
+          rowKey="id"
+          loading={cadresLoading}
+          dataSource={cadres}
+          columns={cadreColumns}
+          pagination={{ pageSize: 20, size: 'small' }}
+          size="small"
+          locale={{ emptyText: '暂无关联干部' }}
+        />
+      ),
+    },
+  ];
+
+  return (
+    <div>
+      <PageHeader
+        title="单位详情"
+        breadcrumbs={[
+          { name: '档案管理' },
+          { name: '单位档案', path: '/archive/units' },
+          { name: unit?.name || '单位详情' },
+        ]}
+      />
+      <Card>
+        <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
       </Card>
     </div>
   );
