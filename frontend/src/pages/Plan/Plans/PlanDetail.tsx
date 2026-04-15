@@ -40,6 +40,15 @@ const STATUS_OPTIONS = [
   { label: '已完成', value: 'completed' },
 ];
 
+const PLAN_STATUS_MAP: Record<string, string> = {
+  draft: '草稿',
+  submitted: '已提交',
+  approved: '已批准',
+  published: '已发布',
+  in_progress: '进行中',
+  completed: '已完成',
+};
+
 const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, onSuccess }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = React.useState(false);
@@ -154,7 +163,7 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
       <Descriptions.Item label="实际结束日期">
         {planData?.actual_end_date ? dayjs(planData.actual_end_date).format('YYYY-MM-DD') : '-'}
       </Descriptions.Item>
-      <Descriptions.Item label="状态">{planData?.status || '-'}</Descriptions.Item>
+      <Descriptions.Item label="状态">{PLAN_STATUS_MAP[planData?.status ?? ''] ?? planData?.status ?? '-'}</Descriptions.Item>
       <Descriptions.Item label="审批意见">{planData?.approval_comment || '-'}</Descriptions.Item>
       <Descriptions.Item label="版本号">{planData?.version || '-'}</Descriptions.Item>
       <Descriptions.Item label="变更记录">
