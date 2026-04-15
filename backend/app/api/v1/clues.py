@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from uuid import UUID
@@ -9,6 +10,9 @@ from app.models.user import User
 from app.schemas.clue import ClueCreate, ClueUpdate, ClueTransfer, ClueResponse
 from app.schemas.common import PaginatedResponse, PageResult
 from app.core.audit import write_audit_log
+import io
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 router = APIRouter()
 
@@ -89,3 +93,93 @@ async def transfer_clue(clue_id: UUID, body: ClueTransfer = Body(...), db: Async
     await db.commit()
     await write_audit_log(db, current_user.id, "transfer", "clue", clue_id, {"target": body.target})
     return {"message": "Clue transferred"}
+
+
+STATUS_LABELS = {
+    "registered": "已登记",
+    "transferring": "移交中",
+    "transferred": "已移交",
+    "closed": "已关闭",
+}
+
+SEVERITY_LABELS = {
+    "low": "一般",
+    "medium": "较重",
+    "high": "重要",
+    "critical": "重大",
+}
+
+
+@router.get("/export")
+async def export_clues(
+    status: Optional[str] = None,
+    source: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Export all clues as .xlsx."""
+    query = select(Clue)
+    if status:
+        query = query.where(Clue.status == status)
+    if source:
+        query = query.where(Clue.source == source)
+    query = query.order_by(Clue.created_at.desc()).limit(10000)
+    result = await db.execute(query)
+    clues = result.scalars().all()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "线索管理"
+
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill("solid", fgColor="1677FF")
+    header_align = Alignment(horizontal="center", vertical="center")
+    thin_border = Border(
+        left=Side(style="thin"), right=Side(style="thin"),
+        top=Side(style="thin"), bottom=Side(style="thin")
+    )
+
+    headers = [
+        "标题", "来源", "类别", "严重程度", "状态",
+        "移交目标", "移交时间", "移交备注", "处理结果",
+        "创建时间",
+    ]
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        cell.border = thin_border
+
+    for c in clues:
+        transfer_date = c.transfer_date.strftime('%Y-%m-%d') if c.transfer_date else ""
+        created = c.created_at.strftime('%Y-%m-%d %H:%M') if c.created_at else ""
+        ws.append([
+            c.title or "",
+            c.source or "",
+            c.category or "",
+            SEVERITY_LABELS.get(c.severity, c.severity or ""),
+            STATUS_LABELS.get(c.status, c.status or ""),
+            c.transfer_target or "",
+            transfer_date,
+            c.transfer_comment or "",
+            c.handling_result or "",
+            created,
+        ])
+
+    for col in ws.columns:
+        max_len = 0
+        col_letter = col[0].column_letter
+        for cell in col:
+            if cell.value:
+                max_len = max(max_len, len(str(cell.value)))
+        ws.column_dimensions[col_letter].width = min(max_len + 4, 40)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename*=UTF-8''clues_export.xlsx"},
+    )

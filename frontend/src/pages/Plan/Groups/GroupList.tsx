@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Table, Button, Space, Tag, Select, message, Popconfirm, Row, Col } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
-import { getGroups, deleteGroup } from '@/api/groups';
+import { getGroups, deleteGroup, exportGroups } from '@/api/groups';
 import GroupDetail from './GroupDetail';
 import GroupMemberModal from './GroupMemberModal';
 import CreateGroupModal from './CreateGroupModal';
@@ -136,7 +136,8 @@ const GroupList: React.FC = () => {
     <div>
       <PageHeader title="巡察组" breadcrumbs={[{ name: '巡察计划' }, { name: '巡察组' }]} />
       <div style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>新建巡察组</Button>
+        <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal} style={{ marginRight: 8 }}>新建巡察组</Button>
+        <Button onClick={() => exportGroups({ plan_id: filterPlanId, status: filterStatus }).catch((e: any) => message.error('导出失败'))} style={{ marginRight: 8 }}>导出</Button>
         <Select
           placeholder="按计划筛选"
           allowClear

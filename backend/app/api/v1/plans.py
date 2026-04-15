@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import List, Optional
@@ -10,6 +11,9 @@ from app.models.user import User
 from app.schemas.plan import PlanCreate, PlanUpdate, PlanResponse
 from app.schemas.common import PaginatedResponse, PageResult
 from app.core.audit import write_audit_log
+import io
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 router = APIRouter()
 
@@ -41,6 +45,161 @@ async def list_plans(
     
     return PaginatedResponse(
         data=PageResult(items=items, total=total, page=page, page_size=page_size)
+    )
+
+
+STATUS_LABELS = {
+    "draft": "草稿",
+    "submitted": "已提交",
+    "approved": "已批准",
+    "published": "已发布",
+    "in_progress": "进行中",
+    "completed": "已完成",
+}
+
+
+@router.get("/download")
+async def export_plans(
+    year: Optional[int] = None,
+    status: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Export all plans as .xlsx."""
+    query = select(Plan).where(Plan.is_active == True)
+    if year:
+        query = query.where(Plan.year == year)
+    if status:
+        query = query.where(Plan.status == status)
+    query = query.order_by(Plan.year.desc(), Plan.created_at.desc()).limit(10000)
+    result = await db.execute(query)
+    plans = result.scalars().all()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "巡察计划"
+
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill("solid", fgColor="1677FF")
+    header_align = Alignment(horizontal="center", vertical="center")
+    thin_border = Border(
+        left=Side(style="thin"), right=Side(style="thin"),
+        top=Side(style="thin"), bottom=Side(style="thin")
+    )
+
+    headers = [
+        "计划名称", "轮次", "年份", "状态",
+        "计划开始日期", "计划结束日期", "实际开始日期", "实际结束日期",
+        "巡察范围", "重点领域", "版本", "审批意见",
+        "授权日期", "创建时间",
+    ]
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        cell.border = thin_border
+
+    for p in plans:
+        focus_str = ",".join(p.focus_areas) if isinstance(p.focus_areas, list) else (p.focus_areas or "")
+        auth_date = p.authorization_date.strftime('%Y-%m-%d') if p.authorization_date else ""
+        created = p.created_at.strftime('%Y-%m-%d %H:%M') if p.created_at else ""
+        ws.append([
+            p.name or "",
+            p.round_name or "",
+            p.year or "",
+            STATUS_LABELS.get(p.status, p.status or ""),
+            p.planned_start_date.strftime('%Y-%m-%d') if p.planned_start_date else "",
+            p.planned_end_date.strftime('%Y-%m-%d') if p.planned_end_date else "",
+            p.actual_start_date.strftime('%Y-%m-%d') if p.actual_start_date else "",
+            p.actual_end_date.strftime('%Y-%m-%d') if p.actual_end_date else "",
+            p.scope or "",
+            focus_str,
+            p.version or 1,
+            p.approval_comment or "",
+            auth_date,
+            created,
+        ])
+
+    for col in ws.columns:
+        max_len = 0
+        col_letter = col[0].column_letter
+        for cell in col:
+            if cell.value:
+                max_len = max(max_len, len(str(cell.value)))
+        ws.column_dimensions[col_letter].width = min(max_len + 4, 40)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename*=UTF-8''plans.xlsx"},
+    )
+
+
+@router.get("/template")
+async def download_plan_template(
+    current_user: User = Depends(get_current_user),
+):
+    """Download plan import template (.xlsx)."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "巡察计划导入模板"
+
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill("solid", fgColor="52C41A")
+    header_align = Alignment(horizontal="center", vertical="center")
+    note_fill = PatternFill("solid", fgColor="FFF7E6")
+    thin_border = Border(
+        left=Side(style="thin"), right=Side(style="thin"),
+        top=Side(style="thin"), bottom=Side(style="thin")
+    )
+
+    headers = ["计划名称*", "轮次(第X轮)", "年份*", "计划开始日期", "计划结束日期", "巡察范围", "状态"]
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        cell.border = thin_border
+
+    notes = [
+        "必填", "如：第一轮", "必填，如：2024", "YYYY-MM-DD", "YYYY-MM-DD", "巡察范围描述", "draft/submitted/approved/published/in_progress/completed",
+    ]
+    ws.append(notes)
+    for cell in ws[2]:
+        cell.fill = note_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell.border = thin_border
+        cell.font = Font(size=10, color="999999")
+
+    sample = [
+        ["2024年巡察计划", "第一轮", 2024, "2024-03-01", "2024-05-31", "对XX单位开展巡察", "draft"],
+    ]
+    for row in sample:
+        ws.append(row)
+        for cell in ws[ws.max_row]:
+            cell.border = thin_border
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    ws.row_dimensions[2].height = 36
+    for col in ws.columns:
+        max_len = 0
+        col_letter = col[0].column_letter
+        for cell in col:
+            if cell.value:
+                max_len = max(max_len, len(str(cell.value)))
+        ws.column_dimensions[col_letter].width = min(max_len + 6, 45)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename*=UTF-8''plan_template.xlsx"},
     )
 
 
@@ -157,4 +316,3 @@ async def delete_plan(plan_id: UUID, db: AsyncSession = Depends(get_db), current
     plan.is_active = False
     await db.commit()
     await write_audit_log(db, current_user.id, "delete", "plan", plan.id, {"name": plan.name})
-    return {"message": "Plan deleted"}

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -12,6 +13,9 @@ from app.models.user import User
 from app.core.audit import write_audit_log
 from app.services.rule_engine import RuleEngine
 from app.schemas.group import GroupCreate, GroupUpdate, GroupMemberCreate
+import io
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 router = APIRouter()
 
@@ -44,6 +48,89 @@ async def list_groups(
         }
         for g in groups
     ]
+
+
+STATUS_LABELS = {
+    "draft": "草稿",
+    "approved": "已审批",
+    "active": "进行中",
+    "completed": "已完成",
+}
+
+
+@router.get("/download")
+async def export_groups(
+    plan_id: Optional[UUID] = None,
+    status: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Export all inspection groups with member info as .xlsx."""
+    query = (
+        select(InspectionGroup)
+        .options(selectinload(InspectionGroup.members), selectinload(InspectionGroup.plan))
+        .where(InspectionGroup.is_active == True)
+    )
+    if plan_id:
+        query = query.where(InspectionGroup.plan_id == plan_id)
+    if status:
+        query = query.where(InspectionGroup.status == status)
+    query = query.order_by(InspectionGroup.created_at.desc()).limit(10000)
+    result = await db.execute(query)
+    groups = result.scalars().all()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "巡察组"
+
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill("solid", fgColor="1677FF")
+    header_align = Alignment(horizontal="center", vertical="center")
+    thin_border = Border(
+        left=Side(style="thin"), right=Side(style="thin"),
+        top=Side(style="thin"), bottom=Side(style="thin")
+    )
+
+    headers = ["巡察组名称", "所属计划", "状态", "组长姓名", "副组长姓名", "联络员姓名", "成员数量", "成员名单", "创建时间"]
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        cell.border = thin_border
+
+    for g in groups:
+        plan_name = g.plan.name if g.plan else ""
+        member_names = ",".join([m.name for m in g.members]) if g.members else ""
+        created = g.created_at.strftime('%Y-%m-%d %H:%M') if g.created_at else ""
+        ws.append([
+            g.name or "",
+            plan_name,
+            STATUS_LABELS.get(g.status, g.status or ""),
+            ",".join([m.name for m in g.members if m.role == "leader"]) or "",
+            ",".join([m.name for m in g.members if m.role == "deputy_leader"]) or "",
+            ",".join([m.name for m in g.members if m.role == "liaison"]) or "",
+            len(g.members),
+            member_names,
+            created,
+        ])
+
+    for col in ws.columns:
+        max_len = 0
+        col_letter = col[0].column_letter
+        for cell in col:
+            if cell.value:
+                max_len = max(max_len, len(str(cell.value)))
+        ws.column_dimensions[col_letter].width = min(max_len + 4, 40)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename*=UTF-8''groups.xlsx"},
+    )
 
 
 @router.get("/{group_id}")

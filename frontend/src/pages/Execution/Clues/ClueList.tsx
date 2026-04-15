@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Table, Button, Space, Tag, Modal, message, Input } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
-import { getClues, transferClue } from '@/api/clues';
+import { getClues, transferClue, exportClues } from '@/api/clues';
 import ClueModal from './ClueModal';
 import type { ColumnsType } from 'antd/es/table';
 import { getErrorMessage } from '@/utils/error';
@@ -125,7 +125,8 @@ const ClueList: React.FC = () => {
     <div>
       <PageHeader title="线索管理" breadcrumbs={[{ name: '执纪执行' }, { name: '线索管理' }]} />
       <div style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>登记线索</Button>
+        <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate} style={{ marginRight: 8 }}>登记线索</Button>
+        <Button onClick={() => exportClues().catch((e: any) => message.error('导出失败'))}>导出</Button>
       </div>
       <Table columns={columns} dataSource={data} rowKey="id" loading={loading}
         pagination={{ current: page, pageSize, total, onChange: (p, ps) => { setPage(p); setPageSize(ps); }, showTotal: (t) => `共 ${t} 条` }} />

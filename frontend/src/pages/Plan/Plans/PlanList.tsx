@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Table, Button, Space, Tag, message, Popconfirm } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
-import { getPlans, submitPlan, approvePlan, publishPlan, deletePlan } from '@/api/plans';
+import { getPlans, submitPlan, approvePlan, publishPlan, deletePlan, exportPlans } from '@/api/plans';
 import PlanDetail from './PlanDetail';
 import CreatePlanModal from './CreatePlanModal';
 import type { ColumnsType } from 'antd/es/table';
@@ -132,7 +132,8 @@ const PlanList: React.FC = () => {
     <div>
       <PageHeader title="巡察计划" breadcrumbs={[{ name: '巡察计划' }, { name: '计划管理' }]} />
       <div style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>新建计划</Button>
+        <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal} style={{ marginRight: 8 }}>新建计划</Button>
+        <Button onClick={() => exportPlans().catch(e => message.error('导出失败'))}>导出</Button>
       </div>
       <Table columns={columns} dataSource={data} rowKey="id" loading={loading}
         pagination={{ current: page, pageSize, total, onChange: (p, ps) => { setPage(p); setPageSize(ps); }, showTotal: (t) => `共 ${t} 条` }} />
