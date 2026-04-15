@@ -535,3 +535,93 @@ def _json_cell(row, col_map, key):
     except (json.JSONDecodeError, TypeError):
         return {"raw": v}
 
+
+@router.get("/{cadre_id}/report")
+async def get_cadre_report(
+    cadre_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Generate personal inspection report for a cadre."""
+    # Get cadre
+    result = await db.execute(select(Cadre).where(Cadre.id == cadre_id, Cadre.is_active == True))
+    cadre = result.scalar_one_or_none()
+    if not cadre:
+        raise HTTPException(status_code=404, detail="Cadre not found")
+
+    # Get unit name
+    unit_name = None
+    if cadre.unit_id:
+        unit_result = await db.execute(select(Unit.name).where(Unit.id == cadre.unit_id))
+        unit_name = unit_result.scalar_one_or_none()
+
+    # Get all group memberships
+    result = await db.execute(
+        select(GroupMember)
+        .where(GroupMember.cadre_id == cadre_id)
+        .options(
+            selectinload(GroupMember.group).selectinload(InspectionGroup.plan)
+        )
+    )
+    members = result.scalars().all()
+
+    # Build records
+    records = []
+    for m in members:
+        g = m.group
+        if not g or not g.is_active:
+            continue
+        plan = g.plan
+        # Year from plan's planned_start_date or group created_at
+        if plan and plan.planned_start_date:
+            year = plan.planned_start_date.year
+            plan_start = plan.planned_start_date.strftime('%Y-%m-%d') if plan.planned_start_date else None
+            plan_end = plan.planned_end_date.strftime('%Y-%m-%d') if plan.planned_end_date else None
+        else:
+            year = g.created_at.year if g.created_at else None
+            plan_start = None
+            plan_end = None
+
+        role_label = "组长" if m.is_leader else (m.role or "组员")
+
+        records.append({
+            "year": year,
+            "group_name": g.name,
+            "plan_name": plan.name if plan else None,
+            "target_unit_name": None,  # could load from unit if needed
+            "role": role_label,
+            "is_leader": m.is_leader,
+            "group_status": g.status,
+            "plan_start": plan_start,
+            "plan_end": plan_end,
+        })
+
+    # Sort by year desc, group_name asc
+    records.sort(key=lambda x: (-(x["year"] or 0), x["group_name"] or ""))
+
+    # Yearly stats
+    from collections import Counter
+    year_counts = Counter(r["year"] for r in records if r["year"])
+    yearly_stats = sorted([{"year": y, "count": c} for y, c in year_counts.items()], key=lambda x: -x["year"])
+
+    return {
+        "cadre": {
+            "name": cadre.name,
+            "gender": cadre.gender,
+            "position": cadre.position,
+            "rank": cadre.rank,
+            "category": cadre.category,
+            "unit_name": unit_name,
+            "political_status": getattr(cadre, "political_status", None),
+            "education": getattr(cadre, "education", None),
+            "birth_date": str(cadre.birth_date) if getattr(cadre, "birth_date", None) else None,
+        },
+        "summary": {
+            "total_groups": len(records),
+            "total_years": len(year_counts),
+            "years_active": sorted(year_counts.keys(), reverse=True),
+        },
+        "yearly_stats": yearly_stats,
+        "records": records,
+    }
+

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Form, Input, Select, Switch, Button, Card, Space, message, Modal, Table, Tag } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';
-import { TeamOutlined } from '@ant-design/icons';
+import { TeamOutlined, PrinterOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import PageHeader from '@/components/common/PageHeader';
-import { getCadreDetail, updateCadre, getCadreGroups } from '@/api/cadres';
+import { getCadreDetail, updateCadre, getCadreGroups, getCadreReport } from '@/api/cadres';
 import { getUnits } from '@/api/units';
 import { useFieldOptions } from '@/hooks/useFieldOptions';
 import { getErrorMessage } from '@/utils/error';
@@ -95,6 +95,117 @@ const CadreDetail: React.FC = () => {
     }
   };
 
+  const handleExportReport = async () => {
+    if (!id) return;
+    try {
+      const data = await getCadreReport(id);
+      const { cadre, summary, yearly_stats, records } = data;
+      const now = dayjs().format('YYYY-MM-DD');
+
+      const statsRows = yearly_stats.map((s: any) =>
+        `<tr><td style="padding:6px 12px;border:1px solid #ddd;text-align:center">${s.year}年</td><td style="padding:6px 12px;border:1px solid #ddd;text-align:center">${s.count}次</td></tr>`
+      ).join('');
+
+      const recordRows = records.map((r: any, i: number) =>
+        `<tr>
+          <td style="padding:6px 12px;border:1px solid #ddd;text-align:center">${i + 1}</td>
+          <td style="padding:6px 12px;border:1px solid #ddd">${r.year || '-'}</td>
+          <td style="padding:6px 12px;border:1px solid #ddd">${r.plan_name || '-'}</td>
+          <td style="padding:6px 12px;border:1px solid #ddd">${r.group_name || '-'}</td>
+          <td style="padding:6px 12px;border:1px solid #ddd;text-align:center">${r.role || '-'}</td>
+          <td style="padding:6px 12px;border:1px solid #ddd;text-align:center">${r.plan_start || '-'} ~ ${r.plan_end || '-'}</td>
+          <td style="padding:6px 12px;border:1px solid #ddd;text-align:center">${r.group_status || '-'}</td>
+        </tr>`
+      ).join('');
+
+      const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>个人巡察工作报告 - ${cadre.name}</title>
+<style>
+  body { font-family: "SimSun", "宋体", serif; margin: 32px; color: #222; font-size: 13px; }
+  .title { text-align: center; margin-bottom: 32px; }
+  .title h1 { font-size: 22px; margin: 0 0 8px; }
+  .title p { color: #888; margin: 0; font-size: 12px; }
+  h2 { font-size: 15px; border-left: 4px solid #1677ff; padding-left: 8px; margin: 24px 0 12px; color: #1677ff; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 12px; }
+  th { background: #f0f5ff; padding: 8px 12px; border: 1px solid #adc6ff; text-align: left; font-weight: bold; }
+  td { padding: 6px 12px; border: 1px solid #ddd; }
+  .info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 16px; }
+  .info-item { display: flex; gap: 8px; }
+  .info-label { font-weight: bold; color: #555; min-width: 70px; }
+  .info-value { color: #222; }
+  .stat-boxes { display: flex; gap: 16px; margin-bottom: 16px; }
+  .stat-box { border: 1px solid #adc6ff; border-radius: 4px; padding: 12px 20px; text-align: center; background: #f0f5ff; min-width: 100px; }
+  .stat-num { font-size: 24px; font-weight: bold; color: #1677ff; }
+  .stat-label { font-size: 11px; color: #888; margin-top: 4px; }
+  @media print { body { margin: 16px; } }
+</style>
+</head>
+<body>
+
+<div class="title">
+  <h1>个人巡察工作报告</h1>
+  <p>生成日期：${now} &nbsp;|&nbsp; 巡察办</p>
+</div>
+
+<h2>一、基本信息</h2>
+<div class="info-grid">
+  <div class="info-item"><span class="info-label">姓　　名</span><span class="info-value">${cadre.name || '-'}</span></div>
+  <div class="info-item"><span class="info-label">性　　别</span><span class="info-value">${cadre.gender || '-'}</span></div>
+  <div class="info-item"><span class="info-label">出生日期</span><span class="info-value">${cadre.birth_date || '-'}</span></div>
+  <div class="info-item"><span class="info-label">政治面貌</span><span class="info-value">${cadre.political_status || '-'}</span></div>
+  <div class="info-item"><span class="info-label">学　　历</span><span class="info-value">${cadre.education || '-'}</span></div>
+  <div class="info-item"><span class="info-label">职　　级</span><span class="info-value">${cadre.rank || '-'}</span></div>
+  <div class="info-item"><span class="info-label">职　　务</span><span class="info-value">${cadre.position || '-'}</span></div>
+  <div class="info-item"><span class="info-label">干部类别</span><span class="info-value">${cadre.category || '-'}</span></div>
+  <div class="info-item"><span class="info-label">所属单位</span><span class="info-value">${cadre.unit_name || '-'}</span></div>
+</div>
+
+<h2>二、巡察概况</h2>
+<div class="stat-boxes">
+  <div class="stat-box"><div class="stat-num">${summary.total_groups}</div><div class="stat-label">参与巡察次数</div></div>
+  <div class="stat-box"><div class="stat-num">${summary.total_years}</div><div class="stat-label">参与巡察年数</div></div>
+  <div class="stat-box"><div class="stat-num">${summary.years_active.length > 0 ? summary.years_active.join(' / ') : '-'}</div><div class="stat-label">参与年份</div></div>
+</div>
+
+<h2>三、年度统计</h2>
+<table>
+  <thead><tr><th style="width:50%">年份</th><th style="width:50%">参与次数</th></tr></thead>
+  <tbody>${statsRows || '<tr><td colspan="2" style="text-align:center;color:#999">暂无数据</td></tr>'}</tbody>
+</table>
+
+<h2>四、巡察记录明细</h2>
+<table>
+  <thead>
+    <tr>
+      <th style="width:4%">#</th>
+      <th>年份</th>
+      <th>巡察计划</th>
+      <th>巡察组</th>
+      <th>角色</th>
+      <th>时间范围</th>
+      <th>状态</th>
+    </tr>
+  </thead>
+  <tbody>${recordRows || '<tr><td colspan="7" style="text-align:center;color:#999">暂无巡察记录</td></tr>'}</tbody>
+</table>
+
+</body>
+</html>`;
+
+      const win = window.open('', '_blank');
+      if (!win) { message.error('请允许弹出窗口'); return; }
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      win.print();
+    } catch (e: any) {
+      message.error(getErrorMessage(e) || '导出报告失败');
+    }
+  };
+
   const groupColumns = [
     { title: '巡察组名称', dataIndex: 'group_name', key: 'group_name' },
     { title: '巡察计划', dataIndex: 'plan_name', key: 'plan_name', render: (v: string) => v || '-' },
@@ -130,9 +241,14 @@ const CadreDetail: React.FC = () => {
           { name: originalData?.name || '干部详情' },
         ]}
         extra={
-          <Button icon={<TeamOutlined />} onClick={openGroupsModal}>
-            查看关联巡察组
-          </Button>
+          <Space>
+            <Button icon={<PrinterOutlined />} onClick={handleExportReport}>
+              导出个人巡察报告
+            </Button>
+            <Button icon={<TeamOutlined />} onClick={openGroupsModal}>
+              查看关联巡察组
+            </Button>
+          </Space>
         }
       />
       <Card>
