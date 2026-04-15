@@ -33,6 +33,7 @@ async def list_plans(
     name: Optional[str] = None,
     year: Optional[int] = None,
     status: Optional[str] = None,
+    principal_id: Optional[UUID] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -43,16 +44,39 @@ async def list_plans(
         query = query.where(Plan.year == year)
     if status:
         query = query.where(Plan.status == status)
-    
+    if principal_id:
+        query = query.where(Plan.created_by == principal_id)
+
     count_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar()
-    
+
     query = query.order_by(Plan.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(query)
     items = result.scalars().all()
-    
+
+    # Fetch principal names
+    user_ids = list({item.created_by for item in items if item.created_by})
+    user_map: dict[str, str] = {}
+    if user_ids:
+        user_result = await db.execute(
+            select(User.id, User.full_name).where(User.id.in_(user_ids))
+        )
+        user_map = {str(uid): fname for uid, fname in user_result.all()}
+
+    response_items = [
+        {**{"id": item.id, "name": item.name, "year": item.year, "status": item.status,
+          "created_by": item.created_by, "created_at": item.created_at,
+          "planned_start_date": item.planned_start_date, "planned_end_date": item.planned_end_date,
+          "round_name": item.round_name, "is_active": item.is_active,
+          "principal_name": user_map.get(str(item.created_by), "")},
+         **{k: v for k, v in item.__dict__.items()
+            if k not in ("id", "name", "year", "status", "created_by", "created_at",
+                         "planned_start_date", "planned_end_date", "round_name", "is_active")}}
+        for item in items
+    ]
+
     return PaginatedResponse(
-        data=PageResult(items=items, total=total, page=page, page_size=page_size)
+        data=PageResult(items=response_items, total=total, page=page, page_size=page_size)
     )
 
 

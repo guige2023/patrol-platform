@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Tag, message, Popconfirm, Input, Select } from 'antd';
+import { Table, Button, Space, Tag, message, Popconfirm, Input, Select, Collapse, Row, Col } from 'antd';
+import { FilterOutlined } from '@ant-design/icons';
 import type { Key } from 'antd/es/table/interface';
 import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import { getPlans, submitPlan, approvePlan, publishPlan, deletePlan, exportPlans, exportSelectedPlans, downloadPlanTemplate, updatePlanStatus } from '@/api/plans';
+import { getUsers } from '@/api/admin';
 import PlanDetail from './PlanDetail';
 import CreatePlanModal from './CreatePlanModal';
 import type { ColumnsType } from 'antd/es/table';
@@ -17,6 +19,7 @@ interface Plan {
   status: string;
   planned_start_date?: string;
   planned_end_date?: string;
+  principal_name?: string;
 }
 
 const statusColors: Record<string, string> = {
@@ -50,12 +53,14 @@ const PlanList: React.FC = () => {
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [yearFilter, setYearFilter] = useState<number | undefined>();
+  const [principalId, setPrincipalId] = useState<string | undefined>();
+  const [principalOptions, setPrincipalOptions] = useState<{label: string; value: string}[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await getPlans({ page, page_size: pageSize, name: keyword || undefined, status: statusFilter, year: yearFilter });
+      const res = await getPlans({ page, page_size: pageSize, name: keyword || undefined, status: statusFilter, year: yearFilter, principal_id: principalId });
       setData(res.items);
       setTotal(res.total);
     } catch (e: any) {
@@ -66,21 +71,16 @@ const PlanList: React.FC = () => {
     }
   };
 
-  useEffect(() => { fetchData(); }, [page, pageSize, keyword, statusFilter, yearFilter]);
+  useEffect(() => { fetchData(); }, [page, pageSize, keyword, statusFilter, yearFilter, principalId]);
+
+  useEffect(() => {
+    getUsers().then(users => {
+      setPrincipalOptions(users.map((u: any) => ({ label: u.full_name || u.username, value: u.id })));
+    }).catch(() => {});
+  }, []);
 
   const handleKeywordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setKeyword(e.target.value);
-    setPage(1);
-  };
-
-  const handleStatusChange = (val: string | undefined) => {
-    setStatusFilter(val);
-    setPage(1);
-  };
-
-  const handleYearChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = parseInt(e.target.value);
-    setYearFilter(isNaN(v) ? undefined : v);
     setPage(1);
   };
 
@@ -127,6 +127,7 @@ const PlanList: React.FC = () => {
     { title: '计划名称', dataIndex: 'name', key: 'name' },
     { title: '轮次', dataIndex: 'round_name', key: 'round_name' },
     { title: '年份', dataIndex: 'year', key: 'year' },
+    { title: '负责人', dataIndex: 'principal_name', key: 'principal_name', render: (t: string) => t || '-' },
     { title: '计划开始', dataIndex: 'planned_start_date', key: 'planned_start_date', render: (t: string) => t?.split('T')[0] },
     { title: '计划结束', dataIndex: 'planned_end_date', key: 'planned_end_date', render: (t: string) => t?.split('T')[0] },
     {
@@ -158,36 +159,65 @@ const PlanList: React.FC = () => {
   return (
     <div>
       <PageHeader title="巡察计划" breadcrumbs={[{ name: '巡察计划' }, { name: '计划管理' }]} />
-      <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal} style={{ marginRight: 8 }}>新建计划</Button>
-        {selectedRowKeys.length > 0 ? (
-          <Button onClick={() => exportSelectedPlans(selectedRowKeys as string[]).catch(() => message.error('批量导出失败'))} style={{ marginRight: 8 }}>
-            批量导出（{selectedRowKeys.length}）
-          </Button>
-        ) : (
-          <Button onClick={() => exportPlans().catch(() => message.error('导出失败'))} style={{ marginRight: 8 }}>导出</Button>
-        )}
-        <Button onClick={() => downloadPlanTemplate().catch(() => message.error('模板下载失败'))}>下载模板</Button>
-        <Input placeholder="搜索计划名称" style={{ width: 160 }} onChange={handleKeywordChange} />
-        <Select
-          placeholder="按状态筛选"
-          allowClear
-          style={{ width: 120 }}
-          options={[
-            { label: '草稿', value: 'draft' },
-            { label: '已提交', value: 'submitted' },
-            { label: '已批准', value: 'approved' },
-            { label: '已发布', value: 'published' },
-            { label: '进行中', value: 'in_progress' },
-            { label: '已完成', value: 'completed' },
-          ]}
-          onChange={handleStatusChange}
-        />
-        <Input
-          placeholder="年份"
-          type="number"
-          style={{ width: 100 }}
-          onChange={handleYearChange}
+      <div style={{ marginBottom: 16 }}>
+        <Space style={{ marginBottom: 12 }}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>新建计划</Button>
+          {selectedRowKeys.length > 0 ? (
+            <Button onClick={() => exportSelectedPlans(selectedRowKeys as string[]).catch(() => message.error('批量导出失败'))}>
+              批量导出（{selectedRowKeys.length}）
+            </Button>
+          ) : (
+            <Button onClick={() => exportPlans().catch(() => message.error('导出失败'))}>导出</Button>
+          )}
+          <Button onClick={() => downloadPlanTemplate().catch(() => message.error('模板下载失败'))}>下载模板</Button>
+          <Input placeholder="搜索计划名称" style={{ width: 160 }} onChange={handleKeywordChange} />
+        </Space>
+        <Collapse
+          ghost
+          items={[{
+            key: 'filters',
+            label: <Space><FilterOutlined />高级筛选（{[(keyword ? '名称' : ''), statusFilter ? '状态' : '', yearFilter ? '年份' : '', principalId ? '负责人' : ''].filter(Boolean).length}）</Space>,
+            children: (
+              <Row gutter={[12, 12]}>
+                <Col>
+                  <Select
+                    placeholder="按状态"
+                    allowClear
+                    style={{ width: 120 }}
+                    options={[
+                      { label: '草稿', value: 'draft' },
+                      { label: '已提交', value: 'submitted' },
+                      { label: '已批准', value: 'approved' },
+                      { label: '已发布', value: 'published' },
+                      { label: '进行中', value: 'in_progress' },
+                      { label: '已完成', value: 'completed' },
+                    ]}
+                    onChange={val => { setStatusFilter(val); setPage(1); }}
+                    value={statusFilter}
+                  />
+                </Col>
+                <Col>
+                  <Input
+                    placeholder="年份"
+                    type="number"
+                    style={{ width: 100 }}
+                    onChange={e => { const v = parseInt(e.target.value); setYearFilter(isNaN(v) ? undefined : v); setPage(1); }}
+                    value={yearFilter || ''}
+                  />
+                </Col>
+                <Col>
+                  <Select
+                    placeholder="负责人"
+                    allowClear
+                    style={{ width: 140 }}
+                    options={principalOptions}
+                    onChange={val => { setPrincipalId(val); setPage(1); }}
+                    value={principalId}
+                  />
+                </Col>
+              </Row>
+            ),
+          }]}
         />
       </div>
       <Table
