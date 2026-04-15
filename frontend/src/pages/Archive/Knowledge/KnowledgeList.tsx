@@ -4,7 +4,7 @@ import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import SearchForm from '@/components/common/SearchForm';
 import KnowledgeModal from './KnowledgeModal';
-import { getKnowledgeList, deleteKnowledge, publishKnowledge } from '@/api/knowledge';
+import { getKnowledgeList, deleteKnowledge, publishKnowledge, exportKnowledge } from '@/api/knowledge';
 import type { ColumnsType } from 'antd/es/table';
 
 interface Knowledge {
@@ -126,9 +126,8 @@ const categoryLabels: Record<string, string> = {
         onReset={handleReset}
       />
       <div style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => { setModalKnowledgeId(null); setModalOpen(true); }}>
-          新建知识
-        </Button>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => { setModalKnowledgeId(null); setModalOpen(true); }} style={{ marginRight: 8 }}>新建知识</Button>
+        <Button onClick={() => exportKnowledge().catch(e => message.error('导出失败'))}>导出</Button>
       </div>
       <Table
         columns={columns}
