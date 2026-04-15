@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Form, Input, Select, DatePicker, Button, Space, Slider, message, Descriptions, Switch } from 'antd';
+import { FileTextOutlined } from '@ant-design/icons';
 import { getUnits } from '@/api/units';
 import { getClues } from '@/api/clues';
 import { getDrafts } from '@/api/drafts';
 import { createRectification, updateRectification, getRectification, updateProgress } from '@/api/rectifications';
+import DraftDetail from '@/pages/Execution/Drafts/DraftDetail';
 import dayjs from 'dayjs';
 import { getErrorMessage } from '@/utils/error';
 
@@ -42,6 +44,8 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
   const [clueOptions, setClueOptions] = useState<{ label: string; value: string }[]>([]);
   const [draftOptions, setDraftOptions] = useState<{ label: string; value: string }[]>([]);
   const [rectificationData, setRectificationData] = useState<any>(null);
+  const [draftModalOpen, setDraftModalOpen] = useState(false);
+  const [draftModalId, setDraftModalId] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -185,7 +189,18 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
         {ALERT_LEVEL_OPTIONS.find(a => a.value === rectificationData?.alert_level)?.label || rectificationData?.alert_level || '-'}
       </Descriptions.Item>
       <Descriptions.Item label="关联线索">{getClueTitle(rectificationData?.clue_id) || '-'}</Descriptions.Item>
-      <Descriptions.Item label="关联底稿">{getDraftTitle(rectificationData?.draft_id) || '-'}</Descriptions.Item>
+      <Descriptions.Item label="关联底稿">
+        {rectificationData?.draft_id ? (
+          <Button
+            type="link"
+            size="small"
+            icon={<FileTextOutlined />}
+            onClick={() => { setDraftModalId(rectificationData.draft_id); setDraftModalOpen(true); }}
+          >
+            {getDraftTitle(rectificationData.draft_id) || '查看底稿'}
+          </Button>
+        ) : '-'}
+      </Descriptions.Item>
       <Descriptions.Item label="整改状态">
         {STATUS_OPTIONS.find(s => s.value === rectificationData?.status)?.label || rectificationData?.status || '-'}
       </Descriptions.Item>
@@ -205,6 +220,7 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
   );
 
   return (
+    <>
     <Modal
       title={rectificationId ? '整改详情' : '派发整改'}
       open={open}
@@ -308,6 +324,14 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
         </Form>
       )}
     </Modal>
+
+    <DraftDetail
+      open={draftModalOpen}
+      editingId={draftModalId}
+      onClose={() => { setDraftModalOpen(false); setDraftModalId(null); }}
+      onSuccess={() => { setDraftModalOpen(false); setDraftModalId(null); }}
+    />
+    </>
   );
 };
 
