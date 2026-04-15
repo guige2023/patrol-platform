@@ -258,3 +258,26 @@ async def delete_rectification(rect_id: UUID, db: AsyncSession = Depends(get_db)
     await db.commit()
     await write_audit_log(db, current_user.id, "delete", "rectification", rect_id, {})
     return {"message": "Rectification deleted"}
+
+
+@router.post("/batch-delete")
+async def batch_delete_rectifications(
+    ids: List[UUID],
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Soft-delete multiple rectifications at once."""
+    if not ids:
+        raise HTTPException(status_code=400, detail="No IDs provided")
+    result = await db.execute(
+        select(Rectification).where(Rectification.id.in_(ids), Rectification.is_active == True)
+    )
+    rects = result.scalars().all()
+    if not rects:
+        raise HTTPException(status_code=404, detail="No rectifications found")
+    for r in rects:
+        r.is_active = False
+    await db.commit()
+    for r in rects:
+        await write_audit_log(db, current_user.id, "delete", "rectification", r.id, {})
+    return {"message": f"{len(rects)} rectifications deleted"}

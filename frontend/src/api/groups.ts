@@ -25,7 +25,7 @@ export const getGroupStatusLogs = (groupId: string) =>
 export const deleteGroup = (id: string) =>
   api.delete(`/groups/${id}`);
 
-export const exportGroups = (params?: { plan_id?: string; status?: string }) => {
+export const exportGroups = (params?: { plan_id?: string; status?: string; ids?: string }) => {
   return api.get('/groups/download', { params, responseType: 'blob' }).then(res => {
     const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = window.URL.createObjectURL(blob);
@@ -36,3 +36,6 @@ export const exportGroups = (params?: { plan_id?: string; status?: string }) => 
     window.URL.revokeObjectURL(url);
   });
 };
+
+export const batchDeleteGroups = (ids: string[]) =>
+  api.post('/groups/batch-delete', ids);

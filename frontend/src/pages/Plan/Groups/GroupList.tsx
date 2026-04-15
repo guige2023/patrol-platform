@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Table, Button, Space, Tag, Select, message, Popconfirm, Card, Statistic, Row, Col } from 'antd';
 import { PlusOutlined, UsergroupAddOutlined, CheckCircleOutlined, PlayCircleOutlined, FileDoneOutlined, EditOutlined } from '@ant-design/icons';
+import type { Key } from 'antd/es/table/interface';
 import PageHeader from '@/components/common/PageHeader';
-import { getGroups, deleteGroup, exportGroups } from '@/api/groups';
+import { getGroups, deleteGroup, exportGroups, batchDeleteGroups } from '@/api/groups';
 import GroupDetail from './GroupDetail';
 import GroupMemberModal from './GroupMemberModal';
 import CreateGroupModal from './CreateGroupModal';
@@ -47,6 +48,7 @@ const GroupList: React.FC = () => {
   const [filterPlanId, setFilterPlanId] = useState<string | undefined>();
   const [filterStatus, setFilterStatus] = useState<string | undefined>();
   const [planOptions, setPlanOptions] = useState<{label: string; value: string}[]>([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -121,6 +123,28 @@ const GroupList: React.FC = () => {
     }
   };
 
+  const handleBatchExport = async () => {
+    if (!selectedRowKeys.length) return;
+    try {
+      await exportGroups({ ids: selectedRowKeys.join(',') });
+      message.success('批量导出成功');
+    } catch {
+      message.error('批量导出失败');
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    if (!selectedRowKeys.length) return;
+    try {
+      await batchDeleteGroups(selectedRowKeys as string[]);
+      message.success('批量删除成功');
+      setSelectedRowKeys([]);
+      fetchData();
+    } catch (e: any) {
+      message.error(getErrorMessage(e) || '批量删除失败');
+    }
+  };
+
   const columns: ColumnsType<Group> = [
     { title: '巡察组名称', dataIndex: 'name', key: 'name' },
     { title: '成员数量', dataIndex: 'member_count', key: 'member_count' },
@@ -183,7 +207,15 @@ const GroupList: React.FC = () => {
 
       <div style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal} style={{ marginRight: 8 }}>新建巡察组</Button>
-        <Button onClick={() => exportGroups({ plan_id: filterPlanId, status: filterStatus }).catch(() => message.error('导出失败'))} style={{ marginRight: 8 }}>导出</Button>
+        <Button onClick={() => exportGroups({ plan_id: filterPlanId, status: filterStatus }).catch(() => message.error('导出失败'))} style={{ marginRight: 8 }}>导出全部</Button>
+        {selectedRowKeys.length > 0 ? (
+          <>
+            <Button onClick={handleBatchExport}>批量导出（{selectedRowKeys.length}）</Button>
+            <Popconfirm title={`确认删除选中的 ${selectedRowKeys.length} 个巡察组？`} onConfirm={handleBatchDelete}>
+              <Button danger>批量删除（{selectedRowKeys.length}）</Button>
+            </Popconfirm>
+          </>
+        ) : null}
         <Select
           placeholder="按计划筛选"
           allowClear
@@ -206,7 +238,17 @@ const GroupList: React.FC = () => {
           onChange={setFilterStatus}
         />
       </div>
-      <Table columns={columns} dataSource={data} rowKey="id" loading={loading} pagination={false} />
+      <Table
+        columns={columns}
+        dataSource={data}
+        rowKey="id"
+        loading={loading}
+        pagination={false}
+        rowSelection={{
+          selectedRowKeys,
+          onChange: (keys) => setSelectedRowKeys(keys),
+        }}
+      />
       <GroupDetail
         open={detailModalOpen}
         editingId={editingId}

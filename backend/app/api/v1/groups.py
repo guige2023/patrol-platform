@@ -64,10 +64,11 @@ STATUS_LABELS = {
 async def export_groups(
     plan_id: Optional[UUID] = None,
     status: Optional[str] = None,
+    ids: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Export all inspection groups with member info as .xlsx."""
+    """Export inspection groups as .xlsx. Pass ids=comma-separated UUIDs for batch export."""
     query = (
         select(InspectionGroup)
         .options(
@@ -76,7 +77,10 @@ async def export_groups(
         )
         .where(InspectionGroup.is_active == True)
     )
-    if plan_id:
+    if ids:
+        id_list = [UUID(i.strip()) for i in ids.split(",") if i.strip()]
+        query = query.where(InspectionGroup.id.in_(id_list))
+    elif plan_id:
         query = query.where(InspectionGroup.plan_id == plan_id)
     if status:
         query = query.where(InspectionGroup.status == status)
@@ -456,3 +460,26 @@ async def delete_group(group_id: UUID, db: AsyncSession = Depends(get_db), curre
     await db.commit()
     await write_audit_log(db, current_user.id, "delete", "inspection_group", group_id, {})
     return {"message": "Group deleted"}
+
+
+@router.post("/batch-delete")
+async def batch_delete_groups(
+    ids: List[UUID],
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Soft-delete multiple inspection groups at once."""
+    if not ids:
+        raise HTTPException(status_code=400, detail="No IDs provided")
+    result = await db.execute(
+        select(InspectionGroup).where(InspectionGroup.id.in_(ids), InspectionGroup.is_active == True)
+    )
+    groups = result.scalars().all()
+    if not groups:
+        raise HTTPException(status_code=404, detail="No groups found")
+    for g in groups:
+        g.is_active = False
+    await db.commit()
+    for g in groups:
+        await write_audit_log(db, current_user.id, "delete", "inspection_group", g.id, {})
+    return {"message": f"{len(groups)} groups deleted"}
