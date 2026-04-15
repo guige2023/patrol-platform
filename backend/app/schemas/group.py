@@ -56,7 +56,9 @@ class GroupResponse(BaseModel):
     id: UUID
     name: str
     plan_id: UUID
+    plan_name: Optional[str] = None
     target_unit_id: Optional[UUID] = None
+    target_unit_name: Optional[str] = None
     status: str
     authorization_letter: Optional[str] = None
     authorization_date: Optional[datetime] = None

@@ -31,6 +31,9 @@ class DraftUpdate(BaseModel):
 class DraftResponse(DraftBase):
     id: UUID
     group_id: Optional[UUID] = None
+    group_name: Optional[str] = None
+    unit_id: Optional[UUID] = None
+    unit_name: Optional[str] = None
     status: str
     preliminary_reviewer: Optional[UUID] = None
     preliminary_review_comment: Optional[str] = None

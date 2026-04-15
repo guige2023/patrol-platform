@@ -10,6 +10,8 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from app.dependencies import get_db, get_current_user
 from app.models.draft import Draft, DraftAttachment
 from app.models.user import User
+from app.models.inspection_group import InspectionGroup
+from app.models.unit import Unit
 from app.schemas.draft import DraftCreate, DraftUpdate, DraftResponse, DraftSubmitRequest
 from app.schemas.common import PaginatedResponse, PageResult
 from app.core.audit import write_audit_log
@@ -144,7 +146,26 @@ async def get_draft(draft_id: UUID, db: AsyncSession = Depends(get_db), current_
     draft = result.scalar_one_or_none()
     if not draft:
         raise HTTPException(status_code=404, detail="Draft not found")
-    return draft
+
+    group_name = None
+    if draft.group_id:
+        grp_result = await db.execute(select(InspectionGroup).where(InspectionGroup.id == draft.group_id))
+        grp = grp_result.scalar_one_or_none()
+        if grp:
+            group_name = grp.name
+
+    unit_name = None
+    if draft.unit_id:
+        unit_result = await db.execute(select(Unit).where(Unit.id == draft.unit_id))
+        unit = unit_result.scalar_one_or_none()
+        if unit:
+            unit_name = unit.name
+
+    return {
+        **draft.__dict__,
+        "group_name": group_name,
+        "unit_name": unit_name,
+    }
 
 
 @router.post("/", response_model=DraftResponse, status_code=201)

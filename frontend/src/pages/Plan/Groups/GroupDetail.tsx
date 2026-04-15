@@ -349,6 +349,8 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
 
       {isView && (
         <Descriptions column={2} size="small" style={{ marginBottom: 16 }}>
+          <Descriptions.Item label="巡察计划">{groupData?.plan_name || groupData?.plan_id || '-'}</Descriptions.Item>
+          <Descriptions.Item label="被巡察单位">{groupData?.target_unit_name || groupData?.target_unit_id || '-'}</Descriptions.Item>
           <Descriptions.Item label="授权书文号">{groupData?.authorization_letter || '-'}</Descriptions.Item>
           <Descriptions.Item label="授权日期">{groupData?.authorization_date ? groupData.authorization_date.split('T')[0] : '-'}</Descriptions.Item>
         </Descriptions>

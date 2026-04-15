@@ -65,18 +65,129 @@
 - 保留：草稿 ↔ 正式（启用/停用）
 - `is_active=True` 即正式状态
 
-### Step 0.2：巡察组增加副组长字段
+### Step 0.2：巡察组成员结构
 
 **后端**：
 ```python
 # backend/app/models/inspection_group.py
 class InspectionGroup(Base):
-    leader_id: Mapped[UUID]      # 组长
-    deputy_leader_id: Mapped[UUID]  # 副组长（新增）
-    members: Mapped[List["GroupMember"]]
+    name: str                    # 巡察组名称，如"第1巡察组"
+    year: int
+    round: int                  # 第几轮
+
+class GroupMember(Base):
+    """巡察组成员"""
+    group_id: Mapped[UUID]
+    cadre_id: Mapped[UUID | None]   # 关联干部表（可为null表示手动添加）
+    name: str                    # 姓名（手动添加时直接填）
+    department: str | None       # 工作单位（手动添加时填）
+    position: str | None         # 职务（手动添加时填）
+    role: str                    # 角色：leader / deputy_leader / member
 ```
 
-**前端**：GroupDetail/GroupList 显示组长 + 副组长
+**前端**：GroupDetail/GroupList 显示组长 + 副组长 + 组员列表
+
+### Step 0.3：巡察组创建页面（可选人员自动拉取）
+
+**创建流程**（`GroupCreate.tsx`）：
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  组建巡察组                                                    │
+│                                                                 │
+│  巡察组名称 [ 第1巡察组        ]                               │
+│  所属年份   [ 2024 ▼ ]     第几轮 [ 1 ▼ ]                     │
+│                                                                 │
+│  ── 组长 ─────────────────────────────────────                 │
+│  [ 从干部库选择 ▼ ]                                            │
+│  ┌─────────────────────────────┐                                │
+│  │ 🔍 搜索干部...              │  ← 自动列出所有在职干部          │
+│  │                             │                                │
+│  │ ○ 张三（县财政局局长）       │                                │
+│  │ ○ 李四（县纪委副书记）       │                                │
+│  │ ○ 王五（县委组织部副部长）    │                                │
+│  └─────────────────────────────┘                                │
+│  已选：✅ 张三（组长）                                          │
+│                                                                 │
+│  ── 副组长 ───────────────────────────────────                 │
+│  [ 从干部库选择 ▼ ]                                            │
+│  已选：✅ 李四（副组长）                                        │
+│                                                                 │
+│  ── 组员 ─────────────────────────────────────                 │
+│  [ 从干部库选择 ▼ ]                                            │
+│  ┌─────────────────────────────┐                                │
+│  │ ○ 赵六（审计局科员）         │                                │
+│  │ ○ 钱七（财政局科员）         │                                │
+│  │ ○ 孙八（纪委科员）           │                                │
+│  └─────────────────────────────┘                                │
+│  已选：✅ 赵六、钱七、孙八（组员）                                │
+│                                                                 │
+│  ── 手动添加组员（不在干部库里）─────────────────────            │
+│  [ + 手动添加组员 ]  ← 特殊按钮，一对一查找添加                  │
+│                                                                 │
+│              [ 取消 ]    [ 保存 ]                                │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**"手动添加组员"弹窗**：
+```
+┌──────────────────────────────────────┐
+│  手动添加组员                         │
+│                                      │
+│  姓名：    [ ____________ ]          │
+│  工作单位：[ ____________ ]          │
+│  职务：    [ ____________ ]          │
+│                                      │
+│        [ 取消 ]    [ 确认添加 ]      │
+└──────────────────────────────────────┘
+```
+
+**后端 API**：
+```python
+@router.post("/groups")
+async def create_group(data: GroupCreate, db: AsyncSession = Depends(get_db)):
+    # 1. 创建巡察组
+    group = InspectionGroup(name=data.name, year=data.year, round=data.round)
+    db.add(group)
+    await db.flush()
+
+    # 2. 添加成员（组长/副组长/组员）
+    for m in data.members:
+        member = GroupMember(
+            group_id=group.id,
+            cadre_id=m.cadre_id,     # 自动选择的有关联
+            name=m.name,             # 手动添加的只有name
+            department=m.department,  # 手动添加的填单位
+            position=m.position,     # 手动添加的填职务
+            role=m.role,             # leader / deputy_leader / member
+        )
+        db.add(member)
+
+    await db.commit()
+    return group
+
+@router.get("/cadres/for-selection")
+async def get_cadres_for_selection(db: AsyncSession = Depends(get_db)):
+    """获取可选干部列表（排除已在其他进行中巡察组的）"""
+    # 排除条件：
+    # 1. 已离职 cadre.status == 'inactive'
+    # 2. 已在当前进行中巡察组的（一个干部不能同时在两个巡察组）
+    active_group_members = (
+        select(GroupMember.cadre_id)
+        .join(InspectionGroup)
+        .where(InspectionGroup.phase.in_([...IN_PROGRESS, GROUP_READY, ...]))
+    )
+    cadres = db.query(Cadre).where(
+        Cadre.id.not_in(active_group_members),
+        Cadre.status == 'active'
+    ).all()
+    return cadres
+```
+
+**可选人员过滤规则**（`cadres.status == 'active'` 且 `不在当前进行中的巡察组`）：
+- 年龄符合（男60岁以下，女55岁以下，干部一般在职）
+- 政治面貌（党员优先，但非党员也可参与）
+- 以上均可配置化
 
 ### Step 0.3：砍 RBAC 复杂权限
 

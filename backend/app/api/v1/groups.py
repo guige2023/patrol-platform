@@ -8,6 +8,7 @@ from uuid import UUID
 from app.dependencies import get_db, get_current_user
 from app.models.inspection_group import InspectionGroup, GroupMember
 from app.models.plan import Plan
+from app.models.unit import Unit
 from app.models.cadre import Cadre
 from app.models.user import User
 from app.models.audit_log import AuditLog
@@ -148,12 +149,31 @@ async def get_group(group_id: UUID, db: AsyncSession = Depends(get_db), current_
     group = result.scalar_one_or_none()
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
+
+    # Look up plan name
+    plan_name = None
+    if group.plan_id:
+        plan_result = await db.execute(select(Plan).where(Plan.id == group.plan_id))
+        plan = plan_result.scalar_one_or_none()
+        if plan:
+            plan_name = plan.name
+
+    # Look up target unit name
+    target_unit_name = None
+    if group.target_unit_id:
+        unit_result = await db.execute(select(Unit).where(Unit.id == group.target_unit_id))
+        unit = unit_result.scalar_one_or_none()
+        if unit:
+            target_unit_name = unit.name
+
     return {
         "id": group.id,
         "name": group.name,
         "plan_id": group.plan_id,
+        "plan_name": plan_name,
         "status": group.status,
         "target_unit_id": group.target_unit_id,
+        "target_unit_name": target_unit_name,
         "unit_ids": group.unit_ids or [],
         "authorization_letter": group.authorization_letter,
         "authorization_date": group.authorization_date,
