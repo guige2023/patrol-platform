@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Table, Button, Space, Tag, Progress, message } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
-import { getRectifications, signRectification, verifyRectification, exportRectifications } from '@/api/rectifications';
+import { getRectifications, signRectification, verifyRectification, exportRectifications, deleteRectification } from '@/api/rectifications';
 import RectificationModal from './RectificationModal';
 import type { ColumnsType } from 'antd/es/table';
 import { getErrorMessage } from '@/utils/error';
@@ -83,6 +83,16 @@ const RectificationList: React.FC = () => {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteRectification(id);
+      message.success('删除成功');
+      fetchData();
+    } catch (e: any) {
+      message.error(getErrorMessage(e) || '删除失败');
+    }
+  };
+
   const columns: ColumnsType<Rectification> = [
     { title: '标题', dataIndex: 'title', key: 'title' },
     {
@@ -113,6 +123,7 @@ const RectificationList: React.FC = () => {
           <Button type="link" size="small" onClick={() => { setRectificationId(record.id); setEditMode(true); setModalOpen(true); }}>编辑</Button>
           {record.status === 'dispatched' && <Button type="link" size="small" onClick={() => handleSign(record.id)}>签收</Button>}
           {record.status === 'completed' && <Button type="link" size="small" onClick={() => handleVerify(record.id)}>审核销号</Button>}
+          <Button type="link" size="small" danger onClick={() => handleDelete(record.id)}>删除</Button>
         </Space>
       ),
     },

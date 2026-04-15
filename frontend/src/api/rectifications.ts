@@ -32,3 +32,6 @@ export const exportRectifications = (params?: { status?: string; alert_level?: s
     window.URL.revokeObjectURL(url);
   });
 };
+
+export const deleteRectification = (id: string) =>
+  api.delete(`/rectifications/${id}`);

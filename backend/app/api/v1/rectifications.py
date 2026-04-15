@@ -229,3 +229,16 @@ async def verify_rectification(rect_id: UUID, comment: Optional[str] = None, db:
     await db.commit()
     await write_audit_log(db, current_user.id, "verify", "rectification", rect_id, {})
     return {"message": "Rectification verified"}
+
+
+@router.delete("/{rect_id}")
+async def delete_rectification(rect_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Soft-delete a rectification by setting is_active=False."""
+    result = await db.execute(select(Rectification).where(Rectification.id == rect_id))
+    rect = result.scalar_one_or_none()
+    if not rect:
+        raise HTTPException(status_code=404, detail="Rectification not found")
+    rect.is_active = False
+    await db.commit()
+    await write_audit_log(db, current_user.id, "delete", "rectification", rect_id, {})
+    return {"message": "Rectification deleted"}
