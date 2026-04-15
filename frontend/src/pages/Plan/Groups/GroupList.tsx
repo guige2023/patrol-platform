@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Tag, Select, message, Popconfirm } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Table, Button, Space, Tag, Select, message, Popconfirm, Card, Statistic, Row, Col } from 'antd';
+import { PlusOutlined, UsergroupAddOutlined, CheckCircleOutlined, PlayCircleOutlined, FileDoneOutlined, EditOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import { getGroups, deleteGroup, exportGroups } from '@/api/groups';
 import GroupDetail from './GroupDetail';
@@ -58,6 +58,21 @@ const GroupList: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const statusCounts = useMemo(() => ({
+    draft: data.filter(g => g.status === 'draft').length,
+    approved: data.filter(g => g.status === 'approved').length,
+    active: data.filter(g => g.status === 'active').length,
+    completed: data.filter(g => g.status === 'completed').length,
+    total: data.length,
+  }), [data]);
+
+  const statCards = [
+    { key: 'draft', label: '草稿', value: statusCounts.draft, color: '#8c8c8c', icon: <EditOutlined /> },
+    { key: 'approved', label: '已审批', value: statusCounts.approved, color: '#52c41a', icon: <CheckCircleOutlined /> },
+    { key: 'active', label: '进行中', value: statusCounts.active, color: '#1677ff', icon: <PlayCircleOutlined /> },
+    { key: 'completed', label: '已完成', value: statusCounts.completed, color: '#722ed1', icon: <FileDoneOutlined /> },
+  ];
 
   const loadPlanOptions = async () => {
     try {
@@ -135,6 +150,37 @@ const GroupList: React.FC = () => {
   return (
     <div>
       <PageHeader title="巡察组" breadcrumbs={[{ name: '巡察计划' }, { name: '巡察组' }]} />
+
+      {/* 状态统计卡片 */}
+      <Row gutter={16} style={{ marginBottom: 16 }}>
+        {statCards.map(card => (
+          <Col key={card.key} xs={12} sm={6}>
+            <Card size="small" bordered={false} style={{ textAlign: 'center', background: '#fafafa' }}>
+              <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                <div style={{ color: card.color, fontSize: 18 }}>{card.icon}</div>
+                <Statistic
+                  title={<span style={{ fontSize: 12, color: '#8c8c8c' }}>{card.label}</span>}
+                  value={card.value}
+                  valueStyle={{ color: card.color, fontSize: 22, fontWeight: 600 }}
+                />
+              </Space>
+            </Card>
+          </Col>
+        ))}
+        <Col xs={12} sm={6}>
+          <Card size="small" bordered={false} style={{ textAlign: 'center', background: '#fafafa' }}>
+            <Space direction="vertical" size={4} style={{ width: '100%' }}>
+              <div style={{ color: '#595959', fontSize: 18 }}><UsergroupAddOutlined /></div>
+              <Statistic
+                title={<span style={{ fontSize: 12, color: '#8c8c8c' }}>全部巡察组</span>}
+                value={statusCounts.total}
+                valueStyle={{ color: '#595959', fontSize: 22, fontWeight: 600 }}
+              />
+            </Space>
+          </Card>
+        </Col>
+      </Row>
+
       <div style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal} style={{ marginRight: 8 }}>新建巡察组</Button>
         <Button onClick={() => exportGroups({ plan_id: filterPlanId, status: filterStatus }).catch(() => message.error('导出失败'))} style={{ marginRight: 8 }}>导出</Button>
