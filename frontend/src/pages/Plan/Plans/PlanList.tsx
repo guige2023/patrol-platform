@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Table, Button, Space, Tag, message, Popconfirm, Input, Select } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
-import { getPlans, submitPlan, approvePlan, publishPlan, deletePlan, exportPlans, updatePlanStatus } from '@/api/plans';
+import { getPlans, submitPlan, approvePlan, publishPlan, deletePlan, exportPlans, downloadPlanTemplate, updatePlanStatus } from '@/api/plans';
 import PlanDetail from './PlanDetail';
 import CreatePlanModal from './CreatePlanModal';
 import type { ColumnsType } from 'antd/es/table';
@@ -155,7 +155,8 @@ const PlanList: React.FC = () => {
       <PageHeader title="巡察计划" breadcrumbs={[{ name: '巡察计划' }, { name: '计划管理' }]} />
       <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal} style={{ marginRight: 8 }}>新建计划</Button>
-        <Button onClick={() => exportPlans().catch(e => message.error('导出失败'))}>导出</Button>
+        <Button onClick={() => exportPlans().catch(e => message.error('导出失败'))} style={{ marginRight: 8 }}>导出</Button>
+        <Button onClick={() => downloadPlanTemplate().catch(e => message.error('模板下载失败'))}>下载模板</Button>
         <Input placeholder="搜索计划名称" style={{ width: 160 }} onChange={handleKeywordChange} />
         <Select
           placeholder="按状态筛选"
