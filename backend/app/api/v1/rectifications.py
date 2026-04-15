@@ -23,6 +23,7 @@ STATUS_LABELS = {
     "signed": "已签收",
     "progressing": "整改中",
     "completed": "已完成",
+    "submitted": "待验收",
     "verified": "已验收",
     "rejected": "已驳回",
 }
@@ -214,6 +215,21 @@ async def sign_rectification(rect_id: UUID, db: AsyncSession = Depends(get_db), 
     await db.commit()
     await write_audit_log(db, current_user.id, "sign", "rectification", rect_id, {})
     return {"message": "Rectification signed"}
+
+
+@router.post("/{rect_id}/submit")
+async def submit_rectification(rect_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Submit a completed rectification for admin approval."""
+    result = await db.execute(select(Rectification).where(Rectification.id == rect_id))
+    rect = result.scalar_one_or_none()
+    if not rect:
+        raise HTTPException(status_code=404, detail="Rectification not found")
+    if rect.status != "completed":
+        raise HTTPException(status_code=400, detail="Only completed rectifications can be submitted")
+    rect.status = "submitted"
+    await db.commit()
+    await write_audit_log(db, current_user.id, "submit", "rectification", rect_id, {})
+    return {"message": "Rectification submitted for approval"}
 
 
 @router.post("/{rect_id}/verify")

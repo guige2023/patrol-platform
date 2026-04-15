@@ -35,3 +35,6 @@ export const exportRectifications = (params?: { status?: string; alert_level?: s
 
 export const deleteRectification = (id: string) =>
   api.delete(`/rectifications/${id}`);
+
+export const submitRectification = (id: string) =>
+  api.post(`/rectifications/${id}/submit`);

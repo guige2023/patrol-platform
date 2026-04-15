@@ -21,6 +21,7 @@ const STATUS_OPTIONS = [
   { label: '已签收', value: 'signed' },
   { label: '整改中', value: 'progressing' },
   { label: '已完成', value: 'completed' },
+  { label: '待验收', value: 'submitted' },
   { label: '已验收', value: 'verified' },
   { label: '已驳回', value: 'rejected' },
 ];
