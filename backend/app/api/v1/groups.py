@@ -402,6 +402,15 @@ async def get_group_status_logs(group_id: UUID, db: AsyncSession = Depends(get_d
         .limit(100)
     )
     logs = result.scalars().all()
+
+    # Batch-fetch user names
+    user_ids = list({log.user_id for log in logs if log.user_id})
+    user_map = {}
+    if user_ids:
+        user_result = await db.execute(select(User).where(User.id.in_(user_ids)))
+        for u in user_result.scalars().all():
+            user_map[str(u.id)] = u.full_name or u.username
+
     return [
         {
             "id": str(log.id),
@@ -409,6 +418,7 @@ async def get_group_status_logs(group_id: UUID, db: AsyncSession = Depends(get_d
             "from_status": log.detail.get("from") if log.detail else None,
             "to_status": log.detail.get("to") if log.detail else None,
             "user_id": str(log.user_id) if log.user_id else None,
+            "user_name": user_map.get(str(log.user_id)) if log.user_id else None,
             "created_at": log.created_at.isoformat() if log.created_at else None,
         }
         for log in logs

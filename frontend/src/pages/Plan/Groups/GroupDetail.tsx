@@ -387,7 +387,7 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
                   pagination={false}
                   columns={[
                     { title: '时间', dataIndex: 'created_at', key: 'created_at', render: (t: string) => t ? new Date(t).toLocaleString('zh-CN') : '-' },
-                    { title: '操作人', dataIndex: 'user_id', key: 'user_id', render: (u: string) => u ? `用户 ${u.slice(0, 8)}...` : '系统' },
+                    { title: '操作人', dataIndex: 'user_name', key: 'user_name', render: (name: string, log: any) => name || (log.user_id ? `用户 ${log.user_id.slice(0, 8)}...` : '系统') },
                     {
                       title: '状态变更',
                       key: 'change',
