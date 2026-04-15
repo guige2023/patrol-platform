@@ -17,12 +17,9 @@ const ALERT_LEVEL_OPTIONS = [
 ];
 
 const STATUS_OPTIONS = [
-  { label: '草稿', value: 'drafted' },
-  { label: '已提交', value: 'submitted' },
-  { label: '已批准', value: 'approved' },
   { label: '已派发', value: 'dispatched' },
   { label: '已签收', value: 'signed' },
-  { label: '整改中', value: 'in_progress' },
+  { label: '整改中', value: 'progressing' },
   { label: '已完成', value: 'completed' },
   { label: '已验收', value: 'verified' },
   { label: '已驳回', value: 'rejected' },
