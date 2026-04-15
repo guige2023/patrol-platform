@@ -63,15 +63,20 @@ STATUS_LABELS = {
 async def export_plans(
     year: Optional[int] = None,
     status: Optional[str] = None,
+    ids: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Export all plans as .xlsx."""
+    """Export plans as .xlsx. If ids is provided (comma-separated UUIDs), export only those."""
     query = select(Plan).where(Plan.is_active == True)
     if year:
         query = query.where(Plan.year == year)
     if status:
         query = query.where(Plan.status == status)
+    if ids:
+        id_list = [i.strip() for i in ids.split(",") if i.strip()]
+        if id_list:
+            query = query.where(Plan.id.in_(id_list))
     query = query.order_by(Plan.year.desc(), Plan.created_at.desc()).limit(10000)
     result = await db.execute(query)
     plans = result.scalars().all()

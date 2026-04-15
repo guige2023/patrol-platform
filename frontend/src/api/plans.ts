@@ -39,6 +39,18 @@ export const exportPlans = (params?: { year?: number; status?: string }) => {
   });
 };
 
+export const exportSelectedPlans = (ids: string[]) => {
+  return api.get('/plans/download', { params: { ids: ids.join(',') }, responseType: 'blob' }).then(res => {
+    const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'plans_selected.xlsx';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  });
+};
+
 export const downloadPlanTemplate = () => {
   return api.get('/plans/template', { responseType: 'blob' }).then(res => {
     const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Space, Tag, message, Popconfirm, Input, Select } from 'antd';
+import type { Key } from 'antd/es/table/interface';
 import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
-import { getPlans, submitPlan, approvePlan, publishPlan, deletePlan, exportPlans, downloadPlanTemplate, updatePlanStatus } from '@/api/plans';
+import { getPlans, submitPlan, approvePlan, publishPlan, deletePlan, exportPlans, exportSelectedPlans, downloadPlanTemplate, updatePlanStatus } from '@/api/plans';
 import PlanDetail from './PlanDetail';
 import CreatePlanModal from './CreatePlanModal';
 import type { ColumnsType } from 'antd/es/table';
@@ -49,6 +50,7 @@ const PlanList: React.FC = () => {
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [yearFilter, setYearFilter] = useState<number | undefined>();
+  const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -158,7 +160,13 @@ const PlanList: React.FC = () => {
       <PageHeader title="巡察计划" breadcrumbs={[{ name: '巡察计划' }, { name: '计划管理' }]} />
       <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal} style={{ marginRight: 8 }}>新建计划</Button>
-        <Button onClick={() => exportPlans().catch(() => message.error('导出失败'))} style={{ marginRight: 8 }}>导出</Button>
+        {selectedRowKeys.length > 0 ? (
+          <Button onClick={() => exportSelectedPlans(selectedRowKeys as string[]).catch(() => message.error('批量导出失败'))} style={{ marginRight: 8 }}>
+            批量导出（{selectedRowKeys.length}）
+          </Button>
+        ) : (
+          <Button onClick={() => exportPlans().catch(() => message.error('导出失败'))} style={{ marginRight: 8 }}>导出</Button>
+        )}
         <Button onClick={() => downloadPlanTemplate().catch(() => message.error('模板下载失败'))}>下载模板</Button>
         <Input placeholder="搜索计划名称" style={{ width: 160 }} onChange={handleKeywordChange} />
         <Select
@@ -182,8 +190,17 @@ const PlanList: React.FC = () => {
           onChange={handleYearChange}
         />
       </div>
-      <Table columns={columns} dataSource={data} rowKey="id" loading={loading}
-        pagination={{ current: page, pageSize, total, onChange: (p, ps) => { setPage(p); setPageSize(ps); }, showTotal: (t) => `共 ${t} 条` }} />
+      <Table
+        columns={columns}
+        dataSource={data}
+        rowKey="id"
+        loading={loading}
+        rowSelection={{
+          selectedRowKeys,
+          onChange: (keys) => setSelectedRowKeys(keys),
+        }}
+        pagination={{ current: page, pageSize, total, onChange: (p, ps) => { setPage(p); setPageSize(ps); }, showTotal: (t) => `共 ${t} 条` }}
+      />
       <PlanDetail
         open={detailModalOpen}
         planId={editingId}
