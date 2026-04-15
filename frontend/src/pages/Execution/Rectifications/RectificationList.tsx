@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Table, Button, Space, Tag, Progress, message, Popconfirm } from 'antd';
+import { Table, Button, Space, Tag, Progress, message, Popconfirm, Select } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import type { Key } from 'antd/es/table/interface';
 import PageHeader from '@/components/common/PageHeader';
-import { getRectifications, signRectification, verifyRectification, exportRectifications, deleteRectification, submitRectification, batchDeleteRectifications } from '@/api/rectifications';
+import { getRectifications, signRectification, verifyRectification, exportRectifications, deleteRectification, submitRectification, batchDeleteRectifications, batchUpdateRectificationStatus } from '@/api/rectifications';
 import RectificationModal from './RectificationModal';
 import type { ColumnsType } from 'antd/es/table';
 import { getErrorMessage } from '@/utils/error';
@@ -56,6 +56,7 @@ const RectificationList: React.FC = () => {
   const [rectificationId, setRectificationId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([]);
+  const [batchStatusVal, setBatchStatusVal] = useState<string | undefined>();
 
   const fetchData = async () => {
     setLoading(true);
@@ -122,6 +123,19 @@ const RectificationList: React.FC = () => {
     }
   };
 
+  const handleBatchStatus = async () => {
+    if (!selectedRowKeys.length || !batchStatusVal) return;
+    try {
+      await batchUpdateRectificationStatus(selectedRowKeys as string[], batchStatusVal);
+      message.success(`已将 ${selectedRowKeys.length} 条改为「${statusLabels[batchStatusVal]}」`);
+      setSelectedRowKeys([]);
+      setBatchStatusVal(undefined);
+      fetchData();
+    } catch (e: any) {
+      message.error(getErrorMessage(e) || '批量改状态失败');
+    }
+  };
+
   const columns: ColumnsType<Rectification> = [
     { title: '标题', dataIndex: 'title', key: 'title' },
     {
@@ -166,9 +180,31 @@ const RectificationList: React.FC = () => {
         <Button type="primary" icon={<PlusOutlined />} onClick={() => { setRectificationId(null); setEditMode(false); setModalOpen(true); }} style={{ marginRight: 8 }}>派发整改</Button>
         <Button onClick={() => exportRectifications().catch(() => message.error('导出失败'))} style={{ marginRight: 8 }}>导出</Button>
         {selectedRowKeys.length > 0 && (
-          <Popconfirm title={`确认删除选中的 ${selectedRowKeys.length} 条整改记录？`} onConfirm={handleBatchDelete}>
-            <Button danger>批量删除（{selectedRowKeys.length}）</Button>
-          </Popconfirm>
+          <>
+            <Select
+              placeholder="批量改状态"
+              style={{ width: 130, marginRight: 8 }}
+              options={[
+                { label: '已派发', value: 'dispatched' },
+                { label: '已签收', value: 'signed' },
+                { label: '整改中', value: 'progressing' },
+                { label: '已完成', value: 'completed' },
+                { label: '待验收', value: 'submitted' },
+                { label: '已验收', value: 'verified' },
+                { label: '已驳回', value: 'rejected' },
+              ]}
+              onChange={val => setBatchStatusVal(val)}
+              value={batchStatusVal}
+            />
+            {batchStatusVal && (
+              <Button type="primary" onClick={handleBatchStatus} style={{ marginRight: 8 }}>
+                确认改状态（{selectedRowKeys.length}）
+              </Button>
+            )}
+            <Popconfirm title={`确认删除选中的 ${selectedRowKeys.length} 条整改记录？`} onConfirm={handleBatchDelete}>
+              <Button danger>批量删除（{selectedRowKeys.length}）</Button>
+            </Popconfirm>
+          </>
         )}
       </div>
       <Table

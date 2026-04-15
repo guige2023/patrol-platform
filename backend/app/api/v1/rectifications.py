@@ -281,3 +281,35 @@ async def batch_delete_rectifications(
     for r in rects:
         await write_audit_log(db, current_user.id, "delete", "rectification", r.id, {})
     return {"message": f"{len(rects)} rectifications deleted"}
+
+
+@router.post("/batch-status")
+async def batch_update_rectification_status(
+    request: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update status for multiple rectifications at once."""
+    ids = request.get("ids", [])
+    status = request.get("status")
+    if not ids:
+        raise HTTPException(status_code=400, detail="No IDs provided")
+    if not status:
+        raise HTTPException(status_code=400, detail="No status provided")
+    valid_statuses = {"dispatched", "signed", "progressing", "completed", "submitted", "verified", "rejected"}
+    if status not in valid_statuses:
+        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
+    result = await db.execute(
+        select(Rectification).where(Rectification.id.in_(ids), Rectification.is_active == True)
+    )
+    rects = result.scalars().all()
+    if not rects:
+        raise HTTPException(status_code=404, detail="No rectifications found")
+    old_statuses = {r.id: r.status for r in rects}
+    for r in rects:
+        r.status = status
+    await db.commit()
+    for r in rects:
+        await write_audit_log(db, current_user.id, "update", "rectification", r.id,
+                              {"old_status": old_statuses[r.id], "new_status": status})
+    return {"message": f"{len(rects)} rectifications updated to '{status}'"}

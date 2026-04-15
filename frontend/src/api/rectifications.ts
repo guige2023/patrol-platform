@@ -41,3 +41,5 @@ export const batchDeleteRectifications = (ids: string[]) =>
 
 export const submitRectification = (id: string) =>
   api.post(`/rectifications/${id}/submit`);
+export const batchUpdateRectificationStatus = (ids: string[], status: string) =>
+  api.post('/rectifications/batch-status', { ids, status });
