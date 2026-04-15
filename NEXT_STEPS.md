@@ -134,7 +134,7 @@ GET /api/v1/rectifications/
   - 线索详情 Modal（`ClueModal`）- 验证 `handling_result` 字段
   - 整改详情 Modal（`RectificationModal`）- 验证 `progress_details`、`completion_report` 字段
   - 巡察组详情 Modal（`GroupDetail`）- 验证联络员角色选项
-- [ ] **PlanDetail view mode 状态显示英文**：`status` 字段（如 `published`）在查看模式下直接显示英文而非中文标签。建议添加 `statusLabels` 映射
+- [x] **PlanDetail view mode 状态显示英文**：`status` 字段（如 `published`）在查看模式下直接显示英文而非中文标签。建议添加 `statusLabels` 映射 → ✅ 已修复；PlanList.tsx 已有完整 statusLabels/statusColors 中文映射，无需额外修复
 
 ### 低优先级
 
