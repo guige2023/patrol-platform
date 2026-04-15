@@ -48,6 +48,7 @@ const RectificationList: React.FC = () => {
   const [pageSize, setPageSize] = useState(20);
   const [modalOpen, setModalOpen] = useState(false);
   const [rectificationId, setRectificationId] = useState<string | null>(null);
+  const [editMode, setEditMode] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -108,7 +109,8 @@ const RectificationList: React.FC = () => {
       key: 'action',
       render: (_, record) => (
         <Space>
-          <Button type="link" size="small" onClick={() => { setRectificationId(record.id); setModalOpen(true); }}>查看</Button>
+          <Button type="link" size="small" onClick={() => { setRectificationId(record.id); setEditMode(false); setModalOpen(true); }}>查看</Button>
+          <Button type="link" size="small" onClick={() => { setRectificationId(record.id); setEditMode(true); setModalOpen(true); }}>编辑</Button>
           {record.status === 'dispatched' && <Button type="link" size="small" onClick={() => handleSign(record.id)}>签收</Button>}
           {record.status === 'completed' && <Button type="link" size="small" onClick={() => handleVerify(record.id)}>审核销号</Button>}
         </Space>
@@ -120,7 +122,7 @@ const RectificationList: React.FC = () => {
     <div>
       <PageHeader title="整改督办" breadcrumbs={[{ name: '执纪执行' }, { name: '整改督办' }]} />
       <div style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => { setRectificationId(null); setModalOpen(true); }} style={{ marginRight: 8 }}>派发整改</Button>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => { setRectificationId(null); setEditMode(false); setModalOpen(true); }} style={{ marginRight: 8 }}>派发整改</Button>
         <Button onClick={() => exportRectifications().catch(e => message.error('导出失败'))}>导出</Button>
       </div>
       <Table columns={columns} dataSource={data} rowKey="id" loading={loading}
@@ -128,6 +130,7 @@ const RectificationList: React.FC = () => {
       <RectificationModal
         open={modalOpen}
         rectificationId={rectificationId}
+        defaultEditMode={editMode}
         onClose={() => setModalOpen(false)}
         onSuccess={fetchData}
       />

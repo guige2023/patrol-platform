@@ -31,13 +31,14 @@ const STATUS_OPTIONS = [
 interface RectificationModalProps {
   open: boolean;
   rectificationId?: string | null;
+  defaultEditMode?: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectificationId, onClose, onSuccess }) => {
+const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectificationId, defaultEditMode = false, onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
-  const [isViewMode, setIsViewMode] = useState(false);
+  const [isViewMode, setIsViewMode] = useState(!defaultEditMode);
   const [form] = Form.useForm();
   const [unitOptions, setUnitOptions] = useState<{ label: string; value: string }[]>([]);
   const [clueOptions, setClueOptions] = useState<{ label: string; value: string }[]>([]);
@@ -50,7 +51,7 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
       fetchClues();
       fetchDrafts();
       if (rectificationId) {
-        setIsViewMode(true);
+        setIsViewMode(!defaultEditMode);
         fetchRectificationData(rectificationId);
       } else {
         setIsViewMode(false);
