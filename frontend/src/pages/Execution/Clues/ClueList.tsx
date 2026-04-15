@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, Button, Space, Tag, Modal, message, Input } from 'antd';
-import { PlusOutlined, LinkOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Tag, Modal, message, Input, Select, Collapse, Row, Col, DatePicker } from 'antd';
+import { PlusOutlined, LinkOutlined, FilterOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import { getClues, transferClue, exportClues } from '@/api/clues';
 import ClueModal from './ClueModal';
 import type { ColumnsType } from 'antd/es/table';
 import { getErrorMessage } from '@/utils/error';
+import dayjs from 'dayjs';
 
 interface Clue {
   id: string;
@@ -39,6 +40,20 @@ const severityLabels: Record<string, string> = {
   critical: '重大',
 };
 
+const STATUS_OPTIONS = [
+  { label: '已登记', value: 'registered' },
+  { label: '移交中', value: 'transferring' },
+  { label: '已移交', value: 'transferred' },
+  { label: '已关闭', value: 'closed' },
+];
+
+const CATEGORY_OPTIONS = [
+  { label: '违反廉洁纪律', value: '违反廉洁纪律' },
+  { label: '违反工作纪律', value: '违反工作纪律' },
+  { label: '违反生活纪律', value: '违反生活纪律' },
+  { label: '其他', value: '其他' },
+];
+
 const ClueList: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<Clue[]>([]);
@@ -49,18 +64,34 @@ const ClueList: React.FC = () => {
   const [modalClueId, setModalClueId] = useState<string | undefined>();
   const navigate = useNavigate();
 
+  // Search state
+  const [titleKw, setTitleKw] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string | undefined>();
+  const [categoryFilter, setCategoryFilter] = useState<string | undefined>();
+  const [dateRange, setDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null);
+
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await getClues({ page, page_size: pageSize });
+      const res = await getClues({
+        page,
+        page_size: pageSize,
+        title: titleKw || undefined,
+        status: statusFilter,
+        category: categoryFilter,
+        start_date: dateRange?.[0] ? dateRange[0].format('YYYY-MM-DD') : undefined,
+        end_date: dateRange?.[1] ? dateRange[1].format('YYYY-MM-DD') : undefined,
+      });
       setData(res.items);
       setTotal(res.total);
+    } catch (e: any) {
+      message.error(getErrorMessage(e) || '加载数据失败');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetchData(); }, [page, pageSize]);
+  useEffect(() => { fetchData(); }, [page, pageSize, titleKw, statusFilter, categoryFilter, dateRange]);
 
   const handleCreate = () => {
     setModalClueId(undefined);
@@ -99,6 +130,12 @@ const ClueList: React.FC = () => {
     });
   };
 
+  const activeFilters = [
+    statusFilter ? '状态' : '',
+    categoryFilter ? '类别' : '',
+    dateRange ? '时间' : '',
+  ].filter(Boolean).length;
+
   const columns: ColumnsType<Clue> = [
     { title: '标题', dataIndex: 'title', key: 'title' },
     { title: '来源', dataIndex: 'source', key: 'source' },
@@ -128,8 +165,48 @@ const ClueList: React.FC = () => {
     <div>
       <PageHeader title="线索管理" breadcrumbs={[{ name: '执纪执行' }, { name: '线索管理' }]} />
       <div style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate} style={{ marginRight: 8 }}>登记线索</Button>
-        <Button onClick={() => exportClues().catch(() => message.error('导出失败'))}>导出</Button>
+        <Space style={{ marginBottom: 12 }}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>登记线索</Button>
+          <Button onClick={() => exportClues().catch(() => message.error('导出失败'))}>导出</Button>
+          <Input placeholder="搜索标题" style={{ width: 160 }} onChange={e => { setTitleKw(e.target.value); setPage(1); }} />
+        </Space>
+        <Collapse
+          ghost
+          items={[{
+            key: 'filters',
+            label: <Space><FilterOutlined />高级筛选（{activeFilters}）</Space>,
+            children: (
+              <Row gutter={[12, 12]}>
+                <Col>
+                  <Select
+                    placeholder="按状态"
+                    allowClear
+                    style={{ width: 120 }}
+                    options={STATUS_OPTIONS}
+                    onChange={val => { setStatusFilter(val); setPage(1); }}
+                    value={statusFilter}
+                  />
+                </Col>
+                <Col>
+                  <Select
+                    placeholder="按类别"
+                    allowClear
+                    style={{ width: 140 }}
+                    options={CATEGORY_OPTIONS}
+                    onChange={val => { setCategoryFilter(val); setPage(1); }}
+                    value={categoryFilter}
+                  />
+                </Col>
+                <Col>
+                  <DatePicker.RangePicker
+                    onChange={(vals) => { setDateRange(vals as [dayjs.Dayjs, dayjs.Dayjs] | null); setPage(1); }}
+                    value={dateRange}
+                  />
+                </Col>
+              </Row>
+            ),
+          }]}
+        />
       </div>
       <Table columns={columns} dataSource={data} rowKey="id" loading={loading}
         pagination={{ current: page, pageSize, total, onChange: (p, ps) => { setPage(p); setPageSize(ps); }, showTotal: (t) => `共 ${t} 条` }} />

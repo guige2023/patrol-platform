@@ -1,0 +1,587 @@
+# 巡察工作管理平台 — 开发任务清单
+
+**项目**：patrol_platform
+**PRD**：`prd_patrol_platform.md`
+**技术栈**：FastAPI + Pydantic + SQLite/SQLCipher · React + Ant Design v4 + Vite · Electron · APScheduler
+**状态**：未开始
+
+---
+
+## 一、数据基础设施
+
+### 1.1 数据库与加密
+- [ ] 安装 `pysqlcipher3` / `sqlcipher`，配置 SQLCipher 加密（数据库文件级加密，密码写入配置文件）
+- [ ] 设计数据库初始化脚本，创建所有表（含索引、外键）
+- [ ] 实现数据库版本迁移机制（ Alembic 或手动 migration）
+
+### 1.2 数据模型（后端 Pydantic + SQLAlchemy）
+
+**核心实体**（按依赖顺序）：
+
+- [ ] `Unit`（单位）：id, name, short_name, parent_id（自引用上级单位）, type（党政机关/事业单位/企业）, tags（专业领域标签，JSON数组）, contact, address
+- [ ] `Cadre`（干部）：id, name, gender, birth_date, ethnicity, education, political_party, unit_id, position, rank_level（科员/副科/正科/副处/正处）, rank_date, status（active/inactive）, tags（JSON数组，与单位标签体系对齐）
+- [ ] `SystemConfig`（系统配置）：id, key（唯一键）, value（JSON类型，支持复杂结构）, category（time_nodes/match_rules/warning/other）, description, updated_at
+- [ ] `InspectionGroup`（巡察组）：id, name, year, round, phase（11阶段枚举，见Plan）, leader_cadre_id, created_at
+- [ ] `GroupMember`（巡察组成员）：id, group_id, cadre_id（可null）, name, department, position, role（leader/deputy_leader/member）, concurrent_role（clue_officer/liaison_officer/null）, is_manual_added, manual_add_reason
+- [ ] `InspectionPlan`（巡察计划）：id, name, year, round, phase, priority, notes, plan_date, is_active, created_by, updated_at
+- [ ] `PlanUnit`（计划-被巡察单位关联）：plan_id, unit_id
+- [ ] `PlanGroup`（计划-巡察组关联）：plan_id, group_id
+- [ ] `Rectification`（整改记录）：id, plan_id, unit_id, status（pending/rectifying/completed/overdue）, due_date, report_date, imported_from_template, details（JSON）, confirmed_by, confirmed_at, confirmed_notes
+- [ ] `RectificationItem`（整改事项）：id, rectification_id, content, category（党的建设/全面从严治党/重点领域）, status（pending/completed）, completed_at
+- [ ] `InspectionProgress`（巡察进度）：id, plan_id, group_id, week_number, report_date, talk_count, doc_review_count, petition_count, visit_count, problem_total, problem_party, problem_pty, problem_key, next_week_plan, notes
+- [ ] `Warning`（预警记录）：id, type, title, message, plan_id, unit_id, group_id, is_read, created_at
+- [ ] `AuditLog`（审计日志）：id, user_id, action, entity_type, entity_id, details（JSON）, ip_address, created_at
+- [ ] `User`（用户账户）：id, username, password_hash, display_name, role（admin/operator）, created_at
+
+**枚举**：
+
+- [ ] `InspectionPhase` 枚举：planning / plan_approved / group_forming / group_ready / announcing / deploying / in_progress / report_draft / report_final / feedback / rectifying / rectification_done / reinspection / closed
+- [ ] `RectificationStatus` 枚举：pending / rectifying / completed / overdue
+- [ ] `GroupMemberRole` 枚举：leader / deputy_leader / member
+- [ ] `ConcurrentRole` 枚举：clue_officer / liaison_officer
+- [ ] `RankLevel` 枚举：科员 / 副科 / 正科 / 副处 / 正处
+
+### 1.3 基础 CRUD API
+
+- [ ] `/api/v1/units` — 单位列表（分页/筛选）、详情、创建、更新、删除
+- [ ] `/api/v1/cadres` — 干部列表（分页/筛选）、详情、创建、更新、删除、批量导入
+- [ ] `/api/v1/users` — 用户列表、创建、修改密码、删除
+- [ ] `/api/v1/audit-logs` — 操作日志查询（分页/时间范围/操作类型筛选）
+
+---
+
+## 二、系统配置模块
+
+### 2.1 配置数据初始化
+- [ ] 初始化默认系统配置（9项时间节点 + 14项匹配规则 + 预警开关）
+- [ ] 实现 `get_config(key)` / `set_config(key, value)` 服务函数
+
+### 2.2 配置管理 API
+- [ ] `GET /api/v1/system-configs` — 获取所有配置（按分类）
+- [ ] `PUT /api/v1/system-configs/{key}` — 更新单个配置
+- [ ] `PUT /api/v1/system-configs/batch` — 批量更新配置
+- [ ] `POST /api/v1/system-configs/{category}/reset` — 重置某分类为默认值
+
+### 2.3 前端配置页面
+- [ ] 巡察时间节点配置页（9项表单）
+- [ ] 巡察组自动匹配规则配置页（14项表单，含职级下拉、年龄数字、开关等控件）
+- [ ] 预警规则配置页（各类型开关 + 阈值）
+- [ ] 配置修改后自动保存（离开页面时提示未保存）
+
+---
+
+## 三、巡察组自动匹配引擎
+
+### 3.1 核心算法服务
+- [ ] `GroupAutoMatcher.get_available_cadres(plan_id)` — 返回 `(eligible: list[Cadre], excluded: list[dict])`，`dict` 含 `cadre` + `reason`（排除原因）
+  - 已在任意巡察组（任意阶段）→ reason="已在「XXX巡察组」中"
+  - 同单位（config）→ reason="同一单位"
+  - 上级单位（config）→ reason="上级单位"
+  - 下级单位（config）→ reason="下级单位"
+  - 年龄超标 → reason="年龄超标（当前X岁，上限Y岁）"
+  - 非党员（config） → reason="非党员"
+  - 职级不符（组长/副组长） → reason="职级不符（要求Z级）"
+- [ ] `GroupAutoMatcher.auto_match(plan_id)` — 返回推荐方案（组长1 + 副组长1-2 + 组员N）
+  - 组长：职级≥leader_min_rank + 党员 + 年龄内 + 标签匹配分最高
+  - 副组长：职级≥deputy_min_rank + 党员 + 年龄内 + 排除组长后按综合评分取前max_deputy_count
+  - 组员：排除组长/副组长后，标签匹配分高者优先，填充至max_members
+- [ ] `GroupAutoMatcher.get_match_reasons(cadre, score)` — 生成推荐理由文本
+
+### 3.2 匹配引擎 API
+- [ ] `GET /api/v1/groups/available-cadres?plan_id=xxx` — 返回符合条件人员列表 + 被排除人员列表（含原因）
+- [ ] `GET /api/v1/groups/auto-match?plan_id=xxx` — 返回推荐方案
+
+### 3.3 手动添加被排除人员
+- [ ] 前端「手动添加被排除人员」弹窗：按排除原因筛选列表，支持多选，每选一人必须填写添加原因
+- [ ] `POST /api/v1/group-members/manual` — 提交手动添加（传入cadre_id + group_id + 添加原因）
+- [ ] 添加原因写入 `GroupMember.manual_add_reason` 和 `AuditLog`
+
+---
+
+## 四、巡察组管理
+
+### 4.1 巡察组 CRUD
+- [ ] `GET /api/v1/groups` — 列表（年份/轮次/阶段/组长筛选）+ 分页
+- [ ] `GET /api/v1/groups/{id}` — 详情（含所有成员、关联计划）
+- [ ] `POST /api/v1/groups` — 创建巡察组
+- [ ] `PUT /api/v1/groups/{id}` — 更新巡察组基本信息
+- [ ] `DELETE /api/v1/groups/{id}` — 删除（仅当无关联计划时可删）
+
+### 4.2 巡察组成员管理
+- [ ] `GET /api/v1/groups/{id}/members` — 成员列表（显示格式：姓名（职务））
+- [ ] `POST /api/v1/groups/{id}/members` — 添加成员（eligible列表中选择或手动添加被排除人员）
+- [ ] `DELETE /api/v1/groups/{id}/members/{member_id}` — 移除成员
+- [ ] `PUT /api/v1/groups/{id}/members/{member_id}/role` — 变更角色（组长/副组长/组员）
+
+### 4.3 兼职务分配
+- [ ] `PUT /api/v1/groups/{id}/members/{member_id}/concurrent-role` — 设置/变更 concurrent_role（clue_officer/liaison_officer/null）
+  - 校验：兼线索员和兼联络员不可为同一人
+  - 审计日志记录
+- [ ] 前端：巡察组详情页「兼职务指定」区块，组正式成立后（phase≥group_ready）显示
+
+### 4.4 前端巡察组列表页
+- [ ] 筛选器：年份、轮次、阶段、组长姓名
+- [ ] 列表展示：组名、年份+轮次、组长（姓名+职务）、副组长（姓名+职务，可两名）、组员数、关联计划、状态
+- [ ] 列表每行操作：查看详情、编辑（仅负责人可编辑）
+
+### 4.5 前端巡察组详情页
+- [ ] 成员展示：组长（姓名+职务）、副组长列表（姓名+职务，最多2名）、组员列表（姓名+职务）
+- [ ] 兼职务指定区块（组正式成立后显示）
+- [ ] 关联巡察计划列表
+- [ ] 操作日志（该组的操作记录）
+
+---
+
+## 五、巡察计划管理
+
+### 5.1 巡察计划 CRUD
+- [ ] `GET /api/v1/plans` — 列表（年份/轮次/阶段/被巡察单位筛选）+ 分页
+- [ ] `GET /api/v1/plans/{id}` — 详情（含关联巡察组、被巡察单位、11个时间节点）
+- [ ] `POST /api/v1/plans` — 创建计划（基础信息，不含被巡察单位和巡察组）
+- [ ] `PUT /api/v1/plans/{id}` — 更新计划基础信息
+- [ ] `DELETE /api/v1/plans/{id}` — 删除（仅草稿状态可删）
+
+### 5.2 计划-被巡察单位关联
+- [ ] `PUT /api/v1/plans/{id}/units` — 设置被巡察单位（批量替换）
+- [ ] `GET /api/v1/plans/{id}/units` — 获取已选单位列表
+
+### 5.3 计划-巡察组关联
+- [ ] `PUT /api/v1/plans/{id}/group` — 绑定巡察组
+- [ ] `GET /api/v1/plans/{id}/group` — 获取绑定的巡察组
+
+### 5.4 阶段流转
+- [ ] `POST /api/v1/plans/{id}/phase` — 推进阶段（传入目标phase，系统校验是否合法）
+  - 阶段流转校验：只能按顺序流转，不可跳阶段
+  - 流转时自动记录审计日志（who/when/from/to）
+- [ ] `PUT /api/v1/plans/{id}/dates` — 更新11个时间节点字段
+
+### 5.5 新建计划向导（前端）
+- [ ] Step 1：基本信息（计划名称、年份、轮次、优先级、备注）
+- [ ] Step 2：选择被巡察单位（搜索、单位类型筛选、暂未巡察单位高亮提示）
+- [ ] Step 3：组建巡察组（调用自动匹配引擎 → 组长选择 + 副组长选择 + 组员自动生成 + 手动添加被排除人员）
+- [ ] Step 4：确认并创建（含预警节点预览）
+
+### 5.6 计划详情页（前端）
+- [ ] 阶段时间线（11阶段，可视化当前阶段 + 已完成阶段）
+- [ ] 关联巡察组展示（组长+职务、副组长+职务、组员+职务）
+- [ ] 被巡察单位列表
+- [ ] 11个时间节点展示
+- [ ] 操作按钮（按当前阶段显示可用操作：更新进驻日期、推进阶段、生成公告、生成成立通知等）
+- [ ] 阶段历史记录（从审计日志中提取该计划相关记录）
+- [ ] 操作日志
+
+---
+
+## 六、整改管理
+
+### 6.1 整改记录管理
+- [ ] `GET /api/v1/rectifications` — 列表（状态/年份/被巡察单位筛选）+ 分页
+- [ ] `GET /api/v1/rectifications/{id}` — 详情（含整改事项列表）
+- [ ] `POST /api/v1/rectifications` — 手动创建整改记录（通常由反馈阶段自动创建）
+- [ ] `PUT /api/v1/rectifications/{id}` — 更新整改记录
+
+### 6.2 整改事项管理
+- [ ] `GET /api/v1/rectifications/{id}/items` — 整改事项列表
+- [ ] `POST /api/v1/rectifications/{id}/items` — 添加整改事项
+- [ ] `PUT /api/v1/rectifications/{id}/items/{item_id}` — 更新事项（含标记完成）
+- [ ] `DELETE /api/v1/rectifications/{id}/items/{item_id}` — 删除事项
+
+### 6.3 整改模板导入
+- [ ] `POST /api/v1/rectifications/{id}/import` — 导入整改情况Excel
+  - 解析Excel，批量创建/更新 RectificationItem
+  - 返回成功/失败报告
+- [ ] `GET /api/v1/rectifications/template` — 下载整改情况导入模板
+
+### 6.4 人工确认完成
+- [ ] `POST /api/v1/rectifications/{id}/confirm` — 人工确认完成
+  - 传入：status（completed）、confirmed_notes（确认备注）
+  - 写入 confirmed_by、confirmed_at
+  - 审计日志记录
+- [ ] 前端确认完成表单：单选（已完成/未完成）+ 备注输入
+
+### 6.5 整改结果导出
+- [ ] `GET /api/v1/rectifications/export` — 导出整改汇总Excel
+  - 支持参数：year（当前年份）/ all（所有年份）
+  - 字段：被巡察单位、所属计划、反馈日期、整改截止日期、整改状态、问题总数、已完成问题数、逾期天数、确认人、确认日期
+- [ ] `GET /api/v1/rectifications/{id}/export-pdf` — 导出单条整改详情PDF
+
+### 6.6 前端整改列表页
+- [ ] 筛选器：年份、整改状态、被巡察单位
+- [ ] 列表展示：被巡察单位、所属计划、整改截止日期、状态（pending🟡/rectifying🔵/completed🟢/overdue🔴）、问题进度
+- [ ] 导出按钮（当前年份/所有年份）
+- [ ] 列表行操作：查看详情、导入整改情况
+
+### 6.7 前端整改详情页
+- [ ] 基本信息（被巡察单位、巡察计划、反馈日期、整改截止日期、状态）
+- [ ] 整改事项列表（显示分类+内容+状态）
+- [ ] 人工确认完成区块
+- [ ] 重新导入按钮
+- [ ] 上次更新时间 + 操作人
+
+---
+
+## 七、巡察进度管理
+
+### 7.1 进度记录管理
+- [ ] `GET /api/v1/progress` — 列表（按计划/巡察组筛选）+ 分页
+- [ ] `GET /api/v1/progress/{id}` — 详情
+- [ ] `POST /api/v1/progress` — 手动创建进度记录（备用）
+- [ ] `PUT /api/v1/progress/{id}` — 更新
+
+### 7.2 进度模板导入
+- [ ] `POST /api/v1/plans/{plan_id}/progress/import` — 导入巡察进度Excel
+  - 解析：报告周期、谈话人数、查阅资料数、受理信访数、实地走访数、发现问题总数、各分类问题数、下周工作计划
+  - 返回成功/失败报告
+- [ ] `GET /api/v1/progress/template` — 下载进度导入模板（含自动填充的巡察组名称）
+
+### 7.3 Dashboard 进度数据
+- [ ] `GET /api/v1/plans/{id}/progress-summary` — 返回某计划的进度汇总
+  - 总谈话人数、发现问题总数（从所有进度记录累加）
+  - 各巡察组最新一条进度记录
+
+### 7.4 前端进度列表页
+- [ ] 按计划/巡察组查看进度历史
+- [ ] 列表：周期、报告日期、谈话人数、发现问题数、下周计划
+
+### 7.5 前端进度导入
+- [ ] 选择巡察计划 → 下载该计划下各巡察组的进度模板
+- [ ] 导入后预览 → 确认提交
+
+---
+
+## 八、公文管理
+
+### 8.1 公文模板文件
+- [ ] 准备5个Word模板文件（.docx），定义所有变量占位符：
+  - `notice_of_inspection.docx` — 巡察公告
+  - `group_establishment.docx` — 成立巡察组通知
+  - `deployment_meeting.docx` — 巡察部署会通知
+  - `inspection_feedback.docx` — 巡察反馈意见
+  - `rectification_notice.docx` — 整改通知书
+
+### 8.2 公文生成服务
+- [ ] `DocumentGenerator.generate(plan_id, doc_type)` — 生成公文
+  - 读取模板 → 替换所有 {{变量}} → 返回 .docx 文件路径
+  - 变量映射：见 PRD 第十一章 11.2
+- [ ] 公文历史记录（存储生成时间、生成人、文件路径）
+
+### 8.3 公文 API
+- [ ] `POST /api/v1/documents/generate` — 生成公文（传入plan_id/doc_type）
+- [ ] `GET /api/v1/documents` — 公文列表（按计划/类型筛选）
+- [ ] `GET /api/v1/documents/{id}/download` — 下载公文文件
+- [ ] `GET /api/v1/documents/template?type=xxx` — 获取某类型公文的空白模板（供前端预览变量）
+
+### 8.4 前端公文列表页
+- [ ] 列表展示：公文标题、文号、类型、生成日期、生成人
+- [ ] 操作：预览、下载Word、打印
+
+### 8.5 公文生成入口
+- [ ] 计划详情页操作栏：「生成公告」「生成成立通知」「生成部署会通知」「生成反馈意见」
+- [ ] 整改详情页：「生成整改通知书」
+- [ ] 生成前弹窗确认（显示即将填充的变量值，供用户核对）
+
+---
+
+## 九、预警系统
+
+### 9.1 预警引擎服务
+- [ ] `WarningEngine.scan()` — 每日扫描所有计划，生成预警
+  - 巡察即将进驻：actual_start_date - today <= advance_warning_days
+  - 实地督导提醒：in_progress + 进驻后第 supervision_week_min ~ supervision_week_max 周
+  - 中期报告提醒：in_progress + 进驻后第 midterm_week 周
+  - 巡察即将结束：expected_end_date - today <= 7天
+  - 整改即将到期：rectification_end - today <= 7天
+  - 整改已逾期：rectification_end < today
+  - 回头看提醒：reinspection_date == today
+  - 未巡察单位：单位超过 uninspected_warning_years 年未巡察
+- [ ] `WarningEngine.is_enabled(warning_type)` — 读取配置判断预警类型是否启用
+- [ ] `WarningEngine.create_warning(...)` — 创建预警记录（去重：同类型+同实体不重复创建）
+- [ ] `WarningEngine.cleanup_expired()` — 清理已过期预警
+
+### 9.2 预警调度
+- [ ] 配置 APScheduler 每日凌晨3点执行 `WarningEngine.scan()`
+- [ ] 预警扫描结果写入日志
+
+### 9.3 预警 API
+- [ ] `GET /api/v1/warnings` — 预警列表（未读优先、类型筛选）+ 分页
+- [ ] `PUT /api/v1/warnings/{id}/read` — 标记已读
+- [ ] `PUT /api/v1/warnings/read-all` — 全部已读
+- [ ] `GET /api/v1/warnings/unread-count` — 未读数量（供前端角标）
+
+### 9.4 前端预警展示
+- [ ] 顶部导航栏右侧：🔔 角标 + 未读数量（红色）
+- [ ] 点击角标 → 展开预警列表（下拉或侧滑面板）
+- [ ] 预警项：类型图标 + 标题 + 消息 + 时间，点击跳转详情
+- [ ] 首页 Dashboard「今日预警」区块（显示最新5条）
+
+---
+
+## 十、首页 Dashboard
+
+### 10.1 Dashboard API
+- [ ] `GET /api/v1/dashboard/summary?year=xxx` — 综合数据
+  - `phase_stats`：各阶段计划数量统计
+  - `plan_progress`：当前轮次各计划进度（已行进天数/总天数、百分比、状态）
+  - `rectification_stats`：待整改/整改中/已完成/逾期 数量
+  - `units_without_recent`：长期未巡察单位列表（>N年）
+  - `yearly_coverage`：历年巡察覆盖率（百分比+已巡/总单位）
+  - `warnings`：最新10条预警
+  - `current_year_stats`：本年度概览（总计划数/进行中/已完成）
+
+### 10.2 前端 Dashboard 页面
+- [ ] 巡察概览统计卡片（总计划数/进行中/已完成/待启动）
+- [ ] 当前轮次进度追踪（进度条 + 天数 + 状态颜色）
+- [ ] 整改情况统计（4个数字卡片 + 颜色）
+- [ ] 未巡察单位预警列表
+- [ ] 历年巡察覆盖率（横向进度条，按年份）
+- [ ] 今日预警列表（可点击跳转）
+- [ ] 页面自动刷新（每5分钟）
+
+---
+
+## 十一、知识库
+
+### 11.1 文件存储
+- [ ] 知识库文件存储在服务器本地目录 `~/.patrol-platform/knowledge/`
+- [ ] 按分类子目录组织：政策法规/模板库/培训资料/历史巡察资料/其他资料
+- [ ] 文件元数据存入数据库（id, name, category, file_path, file_size, uploaded_by, uploaded_at）
+
+### 11.2 知识库 API
+- [ ] `GET /api/v1/knowledge/categories` — 获取分类树
+- [ ] `GET /api/v1/knowledge/files` — 文件列表（按分类筛选）+ 分页
+- [ ] `POST /api/v1/knowledge/files` — 上传文件（multipart form，限PDF/Word/Excel/图片）
+- [ ] `GET /api/v1/knowledge/files/{id}` — 下载文件
+- [ ] `DELETE /api/v1/knowledge/files/{id}` — 删除文件
+- [ ] `GET /api/v1/knowledge/files/{id}/preview` — 在线预览（见下）
+
+### 11.3 在线预览
+- [ ] PDF：直接返回文件流，前端 `<iframe>` 渲染
+- [ ] Word：后端用 libreoffice 转为 PDF → 返回 PDF 流
+- [ ] Excel：后端读取转为 CSV/HTML 表格 → 返回
+- [ ] 图片：直接返回
+
+### 11.4 前端知识库页面
+- [ ] 左侧分类树导航
+- [ ] 右侧文件列表（图标+名称+上传时间+上传人+大小）
+- [ ] 上传按钮（拖拽上传）
+- [ ] 点击文件 → 预览弹窗（iframe 或新窗口）
+- [ ] 下载按钮
+
+---
+
+## 十二、数据导入/导出
+
+### 12.1 导入服务（通用）
+- [ ] `ImportService.validate_cadres(file_path)` — 验证干部导入Excel
+  - 必填字段校验、日期格式、职级枚举、单位存在性
+  - 返回：valid_rows + error_rows + 错误详情
+- [ ] `ImportService.import_cadres(file_path, operator_id)` — 执行干部导入
+- [ ] `ImportService.validate_units(file_path)` — 验证单位导入Excel
+- [ ] `ImportService.import_units(file_path, operator_id)` — 执行单位导入
+- [ ] `ImportService.generate_error_report(errors)` — 生成错误报告Excel
+
+### 12.2 导入 API
+- [ ] `POST /api/v1/import/cadres` — 干部批量导入
+- [ ] `GET /api/v1/import/cadres/template` — 下载干部导入模板
+- [ ] `POST /api/v1/import/units` — 单位批量导入
+- [ ] `GET /api/v1/import/units/template` — 下载单位导入模板
+- [ ] `GET /api/v1/import/errors/{session_id}` — 下载某次导入的错误报告
+
+### 12.3 导出 API
+- [ ] `GET /api/v1/export/cadres` — 导出全部干部Excel（含所有字段+关联单位+标签）
+- [ ] `GET /api/v1/export/units` — 导出全部单位Excel
+- [ ] `GET /api/v1/export/plans` — 导出计划列表Excel
+- [ ] `GET /api/v1/export/rectifications` — 导出整改汇总Excel（见6.5）
+
+### 12.4 前端导入页面
+- [ ] 干部管理页：「批量导入」按钮 → 弹窗（下载模板 → 选择文件 → 上传 → 预览验证结果 → 确认导入 → 显示成功/失败）
+- [ ] 单位管理页：同上
+- [ ] 错误报告展示 + 下载
+
+---
+
+## 十三、备份与恢复
+
+### 13.1 自动备份
+- [ ] 每日凌晨3点自动备份（APScheduler）
+- [ ] 备份存储目录 `~/.patrol-platform/backups/`，文件名含时间戳
+- [ ] 保留最近7份自动备份，超出删除旧文件
+- [ ] 备份结果写入日志
+
+### 13.2 手动备份
+- [ ] `POST /api/v1/backup/create` — 创建手动备份（返回下载）
+- [ ] `GET /api/v1/backup/list` — 备份列表（含时间、大小、类型：自动/手动）
+- [ ] `DELETE /api/v1/backup/{filename}` — 删除某备份
+
+### 13.3 恢复
+- [ ] `POST /api/v1/backup/restore` — 上传备份文件 → 二次确认 → 执行恢复
+  - 恢复前自动备份当前数据库
+  - 恢复后提示重启服务
+
+### 13.4 前端备份恢复页
+- [ ] 「创建备份」按钮（点击后下载 .db 文件）
+- [ ] 备份列表（时间、类型、大小、操作：恢复/删除）
+- [ ] 「恢复数据」：选择文件 → 弹窗二次确认 → 执行
+- [ ] 自动备份开启/关闭开关
+
+---
+
+## 十四、登录与权限
+
+### 14.1 认证
+- [ ] `POST /api/v1/auth/login` — 用户名+密码登录，返回JWT token
+- [ ] `POST /api/v1/auth/logout` — 注销
+- [ ] `GET /api/v1/auth/me` — 当前用户信息
+- [ ] JWT secret 写入配置文件，支持过期时间配置
+
+### 14.2 账户管理
+- [ ] `POST /api/v1/users` — 创建用户（仅admin）
+- [ ] `PUT /api/v1/users/{id}/password` — 修改密码（本人或admin）
+- [ ] `DELETE /api/v1/users/{id}` — 删除用户（仅admin，不能删除最后一个admin）
+
+### 14.3 前端登录页
+- [ ] 用户名/密码表单
+- [ ] 登录失败提示
+- [ ] 记住登录状态
+
+### 14.4 前端账户管理
+- [ ] 个人账户：改密码
+- [ ] admin专属：用户列表、新建用户、删除用户
+
+---
+
+## 十五、桌面端打包
+
+### 15.1 Electron 桌面壳
+- [ ] `main/main.ts` — Electron 主进程
+  - 启动 FastAPI 后端进程（`python start.py`）
+  - 等待后端就绪后打开浏览器窗口
+  - 托盘图标 + 菜单（打开/退出）
+- [ ] `main/preload.ts` — 预加载脚本（安全桥接）
+- [ ] `package.json` — Electron + 构建脚本
+- [ ] `electron-builder.yml` — 打包配置（Windows exe / macOS dmg）
+
+### 15.2 PyInstaller 打包后端
+- [ ] `patrol_backend.spec` — PyInstaller spec 文件
+- [ ] 将 FastAPI 后端打成单一可执行文件
+- [ ] 桌面壳调用该可执行文件启动后端
+
+### 15.3 打包验证
+- [ ] 打包后双击运行，自动启动后端 + 打开窗口
+- [ ] 托盘图标显示
+- [ ] 关闭主窗口后后台运行（托盘内）
+- [ ] 托盘右键「退出」彻底关闭
+
+---
+
+## 十六、前端基础设施
+
+### 16.1 项目初始化
+- [ ] `npm create vite@latest frontend -- --template react-ts`
+- [ ] 安装依赖：antd, react-router-dom, axios, dayjs, @ant-design/icons
+- [ ] 配置 Vite proxy（开发环境 `/api` → `http://localhost:18800`）
+- [ ] 配置 `outDir: '../backend/app/static'`（打包后由 FastAPI 托管）
+
+### 16.2 路由与布局
+- [ ] React Router 路由配置
+  - `/login` — 登录页
+  - `/` — Dashboard
+  - `/plans` — 巡察计划列表
+  - `/plans/new` — 新建计划向导
+  - `/plans/:id` — 计划详情
+  - `/groups` — 巡察组列表
+  - `/groups/:id` — 巡察组详情
+  - `/cadres` — 干部管理
+  - `/units` — 单位管理
+  - `/rectifications` — 整改列表
+  - `/rectifications/:id` — 整改详情
+  - `/progress` — 进度管理
+  - `/documents` — 公文列表
+  - `/knowledge` — 知识库
+  - `/admin/configs` — 系统配置
+  - `/admin/backup` — 备份恢复
+  - `/admin/users` — 账户管理
+  - `/admin/audit` — 操作日志
+- [ ] 全局布局组件：顶部导航栏（含预警角标）+ 侧边菜单 + 内容区
+- [ ] 权限控制：未登录重定向 /login，无权限页面 403
+
+### 16.3 状态管理
+- [ ] React Context 管理用户登录状态（token、用户信息）
+- [ ] 全局提示（message）封装
+- [ ] 请求拦截器（axios）：自动附加 JWT token，401 自动跳转登录
+
+### 16.4 公共组件
+- [ ] `PhaseTimeline` — 阶段时间线组件（11阶段可视化）
+- [ ] `MemberList` — 成员列表展示组件（姓名（职务）格式）
+- [ ] `ProgressBar` — 巡察进度条组件
+- [ ] `WarningBadge` — 预警角标组件
+- [ ] `StatusTag` — 状态标签（pending🟡/rectifying🔵/completed🟢/overdue🔴）
+- [ ] `ImportModal` — 通用导入弹窗（步骤条：下载模板→上传→预览→确认）
+- [ ] `ConfirmDialog` — 二次确认对话框
+
+---
+
+## 十七、初始化向导
+
+### 17.1 首次启动检测
+- [ ] 后端启动时检测数据库是否为空（无用户）
+- [ ] 空数据库 → 返回特定标志，前端跳转初始化向导
+
+### 17.2 初始化向导（前端）
+- [ ] Step 1：创建管理员账户（设置用户名/密码/确认密码）
+- [ ] Step 2：导入干部数据（可选：立即导入Excel / 稍后手动导入）
+- [ ] Step 3：导入单位数据（可选）
+- [ ] Step 4：完成，确认进入系统
+- [ ] 后端：初始化管理员账户 + 初始化默认系统配置
+
+### 17.3 初始化后
+- [ ] 自动登录进入 Dashboard
+- [ ] 显示欢迎提示（引导完成系统配置）
+
+---
+
+## 十八、收尾与测试
+
+### 18.1 功能联调
+- [ ] 端到端测试：新建计划 → 选择被巡察单位 → 自动匹配巡察组 → 确认创建计划 → 阶段流转 → 生成公文 → 整改导入 → 确认完成 → 导出汇总
+- [ ] 预警系统测试：各类型预警是否正确触发
+- [ ] 数据导入导出测试：干部/单位/整改/进度 导入导出
+
+### 18.2 桌面端验证
+- [ ] 打包成 dmg/exe 后全流程测试
+- [ ] 断网场景测试（完全本地运行）
+
+### 18.3 性能与稳定性
+- [ ] 数据库加密后读写性能评估
+- [ ] 知识库大文件上传测试
+- [ ] 多用户并发访问测试（局域网压测）
+
+### 18.4 文档
+- [ ] 更新 README.md（含部署说明、使用说明）
+- [ ] 用户操作手册（可选）
+
+---
+
+## 任务统计
+
+| 模块 | 任务数 | 说明 |
+|------|--------|------|
+| 一、数据基础设施 | ~15 | 数据库、模型、基础CRUD |
+| 二、系统配置 | ~7 | 配置管理前后端 |
+| 三、自动匹配引擎 | ~8 | 核心算法+API+手动添加 |
+| 四、巡察组管理 | ~12 | CRUD+成员+兼职务+前端 |
+| 五、巡察计划管理 | ~14 | CRUD+向导+详情页 |
+| 六、整改管理 | ~14 | 整改流程+导入+导出+前端 |
+| 七、巡察进度 | ~8 | 进度管理+导入+Dashboard进度 |
+| 八、公文管理 | ~10 | 模板+生成服务+前端 |
+| 九、预警系统 | ~10 | 引擎+调度+API+前端 |
+| 十、首页Dashboard | ~4 | API+前端 |
+| 十一、知识库 | ~10 | 文件存储+预览+前端 |
+| 十二、数据导入导出 | ~12 | 导入服务+API+前端 |
+| 十三、备份恢复 | ~8 | 自动备份+手动+前端 |
+| 十四、登录权限 | ~9 | 认证+账户+前端 |
+| 十五、桌面端 | ~6 | Electron+PyInstaller+验证 |
+| 十六、前端基础设施 | ~10 | 路由+布局+公共组件 |
+| 十七、初始化向导 | ~5 | 首次启动+向导+后端 |
+| 十八、收尾测试 | ~8 | 联调+打包+文档 |
+| **合计** | **~170** | |

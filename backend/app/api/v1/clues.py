@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from uuid import UUID
 from typing import Optional, List
+from datetime import date, datetime
 from app.dependencies import get_db, get_current_user
 from app.models.clue import Clue
 from app.models.user import User
@@ -24,6 +25,9 @@ async def list_clues(
     title: Optional[str] = None,
     status: Optional[str] = None,
     source: Optional[str] = None,
+    category: Optional[str] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -34,14 +38,20 @@ async def list_clues(
         query = query.where(Clue.status == status)
     if source:
         query = query.where(Clue.source == source)
-    
+    if category:
+        query = query.where(Clue.category == category)
+    if start_date:
+        query = query.where(Clue.created_at >= datetime.combine(start_date, datetime.min.time()))
+    if end_date:
+        query = query.where(Clue.created_at <= datetime.combine(end_date, datetime.max.time()))
+
     count_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar()
-    
+
     query = query.order_by(Clue.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(query)
     items = result.scalars().all()
-    
+
     return PaginatedResponse(
         data=PageResult(items=items, total=total, page=page, page_size=page_size)
     )

@@ -1,6 +1,6 @@
 import api from './client';
 
-export const getClues = (params?: { page?: number; page_size?: number; title?: string; status?: string; source?: string }) =>
+export const getClues = (params?: { page?: number; page_size?: number; title?: string; status?: string; source?: string; category?: string; start_date?: string; end_date?: string }) =>
   api.get('/clues/', { params }).then(res => res.data);
 export const getClue = (id: string) =>
   api.get(`/clues/${id}`).then(res => res.data);
