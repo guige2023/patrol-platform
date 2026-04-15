@@ -143,7 +143,6 @@ const ModuleConfig: React.FC = () => {
     <div>
       <PageHeader
         title="模块配置"
-        subTitle="管理系统功能模块，启用/禁用模块将影响对应菜单的显示"
         breadcrumbs={[{ name: '系统管理' }, { name: '模块配置' }]}
       />
       <Table
