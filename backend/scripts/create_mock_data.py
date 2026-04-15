@@ -113,7 +113,7 @@ async def main():
 
         cats = ["违反纪律","违反中央八项规定精神","形式主义","官僚主义","廉洁纪律","群众纪律"]
         probs = ["违规吃喝","违规收礼","公款旅游","超标接待","慵懒散慢","推诿扯皮","不作为","乱作为"]
-        sevs = ["一般","较重","严重"]
+        sevs = ["low", "medium", "high"]
         for i in range(15):
             s, d = await post("drafts/", {"title":f"关于{ud[i%len(ud)][0]}的{cats[i%len(cats)]}问题",
                 "unit_id":units[i%len(units)] if units else None,

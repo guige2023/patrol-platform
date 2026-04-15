@@ -76,6 +76,34 @@ async def migrate():
             except Exception:
                 pass
 
+        # --- group_members: add unique constraint on (group_id, cadre_id) ---
+        if dialect == 'sqlite':
+            # SQLite: create unique index if not exists
+            try:
+                await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_group_member_unique ON group_members(group_id, cadre_id)"))
+            except Exception:
+                pass
+        else:
+            # PostgreSQL: add unique constraint
+            try:
+                await conn.execute(text(
+                    "ALTER TABLE group_members ADD CONSTRAINT group_member_unique UNIQUE (group_id, cadre_id)"
+                ))
+            except Exception:
+                pass
+
+        # --- inspection_groups: add unit_ids JSON column ---
+        if dialect == 'sqlite':
+            result = await conn.execute(text("PRAGMA table_info(inspection_groups)"))
+            columns = [row[1] for row in result.fetchall()]
+            if 'unit_ids' not in columns:
+                await conn.execute(text("ALTER TABLE inspection_groups ADD COLUMN unit_ids JSON DEFAULT '[]'"))
+        else:
+            try:
+                await conn.execute(text("ALTER TABLE inspection_groups ADD COLUMN unit_ids JSON DEFAULT '[]'"))
+            except Exception:
+                pass
+
         # --- knowledge: add attachments ---
         if dialect == 'sqlite':
             result = await conn.execute(text("PRAGMA table_info(knowledge)"))

@@ -26,6 +26,7 @@ class GroupUpdate(BaseModel):
     name: Optional[str] = None
     status: Optional[str] = None
     target_unit_id: Optional[UUID] = None
+    unit_ids: Optional[List[UUID]] = None
     authorization_letter: Optional[str] = None
     authorization_date: Optional[datetime] = None
 

@@ -60,6 +60,14 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
         if (res.actual_start_date && res.actual_end_date) {
           formData.actual_date_range = [dayjs(res.actual_start_date), dayjs(res.actual_end_date)];
         }
+        // focus_areas: API 返回数组，表单是字符串，编辑时需转换
+        if (Array.isArray(res.focus_areas)) {
+          formData.focus_areas = res.focus_areas.join('、');
+        }
+        // authorization_date: API 返回 ISO 字符串，表单 DatePicker 需要 dayjs
+        if (res.authorization_date) {
+          formData.authorization_date = dayjs(res.authorization_date);
+        }
         form.setFieldsValue(formData);
       }).catch(() => {
         message.error('获取计划详情失败');
@@ -149,6 +157,13 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
       <Descriptions.Item label="状态">{planData?.status || '-'}</Descriptions.Item>
       <Descriptions.Item label="审批意见">{planData?.approval_comment || '-'}</Descriptions.Item>
       <Descriptions.Item label="版本号">{planData?.version || '-'}</Descriptions.Item>
+      <Descriptions.Item label="变更记录">
+        {Array.isArray(planData?.version_history) && planData.version_history.length > 0
+          ? planData.version_history.map((h: any, i: number) => (
+              <div key={i}>{h.date ? `${h.date}：${h.change}` : h.change}</div>
+            ))
+          : '-'}
+      </Descriptions.Item>
       <Descriptions.Item label="创建时间">
         {planData?.created_at ? dayjs(planData.created_at).format('YYYY-MM-DD HH:mm') : '-'}
       </Descriptions.Item>
@@ -199,22 +214,14 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
           <Form.Item name="actual_date_range" label="实际巡察日期范围">
             <DatePicker.RangePicker style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="version" label="版本号">
-            <Input placeholder="如：v1.0" />
-          </Form.Item>
           {/* target_units 隐藏字段，编辑时保留原值 */}
           <Form.Item name="target_units" style={{ display: 'none' }}>
             <Input />
           </Form.Item>
           {mode === 'edit' && (
-            <>
-              <Form.Item name="status" label="状态">
-                <Select options={STATUS_OPTIONS} placeholder="请选择状态" allowClear />
-              </Form.Item>
-              <Form.Item name="approval_comment" label="审批意见">
-                <Input.TextArea rows={3} placeholder="请输入审批意见" />
-              </Form.Item>
-            </>
+            <Form.Item name="approval_comment" label="审批意见">
+              <Input.TextArea rows={3} placeholder="请输入审批意见" />
+            </Form.Item>
           )}
         </Form>
       )}

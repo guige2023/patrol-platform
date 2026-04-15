@@ -18,8 +18,34 @@ const FieldOptionsContext = createContext<FieldOptionsContextValue>({
 export const FieldOptionsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [options, setOptions] = useState<FieldOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tokenVersion, setTokenVersion] = useState(0);
+
+  // Listen for token changes (triggered by login)
+  useEffect(() => {
+    const checkToken = () => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        setTokenVersion(v => v + 1);
+      }
+    };
+
+    // Listen for storage changes (covers other tabs)
+    window.addEventListener('storage', checkToken);
+    // Also poll periodically for same-tab changes
+    const interval = setInterval(checkToken, 500);
+    return () => {
+      window.removeEventListener('storage', checkToken);
+      clearInterval(interval);
+    };
+  }, []);
 
   const refresh = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     try {
       const data = await getFieldOptions();
       setOptions(data || []);
@@ -32,7 +58,7 @@ export const FieldOptionsProvider: React.FC<{ children: ReactNode }> = ({ childr
 
   useEffect(() => {
     refresh();
-  }, [refresh]);
+  }, [refresh, tokenVersion]);
 
   const getOptions = useCallback((fieldKey: string): { label: string; value: string }[] => {
     const field = options.find(f => f.field_key === fieldKey);

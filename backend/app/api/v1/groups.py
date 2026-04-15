@@ -62,6 +62,7 @@ async def get_group(group_id: UUID, db: AsyncSession = Depends(get_db), current_
         "plan_id": group.plan_id,
         "status": group.status,
         "target_unit_id": group.target_unit_id,
+        "unit_ids": group.unit_ids or [],
         "authorization_letter": group.authorization_letter,
         "authorization_date": group.authorization_date,
         "leader_cadre_name": next((m.cadre.name for m in group.members if m.is_leader and m.cadre), None),
@@ -79,6 +80,10 @@ async def create_group(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # 组长与副组长不可为同一人
+    if group_data.leader_id and group_data.vice_leader_id and group_data.leader_id == group_data.vice_leader_id:
+        raise HTTPException(status_code=400, detail="组长与副组长不可为同一人")
+
     plan_result = await db.execute(select(Plan).where(Plan.id == group_data.plan_id))
     plan = plan_result.scalar_one_or_none()
     if not plan:
@@ -152,6 +157,16 @@ async def add_member(
     cadre = cadre_result.scalar_one_or_none()
     if not cadre:
         raise HTTPException(status_code=404, detail="Cadre not found")
+
+    # 去重校验：同一巡察组的同一干部不可重复添加
+    existing = await db.execute(
+        select(GroupMember).where(
+            GroupMember.group_id == group_id,
+            GroupMember.cadre_id == member_data.cadre_id,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="该干部已在巡察组中，请勿重复添加")
 
     member = GroupMember(
         group_id=group_id,

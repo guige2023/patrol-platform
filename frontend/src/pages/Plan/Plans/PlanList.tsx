@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Tag, message } from 'antd';
+import { Table, Button, Space, Tag, message, Popconfirm } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
-import { getPlans, submitPlan, approvePlan, publishPlan } from '@/api/plans';
+import { getPlans, submitPlan, approvePlan, publishPlan, deletePlan } from '@/api/plans';
 import PlanDetail from './PlanDetail';
 import CreatePlanModal from './CreatePlanModal';
 import type { ColumnsType } from 'antd/es/table';
@@ -82,7 +82,21 @@ const PlanList: React.FC = () => {
     setDetailModalOpen(true);
   };
 
+  const openEditModal = (id: string) => {
+    setEditingId(id);
+    setDetailMode('edit');
+    setDetailModalOpen(true);
+  };
 
+  const handleDelete = async (id: string) => {
+    try {
+      await deletePlan(id);
+      message.success('删除成功');
+      fetchData();
+    } catch (e: any) {
+      message.error(getErrorMessage(e) || '删除失败');
+    }
+  };
 
   const columns: ColumnsType<Plan> = [
     { title: '计划名称', dataIndex: 'name', key: 'name' },
@@ -102,9 +116,13 @@ const PlanList: React.FC = () => {
       render: (_, record) => (
         <Space>
           <Button type="link" size="small" onClick={() => openViewModal(record.id)}>查看</Button>
+          <Button type="link" size="small" onClick={() => openEditModal(record.id)}>编辑</Button>
           {record.status === 'draft' && <Button type="link" size="small" onClick={() => handleAction(record.id, 'submit')}>提交</Button>}
           {record.status === 'submitted' && <Button type="link" size="small" onClick={() => handleAction(record.id, 'approve')}>批准</Button>}
           {record.status === 'approved' && <Button type="link" size="small" onClick={() => handleAction(record.id, 'publish')}>发布</Button>}
+          <Popconfirm title="确认删除该计划？" onConfirm={() => handleDelete(record.id)}>
+            <Button type="link" danger size="small">删除</Button>
+          </Popconfirm>
         </Space>
       ),
     },

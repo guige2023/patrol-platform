@@ -105,6 +105,7 @@ const DraftDetail: React.FC<DraftDetailProps> = ({ open, editingId, onClose, onS
       setLoading(true);
       await submitDraft(editingId, 'submit');
       message.success('提交成功');
+      form.resetFields();
       onSuccess();
       onClose();
     } catch (err: any) {

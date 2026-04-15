@@ -1,7 +1,7 @@
 import uuid
 from app.types import GUIDTypeDecorator as Guid
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Integer, Text, Enum
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Integer, Text, Enum, JSON
 # from sqlalchemy.dialects.postgresql import UUID (removed for cross-db)
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -38,3 +38,4 @@ class InspectionGroup(Base):
 
     members = relationship("GroupMember", back_populates="group", cascade="all, delete-orphan")
     plan = relationship("Plan")
+    unit_ids = Column(JSON, default=list)  # 所属单位列表 [unit_id, ...]

@@ -16,3 +16,5 @@ export const getGroupMembers = (groupId: string) =>
   api.get(`/groups/${groupId}/members`).then(res => res.data);
 export const submitGroup = (id: string) =>
   api.post(`/groups/${id}/submit`);
+export const deleteGroup = (id: string) =>
+  api.delete(`/groups/${id}`);

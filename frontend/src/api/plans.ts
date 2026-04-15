@@ -20,3 +20,6 @@ export const approvePlan = (id: string, comment?: string) =>
 
 export const publishPlan = (id: string) =>
   api.post(`/plans/${id}/publish`);
+
+export const deletePlan = (id: string) =>
+  api.delete(`/plans/${id}`);

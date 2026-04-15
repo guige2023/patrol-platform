@@ -46,10 +46,13 @@ class PlanResponse(PlanBase):
     actual_start_date: Optional[datetime] = None
     actual_end_date: Optional[datetime] = None
     version: int
+    version_history: Optional[list] = []
     approval_comment: Optional[str] = None
+    approved_by: Optional[UUID] = None
     is_active: bool
     created_by: UUID
     created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, Form, Input, Select, Button, Space, Table, Tag, message, Popconfirm } from 'antd';
-import { createGroup, updateGroup, getGroup } from '@/api/groups';
+import { createGroup, updateGroup, getGroup, submitGroup } from '@/api/groups';
 import { getPlans } from '@/api/plans';
 import { getUnits } from '@/api/units';
 import { removeMember, addMember } from '@/api/groups';
@@ -29,6 +29,7 @@ interface GroupFormData {
   name: string;
   plan_id: string;
   target_unit_id?: string;
+  unit_ids?: string[];
   status?: string;
 }
 
@@ -115,6 +116,7 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
         name: res.name,
         plan_id: res.plan_id,
         target_unit_id: res.target_unit_id,
+        unit_ids: res.unit_ids || [],
         status: res.status,
       });
     } catch (e) {
@@ -176,6 +178,17 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
     }
   };
 
+  const handleSubmitGroup = async () => {
+    if (!editingId) return;
+    try {
+      await submitGroup(editingId);
+      message.success('已提交审批');
+      onSuccess();
+    } catch (e: any) {
+      message.error(getErrorMessage(e) || '提交失败');
+    }
+  };
+
   const roleColors: Record<string, string> = {
     '组长': 'red',
     '副组长': 'orange',
@@ -212,6 +225,9 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
               <Button type="primary" onClick={handleSubmit} disabled={initialLoading || submitLoading} loading={submitLoading}>
                 新建
               </Button>
+            )}
+            {isView && groupData?.status === 'draft' && (
+              <Button type="primary" onClick={handleSubmitGroup}>提交审批</Button>
             )}
           </Space>
         </div>
@@ -254,6 +270,10 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
             allowClear
           />
         </Form.Item>
+        {/* unit_ids 隐藏字段，编辑时保留原值 */}
+        <Form.Item name="unit_ids" style={{ display: 'none' }}>
+          <Input />
+        </Form.Item>
         <Form.Item name="status" label="状态">
           <Select placeholder="请选择状态" options={STATUS_OPTIONS} />
         </Form.Item>
@@ -276,7 +296,7 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
           <Table
             columns={memberColumns}
             dataSource={members}
-            rowKey="id"
+            rowKey="cadre_id"
             size="small"
             pagination={false}
           />
@@ -286,7 +306,7 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
       {/* Replace/Add Member Modal */}
       <Modal
         title={replaceModal?.memberId ? '更换成员' : '添加成员'}
-        destroyOnClose
+        destroyOnHidden
         open={!!replaceModal}
         onCancel={() => setReplaceModal(null)}
         footer={null}

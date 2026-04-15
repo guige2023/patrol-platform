@@ -9,7 +9,7 @@ import {
   FileTextOutlined,
   ExceptionOutlined,
 } from '@ant-design/icons'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { getOverview, getIssueProfile } from '../../api/dashboard'
 
 interface Overview {
@@ -35,6 +35,7 @@ export default function Dashboard() {
   const [overview, setOverview] = useState<Overview | null>(null)
   const [issues, setIssues] = useState<IssueProfile | null>(null)
   const [loading, setLoading] = useState(true)
+  const navigate = useNavigate()
 
   useEffect(() => {
     Promise.all([getOverview(), getIssueProfile()])
@@ -159,33 +160,32 @@ export default function Dashboard() {
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         {statCards.map((card) => (
           <Col xs={12} sm={12} md={6} key={card.title}>
-            <Link to={card.path} style={{ textDecoration: 'none' }}>
-              <Card 
-                className="stat-card" 
-                style={{ borderTop: `4px solid ${card.color}` }}
-                styles={{ body: { padding: '20px 24px' } }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <div className="stat-card-title">{card.title}</div>
-                    <div 
-                      className="stat-card-value" 
-                      style={{ color: card.color }}
-                    >
-                      {card.value}
-                    </div>
-                    <div className="stat-card-sub">{card.subTitle}</div>
+            <Card
+              className="stat-card"
+              style={{ borderTop: `4px solid ${card.color}`, cursor: 'pointer' }}
+              styles={{ body: { padding: '20px 24px' } }}
+              onClick={() => navigate(card.path)}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <div className="stat-card-title">{card.title}</div>
+                  <div
+                    className="stat-card-value"
+                    style={{ color: card.color }}
+                  >
+                    {card.value}
                   </div>
-                  <div style={{
-                    fontSize: 32,
-                    color: card.color,
-                    opacity: 0.8,
-                  }}>
-                    {card.icon}
-                  </div>
+                  <div className="stat-card-sub">{card.subTitle}</div>
                 </div>
-              </Card>
-            </Link>
+                <div style={{
+                  fontSize: 32,
+                  color: card.color,
+                  opacity: 0.8,
+                }}>
+                  {card.icon}
+                </div>
+              </div>
+            </Card>
           </Col>
         ))}
       </Row>
