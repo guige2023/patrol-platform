@@ -12,6 +12,7 @@ import ClueList from './pages/Execution/Clues/ClueList'
 import RectificationList from './pages/Execution/Rectifications/RectificationList'
 import UserList from './pages/Admin/Users/UserList'
 import AuditLog from './pages/Admin/Audit/AuditLog'
+import RoleList from './pages/Admin/Roles/RoleList'
 import ModuleConfig from './pages/Admin/Modules/ModuleConfig'
 import FieldOptionsConfig from './pages/Admin/Fields/FieldOptionsConfig'
 
@@ -36,6 +37,7 @@ function App() {
         {/* 系统管理 */}
         <Route path="admin/users" element={<UserList />} />
         <Route path="admin/audit" element={<AuditLog />} />
+        <Route path="admin/roles" element={<RoleList />} />
         <Route path="admin/modules" element={<ModuleConfig />} />
         <Route path="admin/fields" element={<FieldOptionsConfig />} />
       </Route>

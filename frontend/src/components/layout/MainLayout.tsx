@@ -40,6 +40,7 @@ const MainLayout: React.FC = () => {
     ]},
     { key: '/admin', icon: <SettingOutlined />, label: '系统管理', children: [
       { key: '/admin/users', label: '用户管理' },
+      { key: '/admin/roles', label: '角色管理' },
       { key: '/admin/modules', label: '模块配置' },
       { key: '/admin/fields', label: '字段配置' },
       { key: '/admin/audit', label: '审计日志' },

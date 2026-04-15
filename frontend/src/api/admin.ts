@@ -4,8 +4,6 @@ export const getUsers = () => api.get('/admin/users').then(res => res.data);
 export const createUser = (data: any) => api.post('/admin/users', data).then(res => res.data);
 export const updateUser = (id: string, data: any) => api.put(`/admin/users/${id}`, data).then(res => res.data);
 export const deleteUser = (id: string) => api.delete(`/admin/users/${id}`);
-export const getRoles = () => api.get('/admin/roles').then(res => res.data);
-export const createRole = (data: any) => api.post('/admin/roles', data).then(res => res.data);
 export const getAuditLogs = (params?: { page?: number; page_size?: number; entity_type?: string }) =>
   api.get('/admin/audit-logs', { params }).then(res => res.data);
 export const getModules = () => api.get('/admin/modules').then(res => res.data);
@@ -37,3 +35,13 @@ export const exportAuditLogs = (params?: { entity_type?: string }) => {
     window.URL.revokeObjectURL(url);
   });
 };
+
+export const getRoles = () => api.get('/admin/roles').then(res => res.data);
+
+export const createRole = (data: any) => api.post('/admin/roles', data);
+
+export const updateRole = (id: string, data: any) => api.put(`/admin/roles/${id}`, data);
+
+export const deleteRole = (id: string) => api.delete(`/admin/roles/${id}`);
+
+export const getPermissions = () => api.get('/admin/permissions').then(res => res.data);

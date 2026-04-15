@@ -7,7 +7,7 @@ import io
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from app.dependencies import get_db, get_current_user
-from app.models.user import User
+from app.models.user import User, Role, Permission
 from app.models.unit import Unit
 from app.models.module_config import ModuleConfig
 from app.models.rule_config import RuleConfig
@@ -195,3 +195,105 @@ async def update_module(module_id: UUID, is_enabled: bool, config: dict = None, 
         module.config = config
     await db.commit()
     return {"message": "Module updated"}
+
+
+# ─── Roles ────────────────────────────────────────────────────────────────────
+
+@router.get("/roles")
+async def list_roles(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """List all roles."""
+    result = await db.execute(select(Role).order_by(Role.created_at.desc()))
+    roles = result.scalars().all()
+    return [
+        {
+            "id": r.id,
+            "name": r.name,
+            "code": r.code,
+            "description": r.description,
+            "is_active": r.is_active,
+            "permissions": r.permissions or [],
+            "created_at": r.created_at,
+        }
+        for r in roles
+    ]
+
+
+@router.post("/roles")
+async def create_role(
+    data: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Create a new role."""
+    name = data.get("name")
+    code = data.get("code")
+    if not name or not code:
+        raise HTTPException(status_code=400, detail="name and code are required")
+    existing = await db.execute(select(Role).where(Role.code == code))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Role code already exists")
+    role = Role(
+        name=name,
+        code=code,
+        description=data.get("description", ""),
+        permissions=data.get("permissions", []),
+        is_active=data.get("is_active", True),
+    )
+    db.add(role)
+    await db.commit()
+    await db.refresh(role)
+    await write_audit_log(db, current_user.id, "create", "role", role.id, {"name": role.name})
+    return {"id": role.id, "name": role.name}
+
+
+@router.put("/roles/{role_id}")
+async def update_role(
+    role_id: UUID,
+    data: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update a role."""
+    result = await db.execute(select(Role).where(Role.id == role_id))
+    role = result.scalar_one_or_none()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+    if "name" in data:
+        role.name = data["name"]
+    if "description" in data:
+        role.description = data["description"]
+    if "permissions" in data:
+        role.permissions = data["permissions"]
+    if "is_active" in data:
+        role.is_active = data["is_active"]
+    await db.commit()
+    await write_audit_log(db, current_user.id, "update", "role", role.id, {"name": role.name})
+    return {"id": role.id, "name": role.name}
+
+
+@router.delete("/roles/{role_id}")
+async def delete_role(
+    role_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Soft-delete a role."""
+    result = await db.execute(select(Role).where(Role.id == role_id))
+    role = result.scalar_one_or_none()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+    role.is_active = False
+    await db.commit()
+    await write_audit_log(db, current_user.id, "delete", "role", role.id, {"name": role.name})
+    return {"message": "Role deleted"}
+
+
+@router.get("/permissions")
+async def list_permissions(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """List all available permissions."""
+    result = await db.execute(select(Permission).order_by(Permission.code))
+    perms = result.scalars().all()
+    return [
+        {"id": p.id, "code": p.code, "name": p.name, "description": p.description}
+        for p in perms
+    ]
