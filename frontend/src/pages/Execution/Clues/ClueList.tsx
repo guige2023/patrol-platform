@@ -126,7 +126,7 @@ const ClueList: React.FC = () => {
       <PageHeader title="线索管理" breadcrumbs={[{ name: '执纪执行' }, { name: '线索管理' }]} />
       <div style={{ marginBottom: 16 }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate} style={{ marginRight: 8 }}>登记线索</Button>
-        <Button onClick={() => exportClues().catch((e: any) => message.error('导出失败'))}>导出</Button>
+        <Button onClick={() => exportClues().catch(() => message.error('导出失败'))}>导出</Button>
       </div>
       <Table columns={columns} dataSource={data} rowKey="id" loading={loading}
         pagination={{ current: page, pageSize, total, onChange: (p, ps) => { setPage(p); setPageSize(ps); }, showTotal: (t) => `共 ${t} 条` }} />

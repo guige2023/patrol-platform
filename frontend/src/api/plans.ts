@@ -1,6 +1,6 @@
 import api from './client';
 
-export const getPlans = (params?: { page?: number; page_size?: number; year?: number; status?: string }) =>
+export const getPlans = (params?: { page?: number; page_size?: number; name?: string; year?: number; status?: string }) =>
   api.get('/plans/', { params }).then(res => res.data);
 
 export const getPlan = (id: string) =>

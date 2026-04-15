@@ -39,7 +39,8 @@ const Login: React.FC = () => {
     setLoading(true);
     try {
       const res = await api.post('/auth/login', { username: u, password: p });
-      const { access_token } = res.data;
+      // interceptor unwraps {data: {access_token}} → res = {access_token}
+      const { access_token } = res as unknown as { access_token: string };
       localStorage.setItem('token', access_token);
       message.success('登录成功');
       navigate('/');

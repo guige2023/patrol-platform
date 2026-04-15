@@ -56,6 +56,9 @@ const PlanList: React.FC = () => {
       const res = await getPlans({ page, page_size: pageSize, name: keyword || undefined, status: statusFilter, year: yearFilter });
       setData(res.items);
       setTotal(res.total);
+    } catch (e: any) {
+      const msg = getErrorMessage(e);
+      message.error(msg || '加载数据失败');
     } finally {
       setLoading(false);
     }
@@ -155,8 +158,8 @@ const PlanList: React.FC = () => {
       <PageHeader title="巡察计划" breadcrumbs={[{ name: '巡察计划' }, { name: '计划管理' }]} />
       <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal} style={{ marginRight: 8 }}>新建计划</Button>
-        <Button onClick={() => exportPlans().catch(e => message.error('导出失败'))} style={{ marginRight: 8 }}>导出</Button>
-        <Button onClick={() => downloadPlanTemplate().catch(e => message.error('模板下载失败'))}>下载模板</Button>
+        <Button onClick={() => exportPlans().catch(() => message.error('导出失败'))} style={{ marginRight: 8 }}>导出</Button>
+        <Button onClick={() => downloadPlanTemplate().catch(() => message.error('模板下载失败'))}>下载模板</Button>
         <Input placeholder="搜索计划名称" style={{ width: 160 }} onChange={handleKeywordChange} />
         <Select
           placeholder="按状态筛选"

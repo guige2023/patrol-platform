@@ -22,6 +22,7 @@ interface PlanOption {
   id: string;
   name: string;
   status: string;
+  target_units?: string[];
 }
 
 interface UnitOption {

@@ -127,7 +127,7 @@ const categoryLabels: Record<string, string> = {
       />
       <div style={{ marginBottom: 16 }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => { setModalKnowledgeId(null); setModalOpen(true); }} style={{ marginRight: 8 }}>新建知识</Button>
-        <Button onClick={() => exportKnowledge().catch(e => message.error('导出失败'))}>导出</Button>
+        <Button onClick={() => exportKnowledge().catch(() => message.error('导出失败'))}>导出</Button>
       </div>
       <Table
         columns={columns}

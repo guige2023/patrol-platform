@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Form, Input, Button, Space, Modal, message, DatePicker, Descriptions, Select } from 'antd';
+import { Form, Input, Button, Space, Modal, message, DatePicker, Descriptions } from 'antd';
 import { getPlan, createPlan, updatePlan } from '@/api/plans';
 import dayjs from 'dayjs';
 import { getErrorMessage } from '@/utils/error';
@@ -27,18 +27,10 @@ interface PlanData {
   actual_end_date?: string;
   status?: string;
   version?: string;
+  version_history?: any[];
   approval_comment?: string;
   created_at?: string;
 }
-
-const STATUS_OPTIONS = [
-  { label: '草稿', value: 'draft' },
-  { label: '已提交', value: 'submitted' },
-  { label: '已批准', value: 'approved' },
-  { label: '已发布', value: 'published' },
-  { label: '进行中', value: 'in_progress' },
-  { label: '已完成', value: 'completed' },
-];
 
 const PLAN_STATUS_MAP: Record<string, string> = {
   draft: '草稿',

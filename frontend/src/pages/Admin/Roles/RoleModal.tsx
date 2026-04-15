@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Form, Input, Switch, Checkbox, message, Space } from 'antd';
-import { createRole, updateRole, getPermissions } from '@/api/admin';
+import { createRole, updateRole } from '@/api/admin';
 import { getErrorMessage } from '@/utils/error';
 
 interface Role {
@@ -12,14 +12,7 @@ interface Role {
   permissions?: string[];
 }
 
-interface Permission {
-  id: string;
-  code: string;
-  name: string;
-  description?: string;
-}
-
-// Predefined permission options for display (since /permissions returns empty in dev)
+// Predefined permission options for display
 const PERMISSION_OPTIONS: { code: string; name: string }[] = [
   { code: 'user:read', name: '查看用户' },
   { code: 'user:write', name: '管理用户' },
@@ -52,20 +45,6 @@ interface RoleModalProps {
 const RoleModal: React.FC<RoleModalProps> = ({ open, role, onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
-  const [permissions, setPermissions] = useState<string[]>([]);
-
-  useEffect(() => {
-    if (open) {
-      // Try loading permissions from API first
-      getPermissions()
-        .then((res: any) => {
-          if (Array.isArray(res) && res.length > 0) {
-            setPermissions([]);
-          }
-        })
-        .catch(() => {});
-    }
-  }, [open]);
 
   useEffect(() => {
     if (open) {

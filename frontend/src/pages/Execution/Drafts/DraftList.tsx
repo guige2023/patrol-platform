@@ -125,7 +125,7 @@ const DraftList: React.FC = () => {
       />
       <div style={{ marginBottom: 16 }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal} style={{ marginRight: 8 }}>新建底稿</Button>
-        <Button onClick={() => exportDrafts().catch(e => message.error('导出失败'))}>导出</Button>
+        <Button onClick={() => exportDrafts().catch(() => message.error('导出失败'))}>导出</Button>
       </div>
       <Table columns={columns} dataSource={data} rowKey="id" loading={loading}
         pagination={{ current: page, pageSize, total, onChange: (p, ps) => { setPage(p); setPageSize(ps); }, showTotal: (t) => `共 ${t} 条` }} />
