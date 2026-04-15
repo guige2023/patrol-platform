@@ -3,7 +3,7 @@ import { Table, Button, Space, Tag, Modal, message } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import SearchForm from '@/components/common/SearchForm';
-import { getDrafts, submitDraft, deleteDraft } from '@/api/drafts';
+import { getDrafts, submitDraft, deleteDraft, exportDrafts } from '@/api/drafts';
 import DraftDetail from './DraftDetail';
 import type { ColumnsType } from 'antd/es/table';
 import { getErrorMessage } from '@/utils/error';
@@ -124,7 +124,8 @@ const DraftList: React.FC = () => {
         onReset={handleReset}
       />
       <div style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>新建底稿</Button>
+        <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal} style={{ marginRight: 8 }}>新建底稿</Button>
+        <Button onClick={() => exportDrafts().catch(e => message.error('导出失败'))}>导出</Button>
       </div>
       <Table columns={columns} dataSource={data} rowKey="id" loading={loading}
         pagination={{ current: page, pageSize, total, onChange: (p, ps) => { setPage(p); setPageSize(ps); }, showTotal: (t) => `共 ${t} 条` }} />

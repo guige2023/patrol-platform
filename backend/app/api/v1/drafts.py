@@ -1,8 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import List, Optional
 from uuid import UUID
+import io
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from app.dependencies import get_db, get_current_user
 from app.models.draft import Draft, DraftAttachment
 from app.models.user import User
@@ -43,6 +47,94 @@ async def list_drafts(
     
     return PaginatedResponse(
         data=PageResult(items=items, total=total, page=page, page_size=page_size)
+    )
+
+
+STATUS_LABELS = {
+    "draft": "草稿",
+    "preliminary_review": "初审",
+    "final_review": "终审",
+    "approved": "已批准",
+    "rejected": "已驳回",
+}
+
+SEVERITY_LABELS = {
+    "mild": "轻微",
+    "moderate": "中等",
+    "severe": "严重",
+}
+
+
+@router.get("/download")
+async def export_drafts(
+    status: Optional[str] = None,
+    category: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Export all drafts as .xlsx."""
+    query = select(Draft).where(Draft.is_active == True)
+    if status:
+        query = query.where(Draft.status == status)
+    if category:
+        query = query.where(Draft.category == category)
+    query = query.order_by(Draft.created_at.desc()).limit(10000)
+    result = await db.execute(query)
+    drafts = result.scalars().all()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "底稿记录"
+
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill("solid", fgColor="1677FF")
+    header_align = Alignment(horizontal="center", vertical="center")
+    thin_border = Border(
+        left=Side(style="thin"), right=Side(style="thin"),
+        top=Side(style="thin"), bottom=Side(style="thin")
+    )
+
+    headers = [
+        "标题", "类别", "问题类型", "严重程度", "证据摘要",
+        "状态", "初审意见", "终审意见",
+        "创建时间",
+    ]
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        cell.border = thin_border
+
+    for d in drafts:
+        created = d.created_at.strftime('%Y-%m-%d %H:%M') if d.created_at else ""
+        ws.append([
+            d.title or "",
+            d.category or "",
+            d.problem_type or "",
+            SEVERITY_LABELS.get(d.severity, d.severity or ""),
+            d.evidence_summary or "",
+            STATUS_LABELS.get(d.status, d.status or ""),
+            d.preliminary_review_comment or "",
+            d.final_review_comment or "",
+            created,
+        ])
+
+    for col in ws.columns:
+        max_len = 0
+        col_letter = col[0].column_letter
+        for cell in col:
+            if cell.value:
+                max_len = max(max_len, len(str(cell.value)))
+        ws.column_dimensions[col_letter].width = min(max_len + 4, 40)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename*=UTF-8''drafts.xlsx"},
     )
 
 

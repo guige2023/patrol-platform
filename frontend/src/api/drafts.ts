@@ -17,3 +17,15 @@ export const submitDraft = (id: string, action: string, comment?: string) =>
 
 export const deleteDraft = (id: string) =>
   api.delete(`/drafts/${id}`);
+
+export const exportDrafts = (params?: { status?: string; category?: string }) => {
+  return api.get('/drafts/download', { params, responseType: 'blob' }).then(res => {
+    const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'drafts.xlsx';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  });
+};
