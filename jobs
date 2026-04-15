@@ -24,15 +24,31 @@
 - ✅ **g2** CreateGroupModal.tsx：`renderStep2` 过滤 `allUnits` 为 `selectedPlan.target_units` 内的单位。`planUnits = allUnits.filter(u => targetUnitIds.includes(u.id))`。
 - ✅ **g3** CreateGroupModal.tsx：`handleStep1Next` 在 advance 前调用 `setSelectedUnitIds([])`、`setSelectedMemberIds([])` 清空 step2/3 状态，防止残留数据。
 
-### 巡察计划管理 - 代码分析（未动手）
-- 🔍 PlanList 仅有"查看"，无编辑/删除按钮（p-edit-1、p-edit-6）
-- 🔍 PlanResponse 缺 target_units/version_history/created_by 等字段（p-edit-5）
-- 🔍 CreatePlanModal step3 payload 缺 target_units（p-edit-4）
-- 🔍 focus_areas 编辑模式转换未经 UI 验证（p-edit-2）
+---
 
-### 巡察组管理 - 代码分析（未动手）
-- 🔍 GroupUpdate schema 无 unit_ids 字段，编辑时单位被静默丢弃（g-edit-2）
-- 🔍 成员替换为非原子操作，remove 失败无 rollback（p-data-1）
-- 🔍 GroupMember 无唯一约束，可重复添加同一干部（g-data-1）
-- 🔍 GroupList 无删除按钮（g-edit-1）
-- 🔍 authorization_letter/authorization_date 字段无人认领
+## 2026-04-15 第二批 Bug 修复（第二轮）
+
+### 巡察计划 - UI 修复
+- ✅ **p-edit-1** PlanList.tsx：补"编辑"按钮（openEditModal）和"删除"按钮（handleDelete + Popconfirm），import `deletePlan` + `Popconfirm`；api/plans.ts 补 `deletePlan(id)`。
+- ✅ **p-edit-2** PlanDetail.tsx：编辑模式加载时 focus_areas 数组→字符串转换（`formData.focus_areas = res.focus_areas.join('、')`），移除 status/version 可编辑字段，移除 version 输入框。
+- ✅ **p-edit-5** plan.py PlanResponse schema：补全 `version_history: Optional[list]`、`approved_by: Optional[UUID]`、`updated_at: Optional[datetime]`；PlanBase 已有 `target_units`。
+- ✅ **p-data-3** PlanDetail.tsx 编辑模式：移除 status 下拉框（状态走流程按钮，不允许手动编辑）。
+- ✅ **p-flow-2** PlanDetail.tsx 查看模式：加"变更记录"展示项（version_history 列表遍历显示）。
+
+### 巡察组 - UI 修复
+- ✅ **g-edit-1** GroupList.tsx：补"删除"按钮（handleDelete + Popconfirm），import `deleteGroup` + `Row` + `Col`；api/groups.ts 补 `deleteGroup(id)`。
+- ✅ **g-flow-3** GroupList.tsx：加 plan_id（Select 筛选）+ status（Select 筛选）筛选器，`getGroups({ plan_id, status })` 传参，`loadPlanOptions()` 加载计划下拉选项。
+
+### 巡察组 - 后端修复
+- ✅ **g-data-3** groups.py add_member：加去重校验（`SELECT WHERE group_id AND cadre_id` 查重，已测 400 错误"该干部已在巡察组中，请勿重复添加"）。
+- ✅ **g-data-4** groups.py create_group：加组长副组长互斥校验（`leader_id == vice_leader_id` → 400 错误"组长与副组长不可为同一人"）。
+- ✅ **g-data-1** migrate_add_fields.py：加 `CREATE UNIQUE INDEX idx_group_member_unique ON group_members(group_id, cadre_id)`（SQLite），PostgreSQL 加 `ADD CONSTRAINT group_member_unique UNIQUE (group_id, cadre_id)`。
+- ✅ **g-edit-2** GroupUpdate schema + InspectionGroup model：加 `unit_ids: Optional[List[UUID]]`，加 `unit_ids = Column(JSON, default=list)`；migration 加 `ALTER TABLE inspection_groups ADD COLUMN unit_ids JSON`；GET /groups/{id} 返回 `"unit_ids": group.unit_ids or []`。
+- ✅ **g-flow-4** GroupDetail.tsx：import `submitGroup`；加 `handleSubmitGroup()`；footer view 模式下 draft 状态加"提交审批"按钮。
+
+### 后端验证结果
+- `GET /plans/` → 正常返回 5 个计划
+- `GET /plans/{id}` → 返回完整字段（含 version_history, approved_by, updated_at）
+- `POST /groups/{id}/members` → 首次添加成功，再次添加同干部 → 400 "该干部已在巡察组中，请勿重复添加"
+- `GET /groups/{id}` → 返回 `unit_ids` 字段
+- Migration 成功：inspection_groups.unit_ids 字段、group_members 唯一索引均已创建
