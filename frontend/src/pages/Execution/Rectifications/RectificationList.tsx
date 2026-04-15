@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Table, Button, Space, Tag, Progress, message } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
-import { getRectifications, signRectification, verifyRectification } from '@/api/rectifications';
+import { getRectifications, signRectification, verifyRectification, exportRectifications } from '@/api/rectifications';
 import RectificationModal from './RectificationModal';
 import type { ColumnsType } from 'antd/es/table';
 import { getErrorMessage } from '@/utils/error';
@@ -123,7 +123,8 @@ const RectificationList: React.FC = () => {
     <div>
       <PageHeader title="整改督办" breadcrumbs={[{ name: '执纪执行' }, { name: '整改督办' }]} />
       <div style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => { setRectificationId(null); setModalOpen(true); }}>派发整改</Button>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => { setRectificationId(null); setModalOpen(true); }} style={{ marginRight: 8 }}>派发整改</Button>
+        <Button onClick={() => exportRectifications().catch(e => message.error('导出失败'))}>导出</Button>
       </div>
       <Table columns={columns} dataSource={data} rowKey="id" loading={loading}
         pagination={{ current: page, pageSize, total, onChange: (p, ps) => { setPage(p); setPageSize(ps); }, showTotal: (t) => `共 ${t} 条` }} />
