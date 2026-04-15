@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Table, Button, Space, Modal, message, Upload, List, Alert } from 'antd';
+import { Table, Button, Space, Modal, message, Upload, List, Alert, Popconfirm } from 'antd';
 import { PlusOutlined, UploadOutlined, DownloadOutlined } from '@ant-design/icons';
+import type { Key } from 'antd/es/table/interface';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '@/components/common/PageHeader';
 import SearchForm from '@/components/common/SearchForm';
-import { getCadres, deleteCadre, importCadres, exportCadres, downloadCadreTemplate } from '@/api/cadres';
+import { getCadres, deleteCadre, importCadres, exportCadres, downloadCadreTemplate, batchDeleteCadres } from '@/api/cadres';
 import { getUnits } from '@/api/units';
 import CadreModal from './CadreModal';
 import type { ColumnsType } from 'antd/es/table';
@@ -37,6 +38,7 @@ const CadreList: React.FC = () => {
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   // All units for unit name lookup
   const [allUnits, setAllUnits] = useState<{ id: string; name: string }[]>([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([]);
 
   const fetchUnits = async () => {
     try {
@@ -73,6 +75,18 @@ const CadreList: React.FC = () => {
         message.error(getErrorMessage(e) || '删除失败');
       }
     }});
+  };
+
+  const handleBatchDelete = async () => {
+    if (!selectedRowKeys.length) return;
+    try {
+      await batchDeleteCadres(selectedRowKeys as string[]);
+      message.success('批量删除成功');
+      setSelectedRowKeys([]);
+      fetchData();
+    } catch (e: any) {
+      message.error(getErrorMessage(e) || '批量删除失败');
+    }
   };
 
   const unitNameMap = useMemo(() => {
@@ -167,6 +181,11 @@ const CadreList: React.FC = () => {
           >
             导出
           </Button>
+          {selectedRowKeys.length > 0 && (
+            <Popconfirm title={`确认删除选中的 ${selectedRowKeys.length} 名干部？`} onConfirm={handleBatchDelete}>
+              <Button danger>批量删除（{selectedRowKeys.length}）</Button>
+            </Popconfirm>
+          )}
         </Space>
       </div>
       <Table
@@ -174,6 +193,7 @@ const CadreList: React.FC = () => {
         dataSource={data}
         rowKey="id"
         loading={loading}
+        rowSelection={{ selectedRowKeys, onChange: (keys) => setSelectedRowKeys(keys) }}
         pagination={{
           current: page,
           pageSize,

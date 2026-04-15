@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Tag, Modal, message } from 'antd';
+import { Table, Button, Space, Tag, Modal, message, Popconfirm } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
+import type { Key } from 'antd/es/table/interface';
 import PageHeader from '@/components/common/PageHeader';
 import SearchForm from '@/components/common/SearchForm';
-import { getDrafts, submitDraft, deleteDraft, exportDrafts } from '@/api/drafts';
+import { getDrafts, submitDraft, deleteDraft, exportDrafts, batchDeleteDrafts } from '@/api/drafts';
 import DraftDetail from './DraftDetail';
 import type { ColumnsType } from 'antd/es/table';
 import { getErrorMessage } from '@/utils/error';
@@ -43,6 +44,7 @@ const DraftList: React.FC = () => {
   const [searchParams, setSearchParams] = useState<any>({});
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -79,6 +81,18 @@ const DraftList: React.FC = () => {
         fetchData();
       },
     });
+  };
+
+  const handleBatchDelete = async () => {
+    if (!selectedRowKeys.length) return;
+    try {
+      await batchDeleteDrafts(selectedRowKeys as string[]);
+      message.success('批量删除成功');
+      setSelectedRowKeys([]);
+      fetchData();
+    } catch (e: any) {
+      message.error(getErrorMessage(e) || '批量删除失败');
+    }
   };
 
   const openCreateModal = () => {
@@ -125,10 +139,21 @@ const DraftList: React.FC = () => {
       />
       <div style={{ marginBottom: 16 }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal} style={{ marginRight: 8 }}>新建底稿</Button>
-        <Button onClick={() => exportDrafts().catch(() => message.error('导出失败'))}>导出</Button>
+        <Button onClick={() => exportDrafts().catch(() => message.error('导出失败'))} style={{ marginRight: 8 }}>导出</Button>
+        {selectedRowKeys.length > 0 && (
+          <Popconfirm title={`确认删除选中的 ${selectedRowKeys.length} 条底稿？`} onConfirm={handleBatchDelete}>
+            <Button danger>批量删除（{selectedRowKeys.length}）</Button>
+          </Popconfirm>
+        )}
       </div>
-      <Table columns={columns} dataSource={data} rowKey="id" loading={loading}
-        pagination={{ current: page, pageSize, total, onChange: (p, ps) => { setPage(p); setPageSize(ps); }, showTotal: (t) => `共 ${t} 条` }} />
+      <Table
+        columns={columns}
+        dataSource={data}
+        rowKey="id"
+        loading={loading}
+        rowSelection={{ selectedRowKeys, onChange: (keys) => setSelectedRowKeys(keys) }}
+        pagination={{ current: page, pageSize, total, onChange: (p, ps) => { setPage(p); setPageSize(ps); }, showTotal: (t) => `共 ${t} 条` }}
+      />
       <DraftDetail
         open={detailModalOpen}
         editingId={editingId}

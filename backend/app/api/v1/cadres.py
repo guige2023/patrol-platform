@@ -257,6 +257,29 @@ async def delete_cadre(cadre_id: UUID, db: AsyncSession = Depends(get_db), curre
     return {"message": "Cadre deleted"}
 
 
+@router.post("/batch-delete")
+async def batch_delete_cadres(
+    ids: List[UUID],
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Soft-delete multiple cadres at once."""
+    if not ids:
+        raise HTTPException(status_code=400, detail="No IDs provided")
+    result = await db.execute(
+        select(Cadre).where(Cadre.id.in_(ids), Cadre.is_active == True)
+    )
+    cadres = result.scalars().all()
+    if not cadres:
+        raise HTTPException(status_code=404, detail="No cadres found")
+    for c in cadres:
+        c.is_active = False
+    await db.commit()
+    for c in cadres:
+        await write_audit_log(db, current_user.id, "delete", "cadre", c.id, {"name": c.name})
+    return {"message": f"{len(cadres)} cadres deleted"}
+
+
 @router.get("/{cadre_id}/id-card/masked")
 async def get_masked_id_card(cadre_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(select(Cadre).where(Cadre.id == cadre_id))

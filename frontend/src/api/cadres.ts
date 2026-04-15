@@ -42,3 +42,6 @@ export const exportCadres = () =>
 
 export const getCadreGroups = (cadreId: string) =>
   api.get(`/cadres/${cadreId}/groups`).then(res => res.data);
+
+export const batchDeleteCadres = (ids: string[]) =>
+  api.post('/cadres/batch-delete', ids);

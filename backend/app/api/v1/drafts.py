@@ -240,3 +240,26 @@ async def delete_draft(draft_id: UUID, db: AsyncSession = Depends(get_db), curre
     await db.commit()
     await write_audit_log(db, current_user.id, "delete", "draft", draft_id, {})
     return {"message": "Draft deleted"}
+
+
+@router.post("/batch-delete")
+async def batch_delete_drafts(
+    ids: List[UUID],
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Soft-delete multiple drafts at once."""
+    if not ids:
+        raise HTTPException(status_code=400, detail="No IDs provided")
+    result = await db.execute(
+        select(Draft).where(Draft.id.in_(ids), Draft.is_active == True)
+    )
+    drafts = result.scalars().all()
+    if not drafts:
+        raise HTTPException(status_code=404, detail="No drafts found")
+    for d in drafts:
+        d.is_active = False
+    await db.commit()
+    for d in drafts:
+        await write_audit_log(db, current_user.id, "delete", "draft", d.id, {"title": d.title})
+    return {"message": f"{len(drafts)} drafts deleted"}
