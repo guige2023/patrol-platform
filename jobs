@@ -2,53 +2,50 @@
 
 ---
 
-## 2026-04-15 巡察平台 Bug 修复批次
+## 2026-04-15 第一批 Bug 修复
 
 ### 单位档案 (UnitList)
-- ✅ **u1** UnitList.tsx：`handleDelete` 删除成功后调用 `setPage(1)` 重置页码。验证：第 2 页删除，页码回到第 1 页。
+- ✅ **u1** UnitList.tsx：`handleDelete` 删除成功后调用 `setPage(1)` 重置页码。
 
 ### 干部人才 (CadreModal)
-- ✅ **c1** CadreModal.tsx：重写 `handleSwitchToEdit`，使用 `form.useForm()` 实例 + `editingSwitchLoading` 状态控制。修复切换时数据未填充就显示编辑模式的竞态问题。
+- ✅ **c1** CadreModal.tsx：重写 `handleSwitchToEdit`，使用 `form.useForm()` 实例 + `editingSwitchLoading` 状态控制。
 
 ### 巡察计划 (Plan)
-- ✅ **p1** PlanDetail.tsx：`handleSubmit` 中 `focus_areas` 字符串 split 转换（支持 `/[,，,\n]/` 分隔），`renderViewMode` 用 `.join('、')` 显示数组。
-- ✅ **p2/p4** 数据库 migration：给 plans 表加 `round_number INTEGER` 和 `authorization_date DATETIME` 字段（SQLite ALTER TABLE）。
-- ✅ **p2/p4** Plan 模型：加 `round_number = Column(Integer, nullable=True)` 和 `authorization_date = Column(DateTime, nullable=True)`。
-- ✅ **p2/p4** PlanSchema：`PlanBase` 加 `round_number: Optional[int]`，`PlanBase` 加 `authorization_date: Optional[datetime]`，`PlanUpdate` 加 `round_number: Optional[int]`（已有 authorization_date）。
-- ✅ **p3** PlanDetail.tsx：编辑弹窗加 `<Form.Item name="target_units">` 隐藏字段，保存时 `if (values.target_units) payload.target_units = values.target_units` 保留原值。
-- ✅ **p5** CreatePlanModal.tsx：`handleConfirmCreate` 的 payload 加 `round_number: previewData.round_number`。
-- ✅ **p5/p6** 验证：API 直接测试 `POST /plans/` 带 `round_number: 3` 和 `authorization_date: '2024-03-01T00:00:00'`，返回 200 且字段正确存储。
-
-### 巡察组 (Group)
-- ✅ **g1** groups.py：新增 `PUT /{group_id}` endpoint，支持更新 name/status/target_unit_id/authorization_letter/authorization_date。
-- ✅ **g2** CreateGroupModal.tsx：`renderStep2` 过滤 `allUnits` 为 `selectedPlan.target_units` 内的单位。`planUnits = allUnits.filter(u => targetUnitIds.includes(u.id))`。
-- ✅ **g3** CreateGroupModal.tsx：`handleStep1Next` 在 advance 前调用 `setSelectedUnitIds([])`、`setSelectedMemberIds([])` 清空 step2/3 状态，防止残留数据。
+- ✅ **p1** PlanDetail.tsx：`handleSubmit` 中 `focus_areas` 字符串 split 转换，`renderViewMode` 用 `.join('、')` 显示数组。
+- ✅ **p2/p4** 数据库 migration：给 plans 表加 `round_number INTEGER` 和 `authorization_date DATETIME` 字段。
+- ✅ **p2/p4** Plan 模型 + schema：加 `round_number` 和 `authorization_date` 字段。
 
 ---
 
-## 2026-04-15 第二批 Bug 修复（第二轮）
+## 2026-04-15 第二批 Bug 修复
 
-### 巡察计划 - UI 修复
-- ✅ **p-edit-1** PlanList.tsx：补"编辑"按钮（openEditModal）和"删除"按钮（handleDelete + Popconfirm），import `deletePlan` + `Popconfirm`；api/plans.ts 补 `deletePlan(id)`。
-- ✅ **p-edit-2** PlanDetail.tsx：编辑模式加载时 focus_areas 数组→字符串转换（`formData.focus_areas = res.focus_areas.join('、')`），移除 status/version 可编辑字段，移除 version 输入框。
-- ✅ **p-edit-5** plan.py PlanResponse schema：补全 `version_history: Optional[list]`、`approved_by: Optional[UUID]`、`updated_at: Optional[datetime]`；PlanBase 已有 `target_units`。
-- ✅ **p-data-3** PlanDetail.tsx 编辑模式：移除 status 下拉框（状态走流程按钮，不允许手动编辑）。
-- ✅ **p-flow-2** PlanDetail.tsx 查看模式：加"变更记录"展示项（version_history 列表遍历显示）。
+### 巡察计划
+- ✅ **p-edit-1** PlanList.tsx：补"编辑"按钮 + "删除"按钮（Popconfirm + deletePlan）
+- ✅ **p-edit-2** PlanDetail.tsx：focus_areas 数组→字符串回填，移除 status/version 可编辑字段
+- ✅ **p-edit-5** plan.py PlanResponse：补 version_history/approved_by/updated_at
+- ✅ **p-data-3** PlanDetail.tsx：编辑模式移除 status 下拉框
+- ✅ **p-flow-2** PlanDetail.tsx：查看模式展示 version_history 变更记录
+- ✅ **p-flow-1** PlanList：补 publish → 开始执行 → 完成 状态按钮，import updatePlanStatus；后端加 POST /plans/{id}/status
+- ✅ **p-flow-4** GET /plans/{id}：加 is_active=True 过滤
+- ✅ **p-list-1** PlanList：加 keyword/name 搜索、status 筛选、year 筛选
 
-### 巡察组 - UI 修复
-- ✅ **g-edit-1** GroupList.tsx：补"删除"按钮（handleDelete + Popconfirm），import `deleteGroup` + `Row` + `Col`；api/groups.ts 补 `deleteGroup(id)`。
-- ✅ **g-flow-3** GroupList.tsx：加 plan_id（Select 筛选）+ status（Select 筛选）筛选器，`getGroups({ plan_id, status })` 传参，`loadPlanOptions()` 加载计划下拉选项。
+### 巡察组
+- ✅ **g-edit-1** GroupList.tsx：补"删除"按钮（handleDelete + Popconfirm + deleteGroup）
+- ✅ **g-edit-2** GroupUpdate schema + model：补 unit_ids（JSON），migration 加字段，GET /groups/{id} 返回 unit_ids
+- ✅ **g-flow-3** GroupList.tsx：加 plan_id 和 status 筛选器
+- ✅ **g-flow-4** GroupDetail.tsx：加 handleSubmitGroup + "提交审批"按钮（draft 状态显示）
+- ✅ **g-flow-2** GroupDetail.tsx：加 authorization_letter + authorization_date 编辑字段（Form）和展示（Descriptions）
+- ✅ **g-data-1** migration：group_members (group_id, cadre_id) 唯一索引
+- ✅ **g-data-3** groups.py add_member：去重校验（400 已测）
+- ✅ **g-data-4** groups.py create_group：leader/vice 互斥校验（400 已测）
+- ✅ **p-data-1** groups.py：加 PUT /{group_id}/members 原子全量替换 endpoint（先删后插，已测）
 
-### 巡察组 - 后端修复
-- ✅ **g-data-3** groups.py add_member：加去重校验（`SELECT WHERE group_id AND cadre_id` 查重，已测 400 错误"该干部已在巡察组中，请勿重复添加"）。
-- ✅ **g-data-4** groups.py create_group：加组长副组长互斥校验（`leader_id == vice_leader_id` → 400 错误"组长与副组长不可为同一人"）。
-- ✅ **g-data-1** migrate_add_fields.py：加 `CREATE UNIQUE INDEX idx_group_member_unique ON group_members(group_id, cadre_id)`（SQLite），PostgreSQL 加 `ADD CONSTRAINT group_member_unique UNIQUE (group_id, cadre_id)`。
-- ✅ **g-edit-2** GroupUpdate schema + InspectionGroup model：加 `unit_ids: Optional[List[UUID]]`，加 `unit_ids = Column(JSON, default=list)`；migration 加 `ALTER TABLE inspection_groups ADD COLUMN unit_ids JSON`；GET /groups/{id} 返回 `"unit_ids": group.unit_ids or []`。
-- ✅ **g-flow-4** GroupDetail.tsx：import `submitGroup`；加 `handleSubmitGroup()`；footer view 模式下 draft 状态加"提交审批"按钮。
-
-### 后端验证结果
-- `GET /plans/` → 正常返回 5 个计划
-- `GET /plans/{id}` → 返回完整字段（含 version_history, approved_by, updated_at）
-- `POST /groups/{id}/members` → 首次添加成功，再次添加同干部 → 400 "该干部已在巡察组中，请勿重复添加"
-- `GET /groups/{id}` → 返回 `unit_ids` 字段
-- Migration 成功：inspection_groups.unit_ids 字段、group_members 唯一索引均已创建
+### 验证结果
+- `GET /plans/` → 正常返回 plans
+- `GET /plans/{id}` → 含 version_history, approved_by, updated_at, target_units
+- `POST /groups/{id}/members` 去重 → 400 "该干部已在巡察组中，请勿重复添加" ✅
+- `PUT /groups/{id}/members` 原子替换 → 200 "Members replaced (1 total)" ✅
+- `POST /plans/{id}/status` 正确拦截 → 400 "当前状态(draft)不可切换至in_progress" ✅
+- `GET /groups/{id}` → 返回 unit_ids 字段 ✅
+- Migration 成功：inspection_groups.unit_ids + group_members 唯一索引 ✅
+- 后端 500 → 修复：`str(group_id)` UUID 绑定参数问题 ✅

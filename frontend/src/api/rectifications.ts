@@ -20,3 +20,15 @@ export const signRectification = (id: string) =>
 
 export const verifyRectification = (id: string, comment?: string) =>
   api.post(`/rectifications/${id}/verify`, { comment });
+
+export const exportRectifications = (params?: { status?: string; alert_level?: string }) => {
+  return api.get('/rectifications/download', { params, responseType: 'blob' }).then(res => {
+    const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'rectifications.xlsx';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  });
+};

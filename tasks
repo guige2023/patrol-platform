@@ -1,56 +1,50 @@
 # patrol_platform 开发任务
 
-## 第一批次：阻断性 Bug 修复（必须先修）
+## 第一批次：阻断性 Bug 修复
 
 ### 巡察计划 - 基础功能修复
-- [ ] **p-edit-3** PlanDetail 编辑模式：验证 target_units 从 PlanResponse 回填 + 保存时通过隐藏字段保留（需前端 UI 手动测试确认）
-- [ ] **p-edit-4** CreatePlanModal step3 确认 payload 包含 `target_units: selectedUnitIds[]`（代码已确认 ✅）
+- [x] ~~**p-edit-1**~~ ✅ PlanList 补"编辑"按钮 + "删除"按钮
+- [x] ~~**p-edit-2**~~ ✅ PlanDetail focus_areas 数组↔字符串转换，移除 status/version 编辑字段
+- [x] ~~**p-edit-5**~~ ✅ PlanResponse 补 version_history/approved_by/updated_at
+- [x] ~~**p-list-1**~~ ✅ PlanList 加 keyword/name 搜索、status 筛选、year 筛选
 
 ### 巡察组 - 基础功能修复
-- [ ] **g-edit-3** GroupDetail 编辑模式：验证修改单位后 unit_ids 确实被保存（需前端 UI 手动测试确认）
+- [x] ~~**g-edit-1**~~ ✅ GroupList 补"删除"按钮
+- [x] ~~**g-edit-2**~~ ✅ GroupUpdate schema 补 unit_ids，model 补 unit_ids 字段
 
 ---
 
 ## 第二批次：数据一致性修复
 
 ### 巡察计划
-- [ ] **p-data-1** 成员替换（replace member）做成原子操作：后端新增 `PUT /groups/{id}/members` 全量替换 endpoint，前端改用这个接口
-- [ ] **p-data-2** PlanList 操作列：publish 按钮补上（approved 状态显示）— 代码已确认有 ✅
+- [x] ~~**p-data-1**~~ ✅ 后端 PUT /groups/{id}/members 全量替换 endpoint（原子操作）
+- [x] ~~**p-data-3**~~ ✅ PlanDetail 编辑模式禁止修改 status
 
 ### 巡察组
-- [ ] **g-data-2** GroupDetail 成员列表：每个成员行加"移除"按钮（代码已有 ✅，需 UI 验证）
+- [x] ~~**g-data-1**~~ ✅ GroupMember (group_id, cadre_id) 唯一约束
+- [x] ~~**g-data-3**~~ ✅ add_member 去重校验
+- [x] ~~**g-data-4**~~ ✅ leader/vice 互斥校验
 
 ---
 
 ## 第三批次：流程完整性与展示增强
 
 ### 巡察计划
-- [ ] **p-flow-1** PlanList：IN_PROGRESS / COMPLETED 状态按钮补上，POST /plans/{id}/status 切换
-- [ ] **p-flow-3** 授权书/授权日期字段：PlanDetail 表单加这两个字段（代码已有 ✅，需 UI 验证）
-- [ ] **p-flow-4** get_plan endpoint 加上 `is_active=True` 过滤，保持与列表行为一致
+- [x] ~~**p-flow-1**~~ ✅ PlanList 状态流转按钮（draft→submit/submitted→approve/approved→publish/published→开始执行/in_progress→完成）+ POST /plans/{id}/status 后端
+- [x] ~~**p-flow-2**~~ ✅ PlanDetail 查看模式展示 version_history
+- [x] ~~**p-flow-4**~~ ✅ GET /plans/{id} 加 is_active=True 过滤
 
 ### 巡察组
-- [ ] **g-flow-1** GroupDetail 成员列表：leader 和 vice_leader 有特殊角色标记（非"组员"）— 代码已有 ✅
-- [ ] **g-flow-2** 授权书/授权日期：GroupDetail 加这两个字段的展示和编辑，后端 GroupResponse 返回这两个字段 — 代码已有 ✅
+- [x] ~~**g-flow-2**~~ ✅ GroupDetail 加 authorization_letter + authorization_date 编辑和展示
+- [x] ~~**g-flow-3**~~ ✅ GroupList 加 plan_id 和 status 筛选器
+- [x] ~~**g-flow-4**~~ ✅ GroupDetail 底部加"提交审批"按钮
 
 ---
 
-## 已完成（代码确认）
+## 待完成（低优先级/需手动验证）
 
-### 第一批次 ✅
-- ✅ **p-edit-1** PlanList 补上"编辑"按钮 + "删除"按钮，deletePlan API
-- ✅ **p-edit-2** PlanDetail focus_areas 数组↔字符串双向转换，移除 status/version 可编辑字段
-- ✅ **p-edit-5** PlanResponse 补全 version_history/approved_by/updated_at
-- ✅ **g-edit-1** GroupList 补上"删除"按钮
-- ✅ **g-edit-2** GroupUpdate schema 补 unit_ids，InspectionGroup model 补 unit_ids 字段，migration 加字段，GET /groups/{id} 返回 unit_ids
-
-### 第二批次 ✅
-- ✅ **p-data-3** PlanDetail 编辑模式禁止修改 status（状态走流程按钮）
-- ✅ **g-data-1** GroupMember (group_id, cadre_id) 唯一约束 migration
-- ✅ **g-data-3** 后端 add_member endpoint 去重校验（已测试验证）
-- ✅ **g-data-4** vice_leader_id 与 leader_id 互斥校验
-
-### 第三批次 ✅
-- ✅ **p-flow-2** PlanDetail 查看模式展示 version_history
-- ✅ **g-flow-3** GroupList 加 plan_id 和 status 筛选器
-- ✅ **g-flow-4** GroupDetail 底部加"提交审批"按钮（draft 状态显示）
+- [ ] **p-edit-3** PlanDetail 编辑模式：验证 target_units 回填 + 保存（需 UI 操作）
+- [ ] **g-edit-3** GroupDetail 编辑模式：验证修改单位后 unit_ids 保存（需 UI 操作）
+- [ ] **p-flow-3** PlanDetail 授权书字段：后端 Plan 模型已有字段，前端 UI 验证
+- [ ] **g-data-2** GroupDetail 成员列表"移除"按钮：代码已有 ✅，需 UI 验证
+- [ ] **g-flow-1** GroupDetail 成员列表 leader/vice 特殊标记：代码已有 ✅
