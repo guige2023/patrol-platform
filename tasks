@@ -41,6 +41,33 @@
 
 ---
 
+---
+
+## 批次4：整改流程 + 角色管理 + TS清理
+
+### 整改流程
+- [x] ✅ POST /rectifications/{id}/submit 端点（completed→submitted 待验收）
+- [x] ✅ 前端「提交验收」按钮（completed 状态显示）
+- [x] ✅ 前端「审核验收」按钮（submitted 状态显示）
+- [x] ✅ 整改状态链：dispatched→signed→progressing→completed→submitted→verified
+
+### 角色管理
+- [x] ✅ 后端 /admin/roles GET/POST/PUT/DELETE + /admin/permissions GET
+- [x] ✅ 前端 RoleList.tsx（角色列表 + 权限标签展示）
+- [x] ✅ 前端 RoleModal.tsx（新建/编辑角色表单 + 权限复选框）
+- [x] ✅ 路由 /admin/roles → RoleList + 侧边栏菜单入口
+
+### TypeScript 构建修复
+- [x] ✅ PlanDetail：移除未用 Select/STATUS_OPTIONS，加 version_history
+- [x] ✅ plans.ts：getPlans 加 name 参数（后端已支持 keyword 过滤）
+- [x] ✅ CreateGroupModal：PlanOption 加 target_units
+- [x] ✅ GroupList：移除未用 Row/Col import
+- [x] ✅ 所有 export 按钮：catch(e=>) 改为 catch(()=>)
+- [x] ✅ RoleModal：移除未用 Permission 接口 + permissions state + getPermissions
+- [x] ✅ Login：AxiosResponse 经 unknown 中转访问 access_token
+
+---
+
 ## 待完成（低优先级/需手动验证）
 
 - [ ] **p-edit-3** PlanDetail 编辑模式：验证 target_units 回填 + 保存（需 UI 操作）
