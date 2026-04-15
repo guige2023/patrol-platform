@@ -1,771 +1,632 @@
 # 巡察工作管理平台 — 桌面端离线部署方案（定稿版）
 
-## 目标
+## 定位
 
-将现有巡察工作管理平台改造为**桌面端离线应用**，部署在政府内网单台服务器上，
-其他科室电脑通过局域网浏览器访问。完全离线、内网部署、无外部依赖。
+**巡察工作全生命周期管理平台** — 所有工作均在系统内完成，
+涉及外部单位和个人的，通过导出/导入 Excel 模板解决，确保数据完整及时更新。
 
-## 最终交付物
-
-- Windows：一键安装程序 `巡察工作管理平台Setup.exe`
-- Mac：DMG 安装包
-- 双击安装 → 自动启动后端 + 打开应用窗口
-- 其他科室电脑浏览器 `http://服务器IP:18800` 即可使用
+```
+外部单位/个人 → 下载模板 → 填写 → 导入系统 → 系统统计展示 + 预警
+```
 
 ---
 
 ## 部署拓扑
 
 ```
-┌─────────────────────────────────────────────────┐
-│  政府内网服务器（单机部署）                        │
-│  ┌──────────────────────────────────────────┐  │
-│  │  巡察工作管理平台                            │  │
-│  │  ├── FastAPI 后端（0.0.0.0:18800）         │  │
-│  │  ├── SQLite 数据库（SQLCipher 加密）        │  │
-│  │  └── Electron 窗口（前端 React）            │  │
-│  └──────────────────────────────────────────┘  │
-│  局域网：http://192.168.1.x:18800（所有路径）     │
-└─────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  政府内网服务器（单机部署）                                    │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │  巡察工作管理平台（Electron 桌面应用）                  │  │
+│  │  ├── FastAPI 后端（0.0.0.0:18800）                   │  │
+│  │  ├── SQLite 数据库（SQLCipher 加密）                   │  │
+│  │  ├── 预警引擎（APScheduler 每日扫描）                  │  │
+│  │  └── Electron 窗口（前端 React）                      │  │
+│  └────────────────────────────────────────────────────┘  │
+│                                                             │
+│  局域网：http://192.168.1.x:18800                          │
+└─────────────────────────────────────────────────────────────┘
            ▲
            │  局域网 HTTP 访问（多用户）
            │
-  ┌──────────────────────────────────────────┐
-  │  科室电脑 A → 浏览器登录账户 A               │
-  │  科室电脑 B → 浏览器登录账户 B               │
-  │  科室电脑 C → 浏览器登录账户 C               │
-  └──────────────────────────────────────────┘
+  ┌─────────────────────────────────────────────────────┐
+  │  科室电脑 A → 浏览器登录账户 A                          │
+  │  科室电脑 B → 浏览器登录账户 B                          │
+  │  外部单位 → 下载模板 → 填写 → 导入系统                  │
+  └─────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 用户确认需求汇总
+## 确认需求清单
 
 | 需求 | 确认 |
 |------|------|
-| 多账户独立登录，平等权限（无审批/层级） | ✅ |
-| SQLite 数据库加密存储 | ✅ |
-| 巡察报告、整改通知书本地打印 | ✅ |
+| 多账户独立登录，平等权限（无审批层级） | ✅ |
+| SQLite 数据库加密存储（SQLCipher）| ✅ |
+| 巡察公告、成立巡察组通知、部署会通知、反馈意见、整改通知书本地打印 | ✅（去掉巡察报告） |
 | Excel 批量导入（计划/干部/单位） | ✅ |
-| 操作日志（审计）| ✅ |
+| 操作日志（审计日志）| ✅ |
 | 无自动更新推送 | ✅ |
+| 巡察组有组长 + 副组长（不只是组长）| ✅ |
+| 时间节点在系统配置里可灵活修改 | ✅ |
+| 首页数据看板（全面反映巡察情况）| ✅ |
+| 整改情况由被巡察单位按模板填报后导入系统 | ✅ |
+| 局域网部署，多用户访问 | ✅ |
+| 所有工作都在系统内完成，外部数据通过模板导入 | ✅ |
 
 ---
 
 ## Phase 0：功能简化（先做）
 
-**目标**：砍掉审批流程 + 清理 RBAC，保留审计日志。
+### Step 0.1：巡察计划状态简化为两态
 
-### Step 0.1：简化状态机
+- 去掉：提交审批、批准、发布等步骤
+- 保留：草稿 ↔ 正式（启用/停用）
+- `is_active=True` 即正式状态
 
-删除所有"提交/审批/发布"步骤，简化为两态：
+### Step 0.2：巡察组增加副组长字段
 
-| 模块 | 旧状态 | 新状态 |
-|------|--------|--------|
-| 巡察计划 | draft → submitted → approved → published → in_progress → completed | **草稿 ↔ 正式** |
-| 巡察组 | draft → submitted → approved | **草稿 ↔ 正式** |
-| 整改 | rectifying → submitted → verified | **整改中 ↔ 已完成** |
-| 巡察底稿 | 无状态流程 | 无变化 |
+**后端**：
+```python
+# backend/app/models/inspection_group.py
+class InspectionGroup(Base):
+    leader_id: Mapped[UUID]      # 组长
+    deputy_leader_id: Mapped[UUID]  # 副组长（新增）
+    members: Mapped[List["GroupMember"]]
+```
 
-**前端改动**：
-- `PlanList.tsx`：删除"提交审批/批准/发布"按钮；只剩"编辑/删除"；加一个"启用/停用"切换开关
-- `PlanDetail.tsx`：删除"提交审批"按钮；状态字段改为简单开关
-- `GroupList.tsx`：同上
-- `GroupDetail.tsx`：同上
-- `RectificationList.tsx`：删除"提交验收"按钮；只剩"编辑/删除"和"完成"按钮
-- 各列表的 `status` 筛选器：只保留相关两态选项
+**前端**：GroupDetail/GroupList 显示组长 + 副组长
 
-**后端改动**：
-- `plans.py`：`POST /plans/{id}/status`（Phase 3 加的）→ 改为 `PATCH /plans/{id}` 直接更新 `is_active` 字段，不再走发布流程
-- `groups.py`：同上逻辑
-- `rectifications.py`：删除 `submit/` 端点；`status` 字段简化为 `rectifying` / `completed`
+### Step 0.3：砍 RBAC 复杂权限
 
-### Step 0.2：砍掉 RBAC 复杂权限
-
-**删除内容**：
-- 用户管理页面（`Admin/Users/`）：保留，但只有 admin 自己可以改密码
-- 角色管理页面（`Admin/Roles/`）：删除，合并为简单"账户管理"
-- 权限管理（`Admin/Modules/`）：删除
-- `Admin/Audit/` 审计日志：保留（**用户要求保留**）
-- `rbac.py` 装饰器：`require_permissions` 相关代码保留但不再使用
-- `dependencies.py`：`get_current_user` 保留（登录认证用），但去掉权限层级判断
-
-**保留内容**：
-- 用户登录认证（JWT）
-- 每个账户独立操作（审计日志记"谁干了什么"）
-- 审计日志：谁在什么时间改了什么（**保留**）
-
-**数据模型**：
-- `User` 表：保留 `id/username/password`，删除 `role/permissions` 列
-- `AuditLog` 表：保留（记录 `user_id/action/entity_type/entity_id/details/timestamp`）
-
-### Step 0.3：前端简化
-
-- 删除 `Admin/Users/` 里的"新增用户/删除用户"功能 → 只保留 admin 自己改密码
-- 删除 `Admin/Roles/` 整个页面
-- 删除 `Admin/Modules/` 整个页面
-- 删除 `Admin/Audit/` 里的"角色变更/权限变更"过滤条件（已无意义）
-- 删除顶部导航栏里的"系统管理"下的角色/权限子菜单
+- 删除：角色管理页面、权限配置页面
+- 保留：账户管理（改密码）、审计日志
+- 用户平等权限，不分超管/审核员/普通用户
 
 ---
 
-## Phase 1：数据库加密（SQLCipher）（4-5 小时）
+## Phase 1：数据库加密（SQLCipher）
 
-**目标**：SQLite 数据库文件加密存储，即使硬盘被拿走也无法读取数据。
+同原方案，用户首次启动设置数据库密码，存储在 `~/.patrol-platform/config.json`。
 
-### 方案选择：SQLCipher
+---
 
-使用 `SQLCipher`（OpenSSL 扩展的 SQLite），通过 `pysqlcipher3` Python 绑定。
+## Phase 2：系统配置模块（核心新增）
 
-**优点**：
-- 数据库文件完全加密（.db 文件本身是密文）
-- 加密密钥由用户设置，不存储在代码里
-- 与 SQLAlchemy 无缝集成（换驱动 + 加参数）
-- 符合政府等保要求
+**目标**：将所有时间节点做成可配置项，用户随时修改。
 
-### Step 1.1：后端依赖变更
-
-```bash
-# backend/requirements.txt
-# 删除: sqlalchemy[asyncio]
-# 新增: sqlalchemy[asyncio] pysqlcipher3
-```
-
-```txt
-# requirements.txt
-fastapi>=0.100.0
-uvicorn[standard]>=0.23.0
-pysqlcipher3>=1.0.4
-sqlalchemy[asyncio]>=2.0.0
-pydantic>=2.0.0
-pydantic-settings>=2.0.0
-python-jose[cryptography]>=3.3.0
-passlib[bcrypt]>=1.7.4
-python-multipart>=0.0.6
-openpyxl>=3.1.0
-aiofiles>=23.0.0
-apscheduler>=3.10.0
-email-validator>=2.0.0
-```
-
-### Step 1.2：数据库连接配置
+### 2.1 配置数据模型
 
 ```python
-# backend/app/config.py 新增
-@dataclass
-class Settings:
-    # 数据库
-    DATABASE_URL: str = "sqlite+pysqlcipher:///:memory:"
-    DB_PASSWORD: str = "patrol_secret_key_2024"  # 用户首次启动时设置
-
-# 连接字符串格式
-# sqlite+pysqlcipher3:///path/to/patrol.db?cipher=aes-256-cbc&kdf_iter=256000
+# backend/app/models/system_config.py
+class SystemConfig(Base):
+    key: str          # 唯一键，如 "regular_inspection_days"
+    value: str        # 值，如 "60"
+    unit: str         # 单位，如 "天"
+    description: str  # 说明，如 "常规巡察每轮天数"
+    category: str     # 分类，如 "巡察配置"
 ```
 
-### Step 1.3：首次启动密码设置
+**预设配置项**：
 
-桌面应用首次启动时，弹出窗口让用户设置数据库密码：
+| 键 | 预设值 | 单位 | 说明 |
+|----|--------|------|------|
+| `regular_inspection_days` | 60 | 天 | 常规巡察每轮天数 |
+| `special_inspection_days` | 30 | 天 | 专项巡察天数 |
+| `supervision_week_min` | 2 | 周 | 进驻后实地督导（第X周开始）|
+| `supervision_week_max` | 3 | 周 | 进驻后实地督导（第X周结束）|
+| `midterm_week` | 6 | 周 | 中期听取报告（第X周）|
+| `rectification_months_min` | 2 | 月 | 整改期限（最短）|
+| `rectification_months_max` | 3 | 月 | 整改期限（最长）|
+| `reinspection_months_min` | 3 | 月 | 整改督查（最短，回头看）|
+| `reinspection_months_max` | 6 | 月 | 整改督查（最长，回头看）|
+
+### 2.2 前端配置页面
+
+`/admin/system-configs` 页面：
 
 ```
-┌────────────────────────────────────────┐
-│  巡察工作管理平台 — 初始化设置           │
-│                                        │
-│  请设置数据库密码（不少于 8 位）：       │
-│  [________________________]            │
-│                                        │
-│  确认密码：                            │
-│  [________________________]            │
-│                                        │
-│  ⚠️  忘记密码将无法恢复数据             │
-│      请妥善保管！                        │
-│                                        │
-│         [ 确认 ]  [ 取消 ]              │
-└────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│  系统配置                                                  │
+│                                                          │
+│  巡察配置                                                 │
+│  ┌────────────────────────────────────────────────────┐ │
+│  │  常规巡察每轮天数   [ 60 ] 天                      │ │
+│  │  专项巡察天数       [ 30 ] 天                      │ │
+│  │  进驻后实地督导    第 [ 2 ] 周 至 第 [ 3 ] 周      │ │
+│  │  中期听取报告       第 [ 6 ] 周                    │ │
+│  └────────────────────────────────────────────────────┘ │
+│                                                          │
+│  整改配置                                                 │
+│  ┌────────────────────────────────────────────────────┐ │
+│  │  整改期限         [ 2 ] 至 [ 3 ] 个月              │ │
+│  │  整改督查（回头看） [ 3 ] 至 [ 6 ] 个月             │ │
+│  └────────────────────────────────────────────────────┘ │
+│                                                          │
+│                    [ 保存配置 ]                          │
+└──────────────────────────────────────────────────────────┘
 ```
 
-**实现方式**：
-- 首次启动检测 `patrol.db` 不存在 → Electron 弹出初始化对话框
-- 用户输入密码 → 写入本地配置文件 `~/.patrol-platform/config.json`（包含加密后的密码 hash）
-- 实际加密密钥 = 用户密码的 PBKDF2 派生值（永不存储明文）
-- 后端启动时读取配置文件获取密钥，启动 SQLCipher 连接
-
-### Step 1.4：密码重置（灾难恢复）
-
-提供命令行工具 `reset_db.py`，用旧密码导出数据，然后重新初始化：
-
-```bash
-python reset_db.py --old-password=xxx --new-password=yyy
-# 导出旧数据 → 创建新加密数据库 → 导入数据
-```
-
-### Step 1.5：验证
-
-```bash
-# 无密码直接打开 db 文件 → 乱码
-sqlite3 patrol.db "SELECT * FROM users;"
-# → file is encrypted or not a database
-
-# 用密码打开 → 正常
-sqlite3 patrol.db "PRAGMA key='your_password'; SELECT * FROM users;"
-```
+用户修改后，预警引擎在下一次扫描时自动使用新配置。
 
 ---
 
-## Phase 2：Excel 批量导入（6-8 小时）
+## Phase 3：巡察全流程状态机
 
-**目标**：支持 Excel 文件批量导入巡察计划、干部信息、单位信息。
+### 3.1 计划/巡察组状态模型
 
-### Step 2.1：干部批量导入
+```python
+class InspectionPhase(str, Enum):
+    # 准备阶段
+    PLANNING = "planning"           # 制定计划中
+    PLAN_APPROVED = "plan_approved" # 计划已制定（正式）
+    # 组建阶段
+    GROUP_FORMING = "group_forming" # 组建巡察组中
+    GROUP_READY = "group_ready"     # 巡察组已就绪
+    # 进驻阶段
+    ANNOUNCING = "announcing"       # 发布巡察公告
+    DEPLOYING = "deploying"         # 召开部署会
+    IN_PROGRESS = "in_progress"     # 巡察进行中
+    # 报告阶段
+    REPORT_DRAFT = "report_draft"   # 撰写报告初稿
+    REPORT_FINAL = "report_final"   # 报告定稿
+    # 反馈阶段
+    FEEDBACK = "feedback"           # 反馈意见
+    # 整改阶段
+    RECTIFYING = "rectifying"       # 整改中
+    RECTIFICATION_DONE = "rectification_done"  # 整改完成
+    REINSPECTION = "reinspection"   # 回头看
+    CLOSED = "closed"               # 归档
+```
 
-**模板格式**（Excel）：
-
-| 姓名 | 性别 | 出生年月 | 民族 | 学历 | 政治面貌 | 工作单位 | 职务 | 职级 | 入编时间 | 联系方式 |
-|------|------|---------|------|------|---------|---------|------|------|---------|---------|
-| 张三 | 男 | 1985-03 | 汉 | 本科 | 中共党员 | 县财政局 | 科员 | 副科 | 2010-07 | 138xxx |
-
-**导入流程**：
-1. 前端 `CadreImportModal.tsx`：上传 Excel → 解析 → 显示预览表格 → 用户确认 → `POST /cadres/import`
-2. 后端 `cadres.py` 新增 `POST /cadres/import`：
-   - `openpyxl` 解析 Excel
-   - 逐行校验（必填字段、日期格式、性别枚举）
-   - 错误行跳过并返回错误报告（"第3行：姓名必填"）
-   - 正确行批量插入
-   - 返回成功数/失败数/错误明细
-
-**校验规则**：
-- 姓名：必填，2-50字符
-- 性别：男/女
-- 出生年月：YYYY-MM-DD 格式
-- 民族：汉族/回族/...（调用 field-options）
-- 学历：中专/高中/大专/本科/硕士/博士
-- 政治面貌：群众/中共党员/共青团员/...
-- 职级：科员/副科/正科/副处/正处/...
-- 工作单位：必须是已存在的单位（UUID 匹配）
-
-### Step 2.2：单位批量导入
-
-**模板格式**（Excel）：
-
-| 单位全称 | 单位简称 | 上级单位 | 类型 | 联系电话 | 地址 |
-|---------|---------|---------|------|---------|------|
-| 县财政局 | 财政局 | 县政府办 | 党政机关 | 055x-xxxx | 县城xx路 |
-
-**导入流程**：同上
-
-### Step 2.3：巡察计划批量导入
-
-**模板格式**（Excel）：
-
-| 计划名称 | 年份 | 巡察轮次 | 巡察单位 | 巡察时间 | 巡察组名称 |
-|---------|------|---------|---------|---------|---------|
-
-**限制**：计划导入需要先存在对应的"单位"和"巡察组"，所以建议分批导入（先导入单位和干部，再导入计划）。
-
-### Step 2.4：导入结果展示
-
-前端显示导入结果：
+### 3.2 状态流转图
 
 ```
-┌──────────────────────────────────────────┐
-│  批量导入结果                              │
-│                                          │
-│  ✅ 成功导入：28 条                        │
-│  ❌ 导入失败：3 条                         │
-│                                          │
-│  [下载失败报告]                            │
-│                                          │
-│  失败详情：                                │
-│  · 第3行：姓名" "格式错误                  │
-│  · 第7行：单位"县财政"不存在               │
-│  · 第15行：出生年月"1985-xx"格式错误        │
-│                                          │
-│              [ 关闭 ]                     │
-└──────────────────────────────────────────┘
+PLANNING → PLAN_APPROVED → GROUP_FORMING → GROUP_READY
+    → ANNOUNCING → DEPLOYING → IN_PROGRESS
+    → REPORT_DRAFT → REPORT_FINAL → FEEDBACK
+    → RECTIFYING → RECTIFICATION_DONE
+    → REINSPECTION → CLOSED
+```
+
+### 3.3 每个阶段记录关键时间
+
+```python
+class Plan(Base):
+    id: UUID
+    name: str
+    phase: InspectionPhase
+    # 时间节点
+    plan_date: date          # 计划制定日期
+    approve_date: date       # 计划批准日期
+    group_form_date: date    # 巡察组成立日期
+    announce_date: date      # 公告发布日期
+    deploy_date: date        # 部署会日期
+    actual_start_date: date  # 实际进驻日期
+    report_draft_date: date # 初稿日期
+    report_final_date: date # 报告定稿日期
+    feedback_date: date      # 反馈日期
+    rectification_start: date # 整改开始日期
+    rectification_end: date  # 整改截止日期（计算得出）
+    reinspection_date: date # 回头看日期（计算得出）
+    close_date: date        # 归档日期
+```
+
+### 3.4 前端每个阶段显示
+
+PlanDetail 页面显示当前阶段 + 阶段时间线，点击阶段可更新日期：
+
+```
+┌─────────────────────────────────────────────────────┐
+│  2024年度第1轮巡察  |  状态：巡察进行中           │
+│                                                     │
+│  ●─●─●─●─●─○─○─○─○─○─○─○─○                     │
+│  计划  批准  建组  就绪  公告  部署  ←当前  报告  反馈  整改  回头看 归档 │
+│                                                     │
+│  进驻日期：2024-03-01                              │
+│  实际结束：2024-04-30（预计）                      │
+│  当前阶段：巡察进行中（第28天/共60天）              │
+│                                                     │
+│  [更新进驻日期]  [更新阶段]  [生成公文]             │
+└─────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Phase 3：打印支持（6-8 小时）
+## Phase 4：预警引擎
 
-**目标**：支持巡察报告、整改通知书的本地打印（生成 PDF → 浏览器打印）。
-
-### Step 3.1：打印架构
-
-不依赖后端 PDF 生成（避免复杂依赖），采用 **前端打印**方案：
-1. 后端只提供数据（JSON）
-2. 前端用 React 渲染打印专用页面（隐藏按钮/导航栏）
-3. 浏览器 `window.print()` 调用系统打印对话框
-4. 用户选择"另存为 PDF"或"打印到打印机"
-
-```
-打印流程：点击"打印" → 打开新窗口/iframe → 加载打印模板（隐藏UI）→ window.print()
-```
-
-### Step 3.2：打印模板页面
-
-创建 `frontend/src/pages/Print/` 目录：
-
-```
-Print/
-├── PrintPlanReport.tsx    # 巡察报告打印模板
-├── PrintRectification.tsx # 整改通知书打印模板
-└── PrintCadreList.tsx     # 干部名册打印模板
-```
-
-**巡察报告打印模板**（`PrintPlanReport.tsx`）：
-
-```
-┌──────────────────────────────────────────────┐
-│            ××县委巡察工作领导小组              │
-│              巡 察 报 告                       │
-│                                              │
-│  巡察单位：县财政局                            │
-│  巡察时间：2024年3月1日 — 3月15日              │
-│  巡察组：第3巡察组                            │
-│                                              │
-│  一、总体评价                                  │
-│  （正文内容...）                              │
-│                                              │
-│  二、发现问题                                  │
-│  1. 党的领导方面：...                          │
-│  2. 党的建设方面：...                          │
-│  3. 从严治党方面：...                          │
-│                                              │
-│  三、整改建议                                  │
-│  （正文内容...）                              │
-│                                              │
-│           第3巡察组（印章）                    │
-│           2024年3月20日                        │
-└──────────────────────────────────────────────┘
-```
-
-**打印样式**（CSS `@media print`）：
-
-```css
-@media print {
-  body * { visibility: hidden; }
-  #print-area, #print-area * { visibility: visible; }
-  #print-area {
-    position: fixed; left: 0; top: 0; width: 100%;
-    padding: 40px 60px;
-    font-family: "SimSun", "宋体", serif;
-    font-size: 14pt;
-    line-height: 2;
-  }
-  .no-print { display: none !important; }
-  @page { margin: 20mm; size: A4; }
-}
-```
-
-### Step 3.3：打印入口
-
-在相关详情页加"打印"按钮：
-
-- `PlanDetail.tsx`：详情页右上角加"打印巡察报告"按钮
-- `RectificationDetail.tsx`：加"打印整改通知书"按钮
-- `CadreList.tsx`：加"打印干部名册"按钮（当前 cadres 列表页）
-
-点击按钮 → 打开新窗口加载打印模板 → 自动触发 `window.print()`。
-
-### Step 3.4：后端数据接口
-
-`plans.py` 新增：
+### 4.1 预警规则引擎
 
 ```python
-@router.get("/plans/{plan_id}/report")
-async def get_plan_report(plan_id: UUID, db: AsyncSession = Depends(get_db)):
-    """获取巡察报告数据（供打印）"""
-    # 返回包含单位、巡察组、底稿数据的完整报告 JSON
-```
+# backend/app/services/warning_engine.py
+from apscheduler.schedulers.background import BackgroundScheduler
+from sqlalchemy import select
+from datetime import date, timedelta
 
-`rectifications.py` 新增：
-
-```python
-@router.get("/rectifications/{rectification_id}/notice")
-async def get_rectification_notice(rectification_id: UUID, ...):
-    """获取整改通知书数据"""
-```
-
----
-
-## Phase 4：操作日志（审计日志）（3-4 小时）
-
-### Step 4.1：自动化审计中间件
-
-在 FastAPI 后端加一个全局审计中间件，自动记录所有写操作：
-
-```python
-# backend/app/core/audit_middleware.py
-
-AUDIT_OPERATIONS = {
-    "POST": {"auth/login": "登录", "plans": "创建巡察计划", "groups": "创建巡察组", ...},
-    "PUT": {"plans/{id}": "更新巡察计划", "groups/{id}": "更新巡察组", ...},
-    "PATCH": {"plans/{id}/status": "更新计划状态", ...},
-    "DELETE": {"plans/{id}": "删除巡察计划", ...},
+SCHEDULE_RULES = {
+    # 键名对应 SystemConfig.key
+    "regular_inspection_days": {...},
+    "special_inspection_days": {...},
+    "supervision_week_min": {...},
+    "midterm_week": {...},
+    "rectification_months_min": {...},
+    "reinspection_months_max": {...},
 }
 
-async def audit_middleware(request: Request, call_next):
-    # 记录所有非 GET 请求（写操作）
-    # 提取 user_id, method, path, request_body
-    # 写入 AuditLog 表
+class WarningEngine:
+    def scan(self):
+        configs = self.get_configs()
+        plans = self.get_active_plans()
+        warnings = []
+
+        for plan in plans:
+            # 1. 巡察进驻前3天提醒
+            days_to_start = (plan.actual_start_date - date.today()).days
+            if 0 < days_to_start <= 3:
+                warnings.append(Warning(
+                    type="upcoming",
+                    title="巡察即将进驻",
+                    message=f"{plan.name}将于{plan.actual_start_date}进驻",
+                    plan_id=plan.id,
+                ))
+
+            # 2. 进驻第2-3周提醒（实地督导）
+            if plan.actual_start_date:
+                days_elapsed = (date.today() - plan.actual_start_date).days
+                supervision_start = configs["supervision_week_min"] * 7
+                supervision_end = configs["supervision_week_max"] * 7
+                if supervision_start <= days_elapsed <= supervision_end:
+                    warnings.append(Warning(...))
+
+            # 3. 中期提醒
+            if plan.actual_start_date:
+                midterm = configs["midterm_week"] * 7
+                days_elapsed = (date.today() - plan.actual_start_date).days
+                if abs(days_elapsed - midterm) <= 3:
+                    warnings.append(Warning(...))
+
+            # 4. 巡察结束前7天提醒
+            if plan.actual_start_date:
+                total_days = configs.get("regular_inspection_days", 60)
+                remaining = total_days - days_elapsed
+                if 0 < remaining <= 7:
+                    warnings.append(Warning(...))
+
+            # 5. 整改到期前7天提醒
+            if plan.rectification_end:
+                days_left = (plan.rectification_end - date.today()).days
+                if 0 < days_left <= 7:
+                    warnings.append(Warning(...))
+
+            # 6. 回头看到期提醒
+            if plan.reinspection_date:
+                if plan.reinspection_date == date.today():
+                    warnings.append(Warning(...))
+
+        # 7. 未巡察单位预警（每年初扫描）
+        # 统计已巡察年份，如某单位3年未巡察则预警
+
+        self.save_warnings(warnings)
+        return warnings
 ```
 
-### Step 4.2：审计日志页面（前端）
+### 4.2 预警触发方式
 
-`Admin/Audit/AuditLog.tsx` 已有，只需加筛选条件：
-- 时间范围（默认最近 30 天）
-- 操作人
-- 操作类型（创建/更新/删除/登录）
-- 模块（计划/巡察组/干部/单位/整改）
+1. **用户登录后首页红色提示**（最重要）
+2. **顶部导航栏角标**（显示预警数量）
+3. **首页"今日待办"栏**（列出所有预警）
 
-**政府常用审计记录**：
-- 登录/登出
-- 新建/编辑/删除 巡察计划
-- 新建/编辑/删除 巡察组
-- 新建/编辑/删除 干部信息
-- 新建/编辑/删除 单位信息
-- 状态变更（草稿↔正式、整改中↔已完成）
-- 数据导入（批量导入干部/单位/计划）
+### 4.3 未巡察单位预警逻辑
+
+```python
+def check_units_without_inspection():
+    """检查多年未巡察的单位"""
+    all_units = db.query(Unit).all()
+    for unit in all_units:
+        last_inspection = db.query(Plan).join(...).filter(
+            Plan.units.contains(unit)
+        ).order_by(Plan.actual_start_date.desc()).first()
+
+        if last_inspection:
+            years_since = (date.today() - last_inspection.actual_start_date).days / 365
+            if years_since >= 3:  # 3年未巡察
+                warnings.append(Warning(
+                    type="long_term",
+                    title="长期未巡察单位",
+                    message=f"{unit.name}已{years_since:.1f}年未安排巡察"
+                ))
+```
 
 ---
 
-## Phase 5：桌面端打包（8-10 小时）
+## Phase 5：首页数据看板（Dashboard）
 
-### Step 5.1：后端改造
+### 5.1 看板布局
 
-**静态文件嵌入**：修改 `backend/main.py`，打包后前端构建产物嵌入后端二进制：
-
-```python
-# backend/main.py
-import os, sys
-
-# 打包后 static 文件在同目录的 static/ 下
-if getattr(sys, 'frozen', False):
-    base_dir = sys._MEIPASS  # PyInstaller 临时目录
-else:
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-
-static_dir = os.path.join(base_dir, 'static')
-if os.path.exists(static_dir):
-    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+```
+┌────────────────────────────────────────────────────────────────┐
+│  巡察工作管理平台              🔔 5条预警    [admin ▼]        │
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│  本轮巡察概览                          未巡察单位预警           │
+│  ┌─────────────────────────────────┐  ┌────────────────────┐  │
+│  │  ●●○○○○○○○  正在进行：2/8轮     │  │ ⚠ 县财政局 3年未巡察 │  │
+│  │                                 │  │ ⚠ 县教育局 2.5年未巡 │  │
+│  └─────────────────────────────────┘  └────────────────────┘  │
+│                                                                │
+│  巡察进度追踪                                                  │
+│  ┌──────────────────────────────────────────────────────────┐ │
+│  │  第1轮巡察  ████████████░░░░░░░░  45天/共60天  进行中    │ │
+│  │  第2轮巡察  ████████████████████  已完成                  │ │
+│  │  第3轮巡察  ○○○○○○○░░░░░░░░░░░░  筹备中                  │ │
+│  └──────────────────────────────────────────────────────────┘ │
+│                                                                │
+│  整改情况统计                          今日预警                │
+│  ┌────────────────────┐  ┌────────────────────────────────┐  │
+│  │ 待整改:  3个        │  │ 🔴 2024-03-15 县财政局巡察即将进驻 │  │
+│  │ 整改中:  5个        │  │ 🟡 2024-03-20 第2轮巡察实地督导  │  │
+│  │ 已完成: 12个        │  │ 🔴 2024-04-10 第1轮巡察即将结束   │  │
+│  │ 逾期:    1个 ⚠      │  │ 🟡 2024-04-25 县财政局整改到期   │  │
+│  └────────────────────┘  └────────────────────────────────┘  │
+│                                                                │
+│  历年巡察覆盖率                                                │
+│  ┌──────────────────────────────────────────────────────────┐ │
+│  │  2022年：████████████████████░░░░░░░  80%（16/20单位）  │ │
+│  │  2023年：████████████████████████░░  95%（19/20单位）  │ │
+│  │  2024年：██████████░░░░░░░░░░░░░░░░  50%（10/20单位）  │ │
+│  └──────────────────────────────────────────────────────────┘ │
+└────────────────────────────────────────────────────────────────┘
 ```
 
-**数据库路径**：放用户数据目录（打包后代码目录不可写）：
+### 5.2 看板数据 API
 
 ```python
-# backend/config.py
-import platform, os
+@router.get("/dashboard/summary")
+async def get_dashboard_summary(db: AsyncSession = Depends(get_db)):
+    plans = await db.execute(select(Plan).where(Plan.is_active == True))
+    plans = plans.scalars().all()
 
-USER_DATA_DIR = {
-    "Windows": os.path.join(os.environ["APPDATA"], "巡察工作管理平台"),
-    "Darwin": os.path.join(os.path.expanduser("~/Library/Application Support"), "巡察工作管理平台"),
-    "Linux": os.path.join(os.path.expanduser("~/.config"), "巡察工作管理平台"),
-}[platform.system()]
+    # 当前轮次巡察进度
+    current_round = max(p.round for p in plans if p.year == date.today().year)
 
-DB_PATH = os.path.join(USER_DATA_DIR, "patrol.db")
-os.makedirs(USER_DATA_DIR, exist_ok=True)
+    # 各阶段统计
+    phase_stats = {}
+    for phase in InspectionPhase:
+        phase_stats[phase] = count
+
+    # 整改统计
+    rectification_stats = {
+        "pending": count_status("rectifying"),
+        "completed": count_status("rectification_done"),
+        "overdue": count_rectification_overdue(),
+    }
+
+    # 未巡察单位
+    units_without_recent = get_long_term_uninspected_units()
+
+    # 历年覆盖率
+    yearly_coverage = compute_yearly_coverage()
+
+    return {
+        "current_round": current_round,
+        "phase_stats": phase_stats,
+        "rectification_stats": rectification_stats,
+        "warnings": get_active_warnings(),
+        "units_without_recent": units_without_recent,
+        "yearly_coverage": yearly_coverage,
+    }
 ```
 
-**入口脚本** `backend/start.py`：
+---
+
+## Phase 6：Excel 批量导入/导出
+
+**核心原则**：所有外部数据通过模板导入，不人工录入。
+
+### 6.1 导入模板生成规则
+
+**干部导入**：
+- 前端点击"下载干部导入模板" → 后端生成标准 Excel（含表头说明 + 示例行）
+- 用户填写 → 前端上传 → 后端解析校验 → 逐行验证错误 → 正确的写入数据库
+
+**单位导入**：同上
+
+**整改情况导入**（重要）：
+- 后端预置"整改情况填写模板"（含所有整改项字段）
+- 巡察办导出给被巡察单位 → 被巡察单位填写 → 导入系统
+- 系统自动更新该单位的整改状态，统计汇总
+
+**巡察进度表格导入**：
+- 模板含：巡察组、报告日期、本周工作内容、发现问题数量、问题分类
+- 巡察组定期填写 → 导入系统 → 系统自动更新进度
+
+### 6.2 模板导出 API
 
 ```python
-# backend/start.py
-import uvicorn, sys, os
+@router.get("/templates/plan-progress")
+async def download_plan_progress_template():
+    """导出巡察进度填写模板"""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "巡察进度报告"
 
-if __name__ == "__main__":
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=18800,
-        reload=False,
-        log_level="info"
+    headers = [
+        "巡察组名称", "报告周期", "报告日期",
+        "谈话人数", "查阅资料数", "受理信访数", "实地走访数",
+        "发现问题总数",
+        "党的建设方面问题数", "全面从严治党方面问题数", "重点领域问题数",
+        "下周工作计划", "备注"
+    ]
+    ws.append(headers)
+    # 加1行示例
+    ws.append(["第1巡察组", "第3周", "2024-03-15", "12", "85", "3", "5", "8", "3", "2", "3", "继续谈话+撰写初稿", ""])
+
+    buf = BytesIO()
+    wb.save(buf)
+    return StreamingResponse(
+        BytesIO(buf.getvalue()),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=巡察进度报告模板.xlsx"}
     )
 ```
 
-### Step 5.2：PyInstaller 打包
+### 6.3 导入 API
 
 ```python
-# backend/patrol_backend.spec
-from PyInstaller.utils.parts import Analysis, PYZ, EXE
+@router.post("/import/plan-progress")
+async def import_plan_progress(file: UploadFile, db: AsyncSession = Depends(get_db)):
+    wb = load_workbook(file.file)
+    ws = wb.active
+    rows = list(ws.iter_rows(min_row=2, values_only=True))  # 跳过表头
 
-a = Analysis(
-    ['start.py'],
-    hiddenimports=[
-        'uvicorn', 'uvicorn.loops', 'uvicorn.loops.auto',
-        'fastapi', 'pydantic', 'sqlalchemy.ext.asyncio',
-        'sqlalchemy.sql', 'pysqlcipher3',
-        'apscheduler', 'openpyxl', 'bcrypt', 'python_jose',
-        'passlib', 'python-multipart', 'email_validator',
-        'starlette', 'starlette.routing', 'starlette.middleware',
-        'starlette.middleware.cors', 'starlette.staticfiles',
-    ],
-)
-pyz = PYZ(a.pure, a.zipped_data)
-exe = EXE(
-    pyz, a.scripts,
-    name='patrol_backend',
-    icon='assets/icon.ico',  # Windows exe 图标
-    console=True,  # Windows 下显示控制台（方便调试错误）
-    disable_windowed_traceback=True,
-)
-coll = COLLECT(
-    exe, a.binaries, a.zipfiles, a.datas,
-    name='patrol_backend',
-    strip=False, upx=False,
-)
-```
+    errors = []
+    success_count = 0
+    for i, row in enumerate(rows, start=2):
+        try:
+            validate_and_save_progress(row)
+            success_count += 1
+        except ValidationError as e:
+            errors.append(f"第{i}行：{e.message}")
 
-### Step 5.3：Electron 桌面壳
-
-**目录结构**：
-```
-patrol-platform-desktop/
-├── main/
-│   ├── main.ts           # Electron 主进程
-│   ├── preload.ts        # contextBridge 桥接
-│   ├── ipc-handlers.ts   # IPC 通信处理
-│   └── get-local-ip.ts   # 获取本机局域网 IP
-├── package.json
-├── electron-builder.yml
-├── vite.config.ts
-└── assets/
-    ├── icon.ico
-    └── icon.icns
-```
-
-**Electron 主进程**（`main.ts` 核心逻辑）：
-
-```typescript
-import { app, BrowserWindow, ipcMain, dialog, Menu, Tray } from 'electron';
-import { spawn } from 'child_process';
-import path from 'path';
-import fs from 'fs';
-
-const MAIN_URL = 'http://127.0.0.1:18800';
-const BACKEND_PORT = 18800;
-let mainWindow: BrowserWindow | null = null;
-let tray: Tray | null = null;
-
-// 1. 启动后端（检查健康状态）
-async function startBackend(): Promise<void> {
-  const exePath = getBackendExePath();
-  console.log('[Electron] Starting backend:', exePath);
-  const child = spawn(exePath, [], { stdio: 'pipe', detached: true });
-  child.unref();
-
-  // 等待后端就绪
-  for (let i = 0; i < 60; i++) {
-    await sleep(1000);
-    try {
-      const r = await fetch(`${MAIN_URL}/health`);
-      if (r.ok) { console.log('[Electron] Backend ready'); return; }
-    } catch {}
-  }
-  throw new Error('后端启动超时（60秒）');
-}
-
-// 2. 获取本机局域网 IP
-async function getLocalIP(): Promise<string> {
-  const nets = require('os').networkInterfaces();
-  for (const name of Object.keys(nets)) {
-    for (const net of nets[name]) {
-      if (net.family === 'IPv4' && !net.internal) return net.address;
-    }
-  }
-  return '127.0.0.1';
-}
-
-// 3. 创建主窗口
-function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1400, height: 900,
-    minWidth: 1200, minHeight: 700,
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true },
-    icon: path.join(__dirname, '../assets/icon.ico'),
-    show: false,
-  });
-
-  mainWindow.loadURL(MAIN_URL);
-
-  mainWindow.once('ready-to-show', async () => {
-    mainWindow!.show();
-    const ip = await getLocalIP();
-    dialog.showMessageBox({
-      type: 'info',
-      title: '巡察工作管理平台',
-      message: `本机访问：http://localhost:${BACKEND_PORT}`,
-      detail: `局域网访问：http://${ip}:${BACKEND_PORT}\n\n其他科室电脑浏览器打开上述地址即可使用。`,
-    });
-  });
-
-  mainWindow.on('close', (e) => {
-    if (!app.isQuitting) {
-      e.preventDefault();
-      mainWindow?.hide();
-    }
-  });
-}
-
-// 4. 系统托盘
-function createTray() {
-  tray = new Tray(path.join(__dirname, '../assets/icon.ico'));
-  const ctxMenu = Menu.buildFromTemplate([
-    { label: '显示窗口', click: () => mainWindow?.show() },
-    { type: 'separator' },
-    { label: '退出', click: () => { (app as any).isQuitting = true; app.quit(); } },
-  ]);
-  tray.setContextMenu(ctxMenu);
-  tray.setToolTip('巡察工作管理平台');
-  tray.on('double-click', () => mainWindow?.show());
-}
-```
-
-**IPC 通信**（主进程 ↔ 渲染进程隔离）：
-
-```typescript
-// preload.ts
-import { contextBridge, ipcRenderer } from 'electron';
-contextBridge.exposeInMainWorld('electronAPI', {
-  getVersion: () => ipcRenderer.invoke('get-version'),
-  openPrintDialog: () => ipcRenderer.invoke('open-print-dialog'),
-});
-```
-
-### Step 5.4：electron-builder 配置
-
-```yaml
-# electron-builder.yml
-appId: com.patrol.platform
-productName: 巡察工作管理平台
-copyright: Copyright © 2024
-directories:
-  output: dist-desktop
-  buildResources: assets
-
-files:
-  - dist/**/*
-  - backend-dist/**/*
-
-extraResources:
-  - from: backend-dist/patrol_backend/
-    to: patrol_backend/
-    filter:
-      - "**/*"
-
-win:
-  target:
-    - target: nsis
-      arch: [x64]
-  icon: assets/icon.ico
-  artifactName: "${productName}Setup.${ext}"
-
-mac:
-  target:
-    - target: dmg
-      arch: [x64, arm64]
-  icon: assets/icon.icns
-  category: public.app-category.business
-
-nsis:
-  oneClick: false
-  perMachine: true
-  allowToChangeInstallationDirectory: true
-  createDesktopShortcut: true
-  createStartMenuShortcut: true
-  shortcutName: 巡察工作管理平台
-  installerIcon: assets/icon.ico
-  uninstallerIcon: assets/icon.ico
-
-afterPack: |
-  // 安装后脚本：创建用户数据目录
-  // Windows: %APPDATA%\巡察工作管理平台\
-  // Mac: ~/Library/Application Support/巡察工作管理平台/
-```
-
-### Step 5.5：构建脚本
-
-```bash
-#!/bin/bash
-# scripts/build-desktop.sh
-
-set -e
-
-echo "=== Step 1: 构建前端 ==="
-cd frontend && npm install && npm run build && cd ..
-
-echo "=== Step 2: PyInstaller 打包后端 ==="
-cd backend
-# 复制前端构建产物到 static 目录
-cp -r ../frontend/dist ./app/static/
-# PyInstaller 打包
-pyinstaller patrol_backend.spec --clean
-cd ..
-
-echo "=== Step 3: 构建 Electron ==="
-cd patrol-platform-desktop
-npm install
-npm run build
-
-echo "=== 完成 ==="
-ls -la patrol-platform-desktop/dist-desktop/
+    return {"success": success_count, "errors": errors}
 ```
 
 ---
 
-## Phase 6：局域网访问 + 初始化向导（2 小时）
+## Phase 7：公文自动生成
 
-### Step 6.1：首次启动向导
+### 7.1 公文类型（5种，去掉巡察报告）
 
-桌面应用首次启动时，显示初始化向导（Electron 拦截 `GET /health` 返回 404 时触发）：
+| 序号 | 公文类型 | 模板文件 | 说明 |
+|------|---------|---------|------|
+| 1 | 巡察公告 | `notice_of_inspection.docx` | 红色报头，告知被巡察单位 |
+| 2 | 成立巡察组通知 | `group_establishment.docx` | 文号+公章，通知各相关单位 |
+| 3 | 巡察部署会通知 | `deployment_meeting.docx` | 时间地点+参会单位 |
+| 4 | 巡察反馈意见 | `inspection_feedback.docx` | 红头文件，反馈给被巡察单位 |
+| 5 | 整改通知书 | `rectification_notice.docx` | 整改要求和期限 |
+
+**不包含**：巡察报告（含问题清单）— 这类复杂文档由人工撰写
+
+### 7.2 模板变量替换
+
+```python
+# 公文模板填充
+from docx import Document
+from datetime import date
+
+def fill_notice_template(plan: Plan, group: InspectionGroup, output_path: str):
+    doc = Document("templates/notice_of_inspection.docx")
+
+    variables = {
+        "{{发文机关}}": "中共XX县委巡察工作领导小组",
+        "{{文件标题}}": f"关于对{plan.unit_name}开展巡察工作的公告",
+        "{{巡察组名称}}": group.name,
+        "{{巡察组组长}}": group.leader.name,
+        "{{被巡察单位}}": plan.unit_name,
+        "{{巡察时间}}": f"{plan.actual_start_date}至{plan.actual_end_date}",
+        "{{发布日期}}": date.today().strftime("%Y年%m月%d日"),
+        "{{文号}}": f"x巡组告〔{date.today().year}〕{plan.serial_no}号",
+    }
+
+    for para in doc.paragraphs:
+        for key, val in variables.items():
+            if key in para.text:
+                para.text = para.text.replace(key, val)
+
+    doc.save(output_path)
+    return output_path
+```
+
+### 7.3 前端公文生成入口
+
+在 `PlanDetail.tsx` 侧边栏/操作栏：
 
 ```
-┌──────────────────────────────────────────────┐
-│  巡察工作管理平台 — 初始化设置                 │
-│                                              │
-│  第1步：设置管理员账户                         │
-│  用户名：admin                                │
-│  密码：    [********]                        │
-│  确认密码：[********]                         │
-│                                              │
-│  第2步：设置数据库密码                         │
-│  （用于加密存储本地数据，请妥善保管）            │
-│  密码：    [________________]                │
-│  确认密码：[________________]                │
-│                                              │
-│            [ 下一步 ]  [ 取消 ]               │
-└──────────────────────────────────────────────┘
+┌─────────────────────────────────────┐
+│  操作                               │
+│                                     │
+│  [ 生成巡察公告 ]                    │
+│  [ 生成成立巡察组通知 ]               │
+│  [ 生成部署会通知 ]                  │
+│  [ 打印反馈意见 ]                    │
+│  [ 打印整改通知书 ]                  │
+│                                     │
+│  [ 更新阶段日期 ]                    │
+│  [ 导入整改情况 ]                   │
+│  [ 导入巡察进度 ]                   │
+└─────────────────────────────────────┘
 ```
-
-初始化完成后，保存配置文件 `~/.patrol-platform/config.json`：
-
-```json
-{
-  "version": "1.0.0",
-  "db_encrypted": true,
-  "admin_username": "admin",
-  "setup_complete": true
-}
-```
-
-### Step 6.2：局域网访问说明
-
-启动后自动弹框显示局域网访问地址（Phase 5 已包含）。
 
 ---
 
-## Phase 7：数据迁移（现有数据）（1-2 小时）
+## Phase 8：知识库升级
 
-### Step 7.1：导出导入脚本
+### 8.1 知识库支持格式
 
-```bash
-# 导出
-python -m backend.scripts.export_db --format=json --output=patrol_backup_$(date +%Y%m%d).json
+| 格式 | 处理方式 |
+|------|---------|
+| PDF | 浏览器内置 PDF viewer（`<embed>` 或 `<iframe>`）|
+| Word/Excel | 后端转 PDF（`libreoffice --headless --convert-to pdf`）再预览 |
+| 图片 | 直接 `<img>` 显示 |
+| 纯文本/Markdown | 渲染后显示 |
 
-# 导入
-python -m backend.scripts.import_db --input=patrol_backup_20240315.json --format=json
+### 8.2 知识库分类
+
+```
+知识库/
+├── 政策法规/
+│   ├── 巡视工作条例
+│   └── 巡察工作规范
+├── 模板库/
+│   ├── 巡察进度报告模板
+│   ├── 整改情况填写模板
+│   └── 干部导入模板
+├── 培训资料/
+│   └── 巡察工作培训PPT
+└── 历史巡察资料/（按年份+被巡察单位归档）
 ```
 
-支持字段映射（源数据列名 → 目标数据库列名）。
+### 8.3 前端知识库页面
+
+- 左侧分类树
+- 右侧文件列表 + 在线预览
+- 支持搜索文件名/内容
+- 上传时自动按分类归档
+
+---
+
+## Phase 9：桌面端打包（PyInstaller + Electron）
+
+同原方案。最终交付：
+- Windows：`巡察工作管理平台Setup.exe`
+- Mac：`巡察工作管理平台.dmg`
+
+---
+
+## Phase 10：局域网访问 + 初始化向导
+
+同原方案。启动时显示：
+- 本机访问：`http://localhost:18800`
+- 局域网访问：`http://192.168.1.x:18800`
+
+---
+
+## Phase 11：备份和恢复（GUI 界面）
+
+### 11.1 备份
+
+前端 `/admin/backup` 页面：
+- 点击"创建备份" → 后端复制 `patrol.db` → 前端下载文件
+- 文件名：`patrol_backup_YYYYMMDD_HHMMSS.db`
+
+### 11.2 恢复
+
+点击"恢复数据" → 选择 `.db` 文件 → 确认警告 → 上传 → 后端覆盖当前数据库
+
+### 11.3 自动备份
+
+后端每日凌晨3点自动备份到 `~/.patrol-platform/backups/`（保留最近7份）
 
 ---
 
@@ -773,15 +634,19 @@ python -m backend.scripts.import_db --input=patrol_backup_20240315.json --format
 
 | Phase | 内容 | 预计时间 |
 |-------|------|---------|
-| Phase 0 | 功能简化（砍审批流程 + 清理 RBAC）| 6-8 小时 |
+| Phase 0 | 功能简化 + 巡察组副组长 | 3-4 小时 |
 | Phase 1 | 数据库加密（SQLCipher）| 4-5 小时 |
-| Phase 2 | Excel 批量导入（计划/干部/单位）| 6-8 小时 |
-| Phase 3 | 打印支持（巡察报告/整改通知书）| 6-8 小时 |
-| Phase 4 | 操作日志（审计日志）| 3-4 小时 |
-| Phase 5 | 桌面端打包（PyInstaller + Electron）| 8-10 小时 |
-| Phase 6 | 初始化向导 + 局域网配置 | 2 小时 |
-| Phase 7 | 数据迁移工具 | 1-2 小时 |
-| **合计** | | **36-49 小时** |
+| Phase 2 | 系统配置模块（可配置时间节点）| 4-5 小时 |
+| Phase 3 | 巡察全流程状态机（11个阶段）| 6-8 小时 |
+| Phase 4 | 预警引擎 | 5-6 小时 |
+| Phase 5 | 首页数据看板 | 5-6 小时 |
+| Phase 6 | Excel 导入/导出（模板）| 6-8 小时 |
+| Phase 7 | 公文生成（5种）| 4-5 小时 |
+| Phase 8 | 知识库升级（PDF预览等）| 4-5 小时 |
+| Phase 9 | 桌面端打包 | 8-10 小时 |
+| Phase 10 | 局域网访问 + 初始化向导 | 2 小时 |
+| Phase 11 | 备份恢复（GUI）| 3-4 小时 |
+| **合计** | | **54-69 小时** |
 
 ---
 
@@ -791,81 +656,56 @@ python -m backend.scripts.import_db --input=patrol_backup_20240315.json --format
 
 ```
 patrol_platform/
-├── backend/start.py                        # PyInstaller 入口
-├── backend/patrol_backend.spec             # PyInstaller spec
-├── backend/app/static/                      # 前端构建产物嵌入目录
-├── backend/scripts/
-│   ├── export_db.py                         # 数据导出脚本
-│   └── import_db.py                         # 数据导入脚本
-├── patrol-platform-desktop/                 # Electron 项目（新建）
+├── backend/app/models/system_config.py       # 系统配置模型
+├── backend/app/api/v1/system_configs.py      # 配置 CRUD API
+├── backend/app/models/warning.py             # 预警记录模型
+├── backend/app/services/warning_engine.py     # 预警引擎
+├── backend/app/services/document_generator.py # 公文生成服务
+├── backend/app/services/import_service.py     # 导入解析服务
+├── backend/templates/                         # 公文 Word 模板
+│   ├── notice_of_inspection.docx
+│   ├── group_establishment.docx
+│   ├── deployment_meeting.docx
+│   ├── inspection_feedback.docx
+│   └── rectification_notice.docx
+├── backend/start.py                          # PyInstaller 入口
+├── backend/patrol_backend.spec              # PyInstaller spec
+├── patrol-platform-desktop/                   # Electron 项目
 │   ├── main/
 │   │   ├── main.ts
 │   │   ├── preload.ts
-│   │   ├── ipc-handlers.ts
-│   │   └── get-local-ip.ts
+│   │   └── ipc-handlers.ts
 │   ├── package.json
-│   ├── electron-builder.yml
-│   ├── vite.config.ts
-│   ├── tsconfig.json
-│   └── assets/
-│       ├── icon.ico
-│       └── icon.icns
-├── frontend/src/pages/Print/
-│   ├── PrintPlanReport.tsx
-│   ├── PrintRectification.tsx
-│   └── PrintCadreList.tsx
-├── frontend/src/pages/Cadres/
-│   ├── CadreImportModal.tsx                # 干部批量导入弹窗
-│   └── CadreList.tsx（改）                  # 加导入按钮
-├── frontend/src/pages/Units/
-│   ├── UnitImportModal.tsx                  # 单位批量导入弹窗
-│   └── UnitList.tsx（改）
-├── frontend/src/pages/Plan/Plans/
-│   ├── PlanImportModal.tsx                 # 计划批量导入弹窗
-│   └── PlanList.tsx（改）
+│   └── electron-builder.yml
+├── frontend/src/pages/Admin/SystemConfigs/  # 系统配置页面
+│   └── SystemConfigPage.tsx
+├── frontend/src/pages/Dashboard/             # 首页看板
+│   └── Dashboard.tsx
+├── frontend/src/pages/Knowledge/             # 知识库
+│   └── KnowledgeList.tsx
+├── frontend/src/pages/Print/                  # 打印模板页
+│   ├── PrintNotice.tsx
+│   ├── PrintGroupNotice.tsx
+│   ├── PrintDeployment.tsx
+│   ├── PrintFeedback.tsx
+│   └── PrintRectification.tsx
 └── scripts/
-    └── build-desktop.sh                    # 打包构建脚本
+    └── build-desktop.sh
 ```
 
 ### 修改文件
 
 ```
 patrol_platform/
-├── backend/requirements.txt                 # +pysqlcipher3
-├── backend/app/config.py                    # +DB_PASSWORD + 用户数据目录
+├── backend/app/models/inspection_group.py   # + 副组长字段
+├── backend/app/models/plan.py              # + 阶段状态 + 11个时间节点
+├── backend/app/models/rectification.py       # 整改状态简化
+├── backend/app/api/v1/plans.py             # + 阶段流转 API
+├── backend/app/api/v1/groups.py             # + 副组长字段
+├── backend/app/api/v1/import_export.py     # + 导入导出 API
 ├── backend/app/main.py                     # + 静态文件挂载
-├── backend/app/dependencies.py              # 保留 get_current_user
-├── backend/app/api/v1/cadres.py            # + POST /cadres/import
-├── backend/app/api/v1/units.py             # + POST /units/import
-├── backend/app/api/v1/plans.py             # - 审批流程，+ 导入，简化状态
-├── backend/app/api/v1/groups.py            # - 审批流程，简化状态
-├── backend/app/api/v1/rectifications.py    # - 审批流程，简化状态
-├── backend/app/models/user.py              # 保留（精简字段）
-├── backend/app/models/audit_log.py         # 保留（已在用）
-├── frontend/src/pages/Admin/Users/         # 简化（只剩改密码）
-├── frontend/src/pages/Admin/Roles/         # 删除
-├── frontend/src/pages/Admin/Modules/       # 删除
+├── frontend/src/pages/Plan/Plans/PlanList.tsx  # 简化状态显示
+├── frontend/src/pages/Plan/Groups/GroupDetail.tsx  # + 副组长
+├── frontend/src/pages/Dashboard/            # 新建 Dashboard（替换现有首页）
 └── frontend/vite.config.ts                  # build outDir → backend/app/static
 ```
-
----
-
-## 潜在风险
-
-| 风险 | 影响 | 缓解方案 |
-|------|------|---------|
-| SQLCipher 安装失败（Windows C++ 编译） | Phase 1 阻塞 | 改用 `pysqlite3-ccipher` wheel 或 Docker 镜像预编译 |
-| PyInstaller 体积过大（500MB+）| 用户体验 | 启用 UPX 压缩，剔除调试符号；目标 200-300MB |
-| 多用户并发写入 SQLite | 数据损坏 | SQLite WAL 模式；政府内网 < 10 人可控；未来可切 PostgreSQL |
-| Excel 导入编码问题（Windows）| 批量导入失败 | 强制使用 UTF-8 BOM 格式；提供模板下载 |
-| 浏览器打印跨平台样式不一致 | 打印格式错乱 | 提供 @media print CSS；测试 Chrome/Edge/Firefox |
-
----
-
-## 开放问题
-
-1. **巡察报告内容谁来填写？** 是有固定模板自动生成，还是需要手动编辑富文本内容？
-2. **整改通知书格式是否有固定模板？** 是使用现有内容自动填充，还是有固定格式？
-3. **初始数据从哪里来？** 是全新部署，还是需要从现有 Excel/Word 文档迁移历史数据？
-4. **系统是否需要备份/恢复功能（GUI 界面）？** 还是只需命令行工具就够了？
-5. **两位同事如何使用同一套数据？** A 在电脑上操作，B 也在同一台电脑上操作（双用户），还是 B 在另一台电脑通过局域网访问？

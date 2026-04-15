@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
+from urllib.parse import quote
 from app.dependencies import get_db, get_current_user
 from app.models.plan import Plan, PlanVersion, PlanStatus
 from app.models.user import User
@@ -431,10 +432,9 @@ async def export_plan_report(
     output.seek(0)
     plan_name_safe = (plan.name or "巡察报告").replace("/", "_").replace("\\", "_")
     filename = f"{plan_name_safe}_完整报告.xlsx"
-    from urllib.parse import quote
     encoded_filename = quote(filename)
-    return StreamingResponse(
-        output,
+    return Response(
+        output.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"},
     )
