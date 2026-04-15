@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Table, Button, Space, Tag, Progress, message } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
@@ -48,7 +49,9 @@ const RectificationList: React.FC = () => {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [modalOpen, setModalOpen] = useState(false);
+  const [searchParams] = useSearchParams();
+  const clueIdParam = searchParams.get('clue_id');
+  const [modalOpen, setModalOpen] = useState(!!clueIdParam);
   const [rectificationId, setRectificationId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
 
@@ -155,6 +158,7 @@ const RectificationList: React.FC = () => {
         open={modalOpen}
         rectificationId={rectificationId}
         defaultEditMode={editMode}
+        defaultClueId={clueIdParam}
         onClose={() => setModalOpen(false)}
         onSuccess={fetchData}
       />

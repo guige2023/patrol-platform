@@ -32,11 +32,12 @@ interface RectificationModalProps {
   open: boolean;
   rectificationId?: string | null;
   defaultEditMode?: boolean;
+  defaultClueId?: string | null;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectificationId, defaultEditMode = false, onClose, onSuccess }) => {
+const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectificationId, defaultEditMode = false, defaultClueId = null, onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [isViewMode, setIsViewMode] = useState(!defaultEditMode);
   const [form] = Form.useForm();
@@ -82,6 +83,13 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
       message.error('获取线索失败');
     }
   };
+
+  // Pre-fill clue_id when opened from ClueList
+  useEffect(() => {
+    if (open && defaultClueId && clueOptions.length > 0) {
+      form.setFieldsValue({ clue_id: defaultClueId });
+    }
+  }, [open, defaultClueId, clueOptions]);
 
   const fetchDrafts = async () => {
     try {

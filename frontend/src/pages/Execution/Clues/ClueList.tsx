@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Table, Button, Space, Tag, Modal, message, Input } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { PlusOutlined, LinkOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import { getClues, transferClue, exportClues } from '@/api/clues';
 import ClueModal from './ClueModal';
@@ -46,6 +47,7 @@ const ClueList: React.FC = () => {
   const [pageSize, setPageSize] = useState(20);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalClueId, setModalClueId] = useState<string | undefined>();
+  const navigate = useNavigate();
 
   const fetchData = async () => {
     setLoading(true);
@@ -115,6 +117,7 @@ const ClueList: React.FC = () => {
       render: (_, record) => (
         <Space>
           <Button type="link" size="small" onClick={() => handleView(record.id)}>查看</Button>
+          <Button type="link" size="small" icon={<LinkOutlined />} onClick={() => navigate(`/execution/rectifications?clue_id=${record.id}`)}>关联整改</Button>
           <Button type="link" size="small" onClick={() => handleTransfer(record.id)}>移交</Button>
         </Space>
       ),
