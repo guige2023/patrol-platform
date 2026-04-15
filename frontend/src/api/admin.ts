@@ -25,3 +25,15 @@ export const uploadFile = (file: File, entity_type?: string, entity_id?: string)
   if (entity_id) formData.append('entity_id', entity_id);
   return api.post('/files/upload', formData).then(res => res.data);
 };
+
+export const exportAuditLogs = (params?: { entity_type?: string }) => {
+  return api.get('/admin/audit-logs/download', { params, responseType: 'blob' }).then(res => {
+    const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'audit_logs.xlsx';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  });
+};

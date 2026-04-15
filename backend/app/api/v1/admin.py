@@ -1,7 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from uuid import UUID
+import io
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from app.dependencies import get_db, get_current_user
 from app.models.user import User
 from app.models.unit import Unit
@@ -107,6 +111,70 @@ async def list_audit_logs(
         {"id": l.id, "user_id": l.user_id, "action": l.action, "entity_type": l.entity_type, "entity_id": l.entity_id, "created_at": l.created_at}
         for l in logs
     ], "total": total}
+
+
+@router.get("/audit-logs/download")
+async def export_audit_logs(
+    entity_type: str = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Export audit logs as .xlsx."""
+    query = select(AuditLog)
+    if entity_type:
+        query = query.where(AuditLog.entity_type == entity_type)
+    query = query.order_by(AuditLog.created_at.desc()).limit(10000)
+    result = await db.execute(query)
+    logs = result.scalars().all()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "审计日志"
+
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill("solid", fgColor="1677FF")
+    header_align = Alignment(horizontal="center", vertical="center")
+    thin_border = Border(
+        left=Side(style="thin"), right=Side(style="thin"),
+        top=Side(style="thin"), bottom=Side(style="thin")
+    )
+
+    headers = ["操作", "实体类型", "实体ID", "详情", "IP", "时间"]
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        cell.border = thin_border
+
+    for l in logs:
+        detail_str = str(l.detail) if l.detail else ""
+        created = l.created_at.strftime('%Y-%m-%d %H:%M:%S') if l.created_at else ""
+        ws.append([
+            l.action or "",
+            l.entity_type or "",
+            str(l.entity_id) if l.entity_id else "",
+            detail_str[:200],  # truncate long details
+            l.ip_address or "",
+            created,
+        ])
+
+    for col in ws.columns:
+        max_len = 0
+        col_letter = col[0].column_letter
+        for cell in col:
+            if cell.value:
+                max_len = max(max_len, len(str(cell.value)))
+        ws.column_dimensions[col_letter].width = min(max_len + 4, 40)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename*=UTF-8''audit_logs.xlsx"},
+    )
 
 
 @router.get("/modules")

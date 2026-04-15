@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Tag } from 'antd';
+import { Table, Tag, Button, message } from 'antd';
 import PageHeader from '@/components/common/PageHeader';
-import { getAuditLogs } from '@/api/admin';
+import { getAuditLogs, exportAuditLogs } from '@/api/admin';
 
 const AuditLog: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -39,6 +39,9 @@ const AuditLog: React.FC = () => {
   return (
     <div>
       <PageHeader title="审计日志" breadcrumbs={[{ name: '系统管理' }, { name: '审计日志' }]} />
+      <div style={{ marginBottom: 16 }}>
+        <Button onClick={() => exportAuditLogs().catch(e => message.error('导出失败'))}>导出</Button>
+      </div>
       <Table columns={columns} dataSource={data} rowKey="id" loading={loading}
         pagination={{ current: page, pageSize: 50, total, onChange: setPage, showTotal: (t) => `共 ${t} 条` }} />
     </div>
