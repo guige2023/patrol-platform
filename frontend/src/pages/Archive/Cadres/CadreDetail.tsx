@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Select, Switch, Button, Card, Space, message } from 'antd';
+import { Form, Input, Select, Switch, Button, Card, Space, message, Modal, Table, Tag } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';
+import { TeamOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import PageHeader from '@/components/common/PageHeader';
-import { getCadreDetail, updateCadre } from '@/api/cadres';
+import { getCadreDetail, updateCadre, getCadreGroups } from '@/api/cadres';
 import { getUnits } from '@/api/units';
 import { useFieldOptions } from '@/hooks/useFieldOptions';
 import { getErrorMessage } from '@/utils/error';
@@ -22,6 +23,11 @@ const CadreDetail: React.FC = () => {
 
   const [unitOptions, setUnitOptions] = useState<{ label: string; value: string }[]>([]);
   const [originalData, setOriginalData] = useState<any>(null);
+
+  // 关联巡察组
+  const [groupsModalOpen, setGroupsModalOpen] = useState(false);
+  const [groupsLoading, setGroupsLoading] = useState(false);
+  const [groupsData, setGroupsData] = useState<any[]>([]);
 
   useEffect(() => {
     getUnits({ page: 1, page_size: 999 }).then(res => {
@@ -75,6 +81,41 @@ const CadreDetail: React.FC = () => {
     }
   };
 
+  const openGroupsModal = async () => {
+    if (!id) return;
+    setGroupsModalOpen(true);
+    setGroupsLoading(true);
+    try {
+      const data = await getCadreGroups(id);
+      setGroupsData(data || []);
+    } catch {
+      message.error('加载关联巡察组失败');
+    } finally {
+      setGroupsLoading(false);
+    }
+  };
+
+  const groupColumns = [
+    { title: '巡察组名称', dataIndex: 'group_name', key: 'group_name' },
+    { title: '巡察计划', dataIndex: 'plan_name', key: 'plan_name', render: (v: string) => v || '-' },
+    {
+      title: '角色',
+      dataIndex: 'is_leader',
+      key: 'is_leader',
+      render: (leader: boolean, record: any) =>
+        leader ? <Tag color="blue">组长</Tag> : <Tag>{record.role || '组员'}</Tag>,
+    },
+    {
+      title: '状态',
+      dataIndex: 'group_status',
+      key: 'group_status',
+      render: (s: string) => {
+        const colorMap: Record<string, string> = { draft: 'default', authorized: 'blue', active: 'green', completed: 'gray' };
+        return <Tag color={colorMap[s] || 'default'}>{s}</Tag>;
+      },
+    },
+  ];
+
   const formItemRow = (children: React.ReactNode) => (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>{children}</div>
   );
@@ -88,6 +129,11 @@ const CadreDetail: React.FC = () => {
           { name: '干部人才库', path: '/archive/cadres' },
           { name: originalData?.name || '干部详情' },
         ]}
+        extra={
+          <Button icon={<TeamOutlined />} onClick={openGroupsModal}>
+            查看关联巡察组
+          </Button>
+        }
       />
       <Card>
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
@@ -211,6 +257,24 @@ const CadreDetail: React.FC = () => {
           </Form.Item>
         </Form>
       </Card>
+
+      <Modal
+        title="关联巡察组"
+        open={groupsModalOpen}
+        onCancel={() => setGroupsModalOpen(false)}
+        footer={null}
+        width={640}
+      >
+        <Table
+          rowKey="group_id"
+          loading={groupsLoading}
+          dataSource={groupsData}
+          columns={groupColumns}
+          pagination={false}
+          size="small"
+          locale={{ emptyText: '暂无关联巡察组' }}
+        />
+      </Modal>
     </div>
   );
 };

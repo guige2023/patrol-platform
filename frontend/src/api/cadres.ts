@@ -39,3 +39,6 @@ export const downloadCadreTemplate = () => {
 
 export const exportCadres = () =>
   api.get('/cadres/export', { responseType: 'blob' }).then(res => res.data);
+
+export const getCadreGroups = (cadreId: string) =>
+  api.get(`/cadres/${cadreId}/groups`).then(res => res.data);

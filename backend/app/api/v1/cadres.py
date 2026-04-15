@@ -7,7 +7,10 @@ from uuid import UUID
 import io, codecs
 from app.dependencies import get_db, get_current_user
 from app.models.cadre import Cadre
+from app.models.unit import Unit
 from app.models.user import User
+from app.models.inspection_group import InspectionGroup, GroupMember
+from sqlalchemy.orm import selectinload
 from app.schemas.cadre import CadreCreate, CadreUpdate, CadreResponse
 from app.schemas.common import PaginatedResponse, PageResult
 from app.core.audit import write_audit_log
@@ -58,7 +61,7 @@ async def export_cadres(
     current_user: User = Depends(get_current_user),
 ):
     """Export cadres as .xlsx (max 10000 rows)."""
-    query = select(Cadre).where(Cadre.is_active == True)
+    query = select(Cadre).where(Cadre.is_active == True).options(selectinload(Cadre.unit))
     if name:
         query = query.where(Cadre.name.ilike(f"%{name}%"))
     if unit_id:
@@ -104,7 +107,7 @@ async def export_cadres(
             c.ethnicity or "", c.native_place or "", c.political_status or "",
             c.education or "", c.degree or "",
             c.position or "", c.rank or "", c.category or "",
-            "",  # unit_name would need a join
+            c.unit.name if c.unit else "",
             tags_str, c.resume or "",
             "是" if c.is_available else "否",
             created,
@@ -435,6 +438,36 @@ async def import_cadres(
         "skipped": skipped,
         "errors": errors[:10],
     }
+
+
+@router.get("/{cadre_id}/groups")
+async def get_cadre_groups(
+    cadre_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get all inspection groups that contain this cadre (via GroupMember)."""
+    result = await db.execute(
+        select(GroupMember)
+        .where(GroupMember.cadre_id == cadre_id)
+        .options(selectinload(GroupMember.group).selectinload(InspectionGroup.plan))
+    )
+    members = result.scalars().all()
+
+    groups = []
+    for m in members:
+        g = m.group
+        if not g:
+            continue
+        groups.append({
+            "group_id": str(g.id),
+            "group_name": g.name,
+            "role": m.role,
+            "is_leader": m.is_leader,
+            "group_status": g.status,
+            "plan_name": g.plan.name if g.plan else None,
+        })
+    return groups
 
 
 def _cell(row, col_map, key):
