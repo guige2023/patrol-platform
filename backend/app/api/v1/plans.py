@@ -3,12 +3,18 @@ from pydantic import BaseModel
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
 from app.dependencies import get_db, get_current_user
 from app.models.plan import Plan, PlanVersion, PlanStatus
 from app.models.user import User
+from app.models.inspection_group import InspectionGroup, GroupMember
+from app.models.draft import Draft
+from app.models.rectification import Rectification
+from app.models.cadre import Cadre
+from app.models.unit import Unit
 from app.schemas.plan import PlanCreate, PlanUpdate, PlanResponse
 from app.schemas.common import PaginatedResponse, PageResult
 from app.core.audit import write_audit_log
@@ -206,6 +212,231 @@ async def download_plan_template(
         output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": "attachment; filename*=UTF-8''plan_template.xlsx"},
+    )
+
+
+RECTIFICATION_STATUS_LABELS = {
+    "dispatched": "已派发",
+    "signed": "已签收",
+    "progressing": "进行中",
+    "completed": "已完成",
+    "submitted": "待验收",
+    "verified": "已验收",
+    "rejected": "已驳回",
+}
+
+DRAFT_STATUS_LABELS = {
+    "draft": "草稿",
+    "preliminary_review": "初审中",
+    "final_review": "终审中",
+    "approved": "已通过",
+    "rejected": "已驳回",
+}
+
+DRAFT_SEVERITY_LABELS = {
+    "mild": "轻微",
+    "moderate": "中等",
+    "severe": "严重",
+}
+
+
+def _make_header(ws, headers):
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill("solid", fgColor="1677FF")
+    header_align = Alignment(horizontal="center", vertical="center")
+    thin_border = Border(
+        left=Side(style="thin"), right=Side(style="thin"),
+        top=Side(style="thin"), bottom=Side(style="thin")
+    )
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        cell.border = thin_border
+
+
+def _auto_width(ws):
+    for col in ws.columns:
+        max_len = 0
+        col_letter = col[0].column_letter
+        for cell in col:
+            if cell.value:
+                max_len = max(max_len, len(str(cell.value)))
+        ws.column_dimensions[col_letter].width = min(max_len + 4, 45)
+
+
+@router.get("/{plan_id}/report")
+async def export_plan_report(
+    plan_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Export complete inspection plan report as multi-sheet Excel.
+
+    Sheets: 巡察计划 | 巡察组 | 整改项 | 底稿
+    """
+    # 1. Plan
+    result = await db.execute(select(Plan).where(Plan.id == plan_id, Plan.is_active == True))
+    plan = result.scalar_one_or_none()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    # 2. Groups for this plan
+    groups_result = await db.execute(
+        select(InspectionGroup)
+        .options(selectinload(InspectionGroup.members).selectinload(GroupMember.cadre))
+        .where(InspectionGroup.plan_id == plan_id, InspectionGroup.is_active == True)
+    )
+    groups = groups_result.scalars().all()
+    group_ids = [g.id for g in groups]
+    target_unit_ids = list({g.target_unit_id for g in groups if g.target_unit_id})
+
+    # 3. Drafts for these groups
+    drafts = []
+    if group_ids:
+        drafts_result = await db.execute(
+            select(Draft).where(Draft.group_id.in_(group_ids), Draft.is_active == True)
+        )
+        drafts = drafts_result.scalars().all()
+
+    # 4. Rectifications for target units
+    rectifications = []
+    if target_unit_ids:
+        rect_result = await db.execute(
+            select(Rectification).where(
+                Rectification.unit_id.in_(target_unit_ids),
+                Rectification.is_active == True
+            )
+        )
+        rectifications = rect_result.scalars().all()
+
+    # 5. Build workbook
+    wb = openpyxl.Workbook()
+
+    # ── Sheet 1: 巡察计划 ──
+    ws1 = wb.active
+    ws1.title = "巡察计划"
+    _make_header(ws1, [
+        "计划名称", "年份", "轮次", "巡察范围", "重点领域",
+        "授权文书", "授权日期",
+        "计划开始日期", "计划结束日期",
+        "实际开始日期", "实际结束日期",
+        "状态", "审批意见", "版本",
+    ])
+    focus_str = ",".join(plan.focus_areas) if isinstance(plan.focus_areas, list) else (plan.focus_areas or "")
+    ws1.append([
+        plan.name or "",
+        plan.year or "",
+        plan.round_name or "",
+        plan.scope or "",
+        focus_str,
+        plan.authorization_letter or "",
+        plan.authorization_date.strftime('%Y-%m-%d') if plan.authorization_date else "",
+        plan.planned_start_date.strftime('%Y-%m-%d') if plan.planned_start_date else "",
+        plan.planned_end_date.strftime('%Y-%m-%d') if plan.planned_end_date else "",
+        plan.actual_start_date.strftime('%Y-%m-%d') if plan.actual_start_date else "",
+        plan.actual_end_date.strftime('%Y-%m-%d') if plan.actual_end_date else "",
+        STATUS_LABELS.get(plan.status, plan.status or ""),
+        plan.approval_comment or "",
+        plan.version or 1,
+    ])
+    _auto_width(ws1)
+
+    # ── Sheet 2: 巡察组 ──
+    ws2 = wb.create_sheet("巡察组")
+    _make_header(ws2, [
+        "巡察组名称", "状态", "目标单位", "组长", "副组长", "联络员",
+        "组员", "授权文书", "授权日期",
+    ])
+    for g in groups:
+        member_by_role = {"组长": [], "副组长": [], "联络员": [], "组员": []}
+        for m in g.members:
+            if m.cadre:
+                name = m.cadre.name or "未知"
+            else:
+                name = "未知"
+            role = m.role or "组员"
+            if role in member_by_role:
+                member_by_role[role].append(name)
+            else:
+                member_by_role["组员"].append(name)
+        target_unit_name = ""
+        if g.target_unit_id:
+            u_result = await db.execute(select(Unit).where(Unit.id == g.target_unit_id))
+            u = u_result.scalar_one_or_none()
+            if u:
+                target_unit_name = u.name
+        ws2.append([
+            g.name or "",
+            STATUS_LABELS.get(g.status, g.status or ""),
+            target_unit_name,
+            "、".join(member_by_role["组长"]),
+            "、".join(member_by_role["副组长"]),
+            "、".join(member_by_role["联络员"]),
+            "、".join(member_by_role["组员"]),
+            g.authorization_letter or "",
+            g.authorization_date.strftime('%Y-%m-%d') if g.authorization_date else "",
+        ])
+    _auto_width(ws2)
+
+    # ── Sheet 3: 整改项 ──
+    ws3 = wb.create_sheet("整改项")
+    _make_header(ws3, [
+        "整改标题", "问题描述", "整改要求", "责任单位",
+        "状态", "进度%", "派发日期", "签收日期", "完成日期", "整改要求",
+    ])
+    for r in rectifications:
+        unit_name = ""
+        if r.unit_id:
+            u_result = await db.execute(select(Unit).where(Unit.id == r.unit_id))
+            u = u_result.scalar_one_or_none()
+            if u:
+                unit_name = u.name
+        ws3.append([
+            r.title or "",
+            r.problem_description or "",
+            r.rectification_requirement or "",
+            unit_name,
+            RECTIFICATION_STATUS_LABELS.get(r.status, r.status or ""),
+            r.progress or 0,
+            r.created_at.strftime('%Y-%m-%d') if r.created_at else "",
+            r.sign_date.strftime('%Y-%m-%d') if r.sign_date else "",
+            r.completed_at.strftime('%Y-%m-%d') if r.completed_at else "",
+            r.rectification_requirement or "",
+        ])
+    _auto_width(ws3)
+
+    # ── Sheet 4: 底稿 ──
+    ws4 = wb.create_sheet("底稿")
+    _make_header(ws4, [
+        "底稿标题", "问题类型", "严重程度", "分类",
+        "状态", "证据摘要", "初审意见", "终审意见",
+    ])
+    for d in drafts:
+        ws4.append([
+            d.title or "",
+            d.problem_type or "",
+            DRAFT_SEVERITY_LABELS.get(d.severity, d.severity or ""),
+            d.category or "",
+            DRAFT_STATUS_LABELS.get(d.status, d.status or ""),
+            d.evidence_summary or "",
+            d.preliminary_review_comment or "",
+            d.review_comment or "",
+        ])
+    _auto_width(ws4)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    plan_name_safe = (plan.name or "巡察报告").replace("/", "_").replace("\\", "_")
+    filename = f"{plan_name_safe}_完整报告.xlsx"
+    from urllib.parse import quote
+    encoded_filename = quote(filename)
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"},
     )
 
 

@@ -16,6 +16,12 @@ export const getGroupMembers = (groupId: string) =>
   api.get(`/groups/${groupId}/members`).then(res => res.data);
 export const submitGroup = (id: string) =>
   api.post(`/groups/${id}/submit`);
+export const activateGroup = (id: string) =>
+  api.post(`/groups/${id}/activate`);
+export const completeGroup = (id: string) =>
+  api.post(`/groups/${id}/complete`);
+export const getGroupStatusLogs = (groupId: string) =>
+  api.get(`/groups/${groupId}/status-logs`).then(res => res.data);
 export const deleteGroup = (id: string) =>
   api.delete(`/groups/${id}`);
 

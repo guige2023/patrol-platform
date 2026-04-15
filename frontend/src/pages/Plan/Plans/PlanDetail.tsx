@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Form, Input, Button, Space, Modal, message, DatePicker, Descriptions } from 'antd';
-import { getPlan, createPlan, updatePlan } from '@/api/plans';
+import { getPlan, createPlan, updatePlan, exportPlanReport } from '@/api/plans';
 import dayjs from 'dayjs';
 import { getErrorMessage } from '@/utils/error';
 
@@ -178,12 +178,21 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
       title={title}
       open={open}
       onCancel={onClose}
-      footer={isView ? null : (
-        <Space>
-          <Button onClick={onClose}>取消</Button>
-          <Button type="primary" onClick={handleSubmit} loading={loading}>确定</Button>
-        </Space>
-      )}
+      footer={
+        isView ? (
+          <Space>
+            <Button onClick={onClose}>关闭</Button>
+            <Button type="primary" onClick={() => exportPlanReport(planData?.id!, planData?.name)}>
+              导出完整报告
+            </Button>
+          </Space>
+        ) : (
+          <Space>
+            <Button onClick={onClose}>取消</Button>
+            <Button type="primary" onClick={handleSubmit} loading={loading}>确定</Button>
+          </Space>
+        )
+      }
       width={700}
     >
       {isView ? renderViewMode() : (

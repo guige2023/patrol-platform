@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Form, Input, Select, Button, Space, Table, Tag, message, Popconfirm, DatePicker, Descriptions } from 'antd';
-import { createGroup, updateGroup, getGroup, submitGroup } from '@/api/groups';
+import { Modal, Form, Input, Select, Button, Space, Table, Tag, message, Popconfirm, DatePicker, Descriptions, Tabs } from 'antd';
+import { createGroup, updateGroup, getGroup, submitGroup, getGroupStatusLogs, activateGroup, completeGroup } from '@/api/groups';
 import { getPlans } from '@/api/plans';
 import { getUnits } from '@/api/units';
 import { removeMember, addMember } from '@/api/groups';
@@ -42,6 +42,13 @@ const STATUS_OPTIONS = [
   { label: '已完成', value: 'completed' },
 ];
 
+const STATUS_LABELS_VIEW: Record<string, string> = {
+  draft: '草稿',
+  approved: '已审批',
+  active: '进行中',
+  completed: '已完成',
+};
+
 const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCancel, onSuccess }) => {
   const [form] = Form.useForm<GroupFormData>();
   const [loading, setLoading] = useState(false);
@@ -50,6 +57,8 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
   const [unitOptions, setUnitOptions] = useState<UnitOption[]>([]);
   const [initialLoading, setInitialLoading] = useState(false);
   const [members, setMembers] = useState<any[]>([]);
+  const [statusLogs, setStatusLogs] = useState<any[]>([]);
+  const [statusLogsLoading, setStatusLogsLoading] = useState(false);
   const [groupData, setGroupData] = useState<{
     authorization_letter?: string;
     authorization_date?: string;
@@ -74,6 +83,12 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
         setMembers([]);
         setGroupData(null);
       }
+    }
+  }, [open, mode, editingId]);
+
+  useEffect(() => {
+    if (open && mode === 'view' && editingId) {
+      loadStatusLogs(editingId);
     }
   }, [open, mode, editingId]);
 
@@ -131,6 +146,18 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
       onCancel();
     } finally {
       setInitialLoading(false);
+    }
+  };
+
+  const loadStatusLogs = async (groupId: string) => {
+    setStatusLogsLoading(true);
+    try {
+      const logs = await getGroupStatusLogs(groupId);
+      setStatusLogs(Array.isArray(logs) ? logs : []);
+    } catch {
+      setStatusLogs([]);
+    } finally {
+      setStatusLogsLoading(false);
     }
   };
 
@@ -196,6 +223,28 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
     }
   };
 
+  const handleActivateGroup = async () => {
+    if (!editingId) return;
+    try {
+      await activateGroup(editingId);
+      message.success('已开始执行');
+      onSuccess();
+    } catch (e: any) {
+      message.error(getErrorMessage(e) || '操作失败');
+    }
+  };
+
+  const handleCompleteGroup = async () => {
+    if (!editingId) return;
+    try {
+      await completeGroup(editingId);
+      message.success('已标记完成');
+      onSuccess();
+    } catch (e: any) {
+      message.error(getErrorMessage(e) || '操作失败');
+    }
+  };
+
   const roleColors: Record<string, string> = {
     '组长': 'red',
     '副组长': 'orange',
@@ -235,6 +284,12 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
             )}
             {isView && groupData?.status === 'draft' && (
               <Button type="primary" onClick={handleSubmitGroup}>提交审批</Button>
+            )}
+            {isView && groupData?.status === 'approved' && (
+              <Button type="primary" onClick={handleActivateGroup}>开始执行</Button>
+            )}
+            {isView && groupData?.status === 'active' && (
+              <Button type="primary" onClick={handleCompleteGroup}>完成</Button>
             )}
           </Space>
         </div>
@@ -299,19 +354,68 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
         </Descriptions>
       )}
 
-      {(isEdit || isView) && (
+      {(isEdit || isView) && isView && (
+        <Tabs
+          style={{ marginTop: 24 }}
+          items={[
+            {
+              key: 'members',
+              label: `成员信息（${members.length}人）`,
+              children: (
+                <div>
+                  <Table
+                    columns={memberColumns}
+                    dataSource={members}
+                    rowKey="cadre_id"
+                    size="small"
+                    pagination={false}
+                  />
+                </div>
+              ),
+            },
+            {
+              key: 'logs',
+              label: '操作日志',
+              children: (
+                <Table
+                  dataSource={statusLogs}
+                  rowKey="id"
+                  size="small"
+                  loading={statusLogsLoading}
+                  pagination={false}
+                  columns={[
+                    { title: '时间', dataIndex: 'created_at', key: 'created_at', render: (t: string) => t ? new Date(t).toLocaleString('zh-CN') : '-' },
+                    { title: '操作人', dataIndex: 'user_id', key: 'user_id', render: (u: string) => u ? `用户 ${u.slice(0, 8)}...` : '系统' },
+                    {
+                      title: '状态变更',
+                      key: 'change',
+                      render: (_: any, log: any) => (
+                        <span>
+                          <Tag color="default">{STATUS_LABELS_VIEW[log.from_status] || log.from_status || '-'}</Tag>
+                          <span style={{ margin: '0 6px', color: '#52c41a' }}>→</span>
+                          <Tag color="blue">{STATUS_LABELS_VIEW[log.to_status] || log.to_status || '-'}</Tag>
+                        </span>
+                      ),
+                    },
+                  ]}
+                />
+              ),
+            },
+          ]}
+        />
+      )}
+
+      {isEdit && (
         <div style={{ marginTop: 24 }}>
           <div style={{ fontWeight: 500, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>巡察组成员（{members.length}人）</span>
-            {isEdit && (
-              <Button
-                size="small"
-                type="primary"
-                onClick={() => setReplaceModal({ visible: true, memberId: '', role: '组员' })}
-              >
-                添加成员
-              </Button>
-            )}
+            <Button
+              size="small"
+              type="primary"
+              onClick={() => setReplaceModal({ visible: true, memberId: '', role: '组员' })}
+            >
+              添加成员
+            </Button>
           </div>
           <Table
             columns={memberColumns}

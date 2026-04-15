@@ -1,4 +1,5 @@
 import api from './client';
+import { message } from 'antd';
 
 export const getPlans = (params?: { page?: number; page_size?: number; name?: string; year?: number; status?: string }) =>
   api.get('/plans/', { params }).then(res => res.data);
@@ -61,4 +62,18 @@ export const downloadPlanTemplate = () => {
     a.click();
     window.URL.revokeObjectURL(url);
   });
+};
+
+export const exportPlanReport = (planId: string, planName?: string) => {
+  api.get(`/plans/${planId}/report`, { responseType: 'blob' })
+    .then(res => {
+      const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = planName ? `${planName}_完整报告.xlsx` : '巡察完整报告.xlsx';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    })
+    .catch(() => message.error('导出报告失败'));
 };

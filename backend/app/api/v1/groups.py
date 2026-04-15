@@ -10,6 +10,7 @@ from app.models.inspection_group import InspectionGroup, GroupMember
 from app.models.plan import Plan
 from app.models.cadre import Cadre
 from app.models.user import User
+from app.models.audit_log import AuditLog
 from app.core.audit import write_audit_log
 from app.services.rule_engine import RuleEngine
 from app.schemas.group import GroupCreate, GroupUpdate, GroupMemberCreate, GroupMembersReplace
@@ -330,10 +331,68 @@ async def submit_group(group_id: UUID, db: AsyncSession = Depends(get_db), curre
     group = result.scalar_one_or_none()
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
+    old_status = group.status
     group.status = "approved"
     await db.commit()
-    await write_audit_log(db, current_user.id, "submit", "inspection_group", group_id, {})
+    await write_audit_log(db, current_user.id, "status_change", "inspection_group", group_id, {"from": old_status, "to": "approved"})
     return {"message": "Group submitted"}
+
+
+@router.post("/{group_id}/activate")
+async def activate_group(group_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Start executing the inspection group (approved → active)."""
+    result = await db.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
+    group = result.scalar_one_or_none()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    if group.status != "approved":
+        raise HTTPException(status_code=400, detail=f"Cannot activate group in status '{group.status}'")
+    old_status = group.status
+    group.status = "active"
+    await db.commit()
+    await write_audit_log(db, current_user.id, "status_change", "inspection_group", group_id, {"from": old_status, "to": "active"})
+    return {"message": "Group activated"}
+
+
+@router.post("/{group_id}/complete")
+async def complete_group(group_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Mark the inspection group as completed (active → completed)."""
+    result = await db.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
+    group = result.scalar_one_or_none()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    if group.status != "active":
+        raise HTTPException(status_code=400, detail=f"Cannot complete group in status '{group.status}'")
+    old_status = group.status
+    group.status = "completed"
+    await db.commit()
+    await write_audit_log(db, current_user.id, "status_change", "inspection_group", group_id, {"from": old_status, "to": "completed"})
+    return {"message": "Group completed"}
+
+
+@router.get("/{group_id}/status-logs")
+async def get_group_status_logs(group_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Get status transition history for a group from audit_logs."""
+    result = await db.execute(
+        select(AuditLog)
+        .where(AuditLog.entity_type == "inspection_group")
+        .where(AuditLog.entity_id == group_id)
+        .where(AuditLog.action == "status_change")
+        .order_by(AuditLog.created_at.desc())
+        .limit(100)
+    )
+    logs = result.scalars().all()
+    return [
+        {
+            "id": str(log.id),
+            "action": log.action,
+            "from_status": log.detail.get("from") if log.detail else None,
+            "to_status": log.detail.get("to") if log.detail else None,
+            "user_id": str(log.user_id) if log.user_id else None,
+            "created_at": log.created_at.isoformat() if log.created_at else None,
+        }
+        for log in logs
+    ]
 
 
 @router.put("/{group_id}")
