@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Form, Input, Select, Button, Space, Table, Tag, message, Popconfirm } from 'antd';
+import { Modal, Form, Input, Select, Button, Space, Table, Tag, message, Popconfirm, DatePicker, Descriptions } from 'antd';
 import { createGroup, updateGroup, getGroup, submitGroup } from '@/api/groups';
 import { getPlans } from '@/api/plans';
 import { getUnits } from '@/api/units';
@@ -31,6 +31,8 @@ interface GroupFormData {
   target_unit_id?: string;
   unit_ids?: string[];
   status?: string;
+  authorization_letter?: string;
+  authorization_date?: string;
 }
 
 const STATUS_OPTIONS = [
@@ -48,9 +50,12 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
   const [unitOptions, setUnitOptions] = useState<UnitOption[]>([]);
   const [initialLoading, setInitialLoading] = useState(false);
   const [members, setMembers] = useState<any[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  // @ts-ignore - kept for future use (authorization_letter, authorization_date)
-  const [groupData, setGroupData] = useState<any>(null);
+  const [groupData, setGroupData] = useState<{
+    authorization_letter?: string;
+    authorization_date?: string;
+    status?: string;
+    [key: string]: any;
+  } | null>(null);
   const [cadreOptions, setCadreOptions] = useState<any[]>([]);
   const [replaceModal, setReplaceModal] = useState<{ visible: boolean; memberId: string; role: string } | null>(null);
 
@@ -118,6 +123,8 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
         target_unit_id: res.target_unit_id,
         unit_ids: res.unit_ids || [],
         status: res.status,
+        authorization_letter: res.authorization_letter,
+        authorization_date: res.authorization_date ? res.authorization_date.split('T')[0] : undefined,
       });
     } catch (e) {
       message.error('加载巡察组详情失败');
@@ -277,7 +284,20 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
         <Form.Item name="status" label="状态">
           <Select placeholder="请选择状态" options={STATUS_OPTIONS} />
         </Form.Item>
+        <Form.Item name="authorization_letter" label="授权书文号">
+          <Input placeholder="如：中巡办〔2024〕10号" />
+        </Form.Item>
+        <Form.Item name="authorization_date" label="授权日期">
+          <DatePicker style={{ width: '100%' }} placeholder="选择日期" />
+        </Form.Item>
       </Form>
+
+      {isView && (
+        <Descriptions column={2} size="small" style={{ marginBottom: 16 }}>
+          <Descriptions.Item label="授权书文号">{groupData?.authorization_letter || '-'}</Descriptions.Item>
+          <Descriptions.Item label="授权日期">{groupData?.authorization_date ? groupData.authorization_date.split('T')[0] : '-'}</Descriptions.Item>
+        </Descriptions>
+      )}
 
       {(isEdit || isView) && (
         <div style={{ marginTop: 24 }}>

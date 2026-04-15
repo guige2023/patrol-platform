@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -205,7 +206,7 @@ async def download_plan_template(
 
 @router.get("/{plan_id}", response_model=PlanResponse)
 async def get_plan(plan_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Plan).where(Plan.id == plan_id))
+    result = await db.execute(select(Plan).where(Plan.id == plan_id, Plan.is_active == True))
     plan = result.scalar_one_or_none()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
@@ -316,3 +317,48 @@ async def delete_plan(plan_id: UUID, db: AsyncSession = Depends(get_db), current
     plan.is_active = False
     await db.commit()
     await write_audit_log(db, current_user.id, "delete", "plan", plan.id, {"name": plan.name})
+
+
+# p-flow-1: 通用状态切换（用于 published→in_progress, in_progress→completed）
+class StatusUpdateRequest(BaseModel):
+    status: str  # "in_progress" | "completed"
+
+
+@router.post("/{plan_id}/status")
+async def update_plan_status(
+    plan_id: UUID,
+    data: StatusUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """切换计划状态：published → in_progress，或 in_progress → completed"""
+    result = await db.execute(select(Plan).where(Plan.id == plan_id))
+    plan = result.scalar_one_or_none()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    valid_transitions = {
+        PlanStatus.PUBLISHED.value: PlanStatus.IN_PROGRESS.value,
+        PlanStatus.IN_PROGRESS.value: PlanStatus.COMPLETED.value,
+    }
+    if data.status not in valid_transitions.values():
+        raise HTTPException(status_code=400, detail="无效的目标状态")
+
+    current_allowed = [k for k, v in valid_transitions.items() if v == data.status]
+    if plan.status not in current_allowed:
+        raise HTTPException(status_code=400, detail=f"当前状态({plan.status})不可切换至{data.status}")
+
+    if data.status == PlanStatus.IN_PROGRESS.value and plan.status == PlanStatus.PUBLISHED.value:
+        plan.status = PlanStatus.IN_PROGRESS.value
+        from datetime import datetime
+        plan.actual_start_date = datetime.now()
+    elif data.status == PlanStatus.COMPLETED.value and plan.status == PlanStatus.IN_PROGRESS.value:
+        plan.status = PlanStatus.COMPLETED.value
+        from datetime import datetime
+        plan.actual_end_date = datetime.now()
+    else:
+        raise HTTPException(status_code=400, detail="状态流转不符合规则")
+
+    await db.commit()
+    await write_audit_log(db, current_user.id, "status_change", "plan", plan_id, {"new_status": data.status})
+    return {"message": f"状态已更新为 {data.status}"}

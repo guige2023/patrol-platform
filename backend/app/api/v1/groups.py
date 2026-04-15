@@ -12,7 +12,7 @@ from app.models.cadre import Cadre
 from app.models.user import User
 from app.core.audit import write_audit_log
 from app.services.rule_engine import RuleEngine
-from app.schemas.group import GroupCreate, GroupUpdate, GroupMemberCreate
+from app.schemas.group import GroupCreate, GroupUpdate, GroupMemberCreate, GroupMembersReplace
 import io
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -283,6 +283,45 @@ async def remove_member(group_id: UUID, cadre_id: UUID, db: AsyncSession = Depen
     await db.commit()
     await write_audit_log(db, current_user.id, "remove_member", "inspection_group", group_id, {"cadre_id": str(cadre_id)})
     return {"message": "Member removed"}
+
+
+@router.put("/{group_id}/members")
+async def replace_group_members(
+    group_id: UUID,
+    data: GroupMembersReplace,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """原子全量替换巡察组成员：先删后插，保证原子性"""
+    result = await db.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
+    group = result.scalar_one_or_none()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    # 删所有现有成员
+    await db.execute(
+        select(GroupMember).where(GroupMember.group_id == group_id)
+    )
+    # 直接用 text() 确保删除
+    from sqlalchemy import text
+    await db.execute(text("DELETE FROM group_members WHERE group_id = :gid"), {"gid": str(group_id)})
+    await db.flush()
+
+    # 插入新成员
+    for item in data.members:
+        new_member = GroupMember(
+            group_id=group_id,
+            cadre_id=item.cadre_id,
+            role=item.role,
+            is_leader=item.is_leader,
+        )
+        db.add(new_member)
+
+    await db.commit()
+    await write_audit_log(db, current_user.id, "replace_members", "inspection_group", group_id, {
+        "member_count": len(data.members)
+    })
+    return {"message": f"Members replaced ({len(data.members)} total)"}
 
 
 @router.post("/{group_id}/submit")

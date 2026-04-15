@@ -10,6 +10,16 @@ class GroupMemberCreate(BaseModel):
     is_leader: bool = False
 
 
+class MemberItem(BaseModel):
+    cadre_id: UUID
+    role: str = "member"
+    is_leader: bool = False
+
+
+class GroupMembersReplace(BaseModel):
+    members: List[MemberItem]  # 全量替换列表
+
+
 class GroupCreate(BaseModel):
     name: str
     plan_id: UUID

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Tag, message, Popconfirm } from 'antd';
+import { Table, Button, Space, Tag, message, Popconfirm, Input, Select } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
-import { getPlans, submitPlan, approvePlan, publishPlan, deletePlan, exportPlans } from '@/api/plans';
+import { getPlans, submitPlan, approvePlan, publishPlan, deletePlan, exportPlans, updatePlanStatus } from '@/api/plans';
 import PlanDetail from './PlanDetail';
 import CreatePlanModal from './CreatePlanModal';
 import type { ColumnsType } from 'antd/es/table';
@@ -46,11 +46,14 @@ const PlanList: React.FC = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [detailMode, setDetailMode] = useState<'create' | 'view' | 'edit'>('create');
+  const [keyword, setKeyword] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string | undefined>();
+  const [yearFilter, setYearFilter] = useState<number | undefined>();
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await getPlans({ page, page_size: pageSize });
+      const res = await getPlans({ page, page_size: pageSize, name: keyword || undefined, status: statusFilter, year: yearFilter });
       setData(res.items);
       setTotal(res.total);
     } finally {
@@ -58,13 +61,30 @@ const PlanList: React.FC = () => {
     }
   };
 
-  useEffect(() => { fetchData(); }, [page, pageSize]);
+  useEffect(() => { fetchData(); }, [page, pageSize, keyword, statusFilter, yearFilter]);
+
+  const handleKeywordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setKeyword(e.target.value);
+    setPage(1);
+  };
+
+  const handleStatusChange = (val: string | undefined) => {
+    setStatusFilter(val);
+    setPage(1);
+  };
+
+  const handleYearChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = parseInt(e.target.value);
+    setYearFilter(isNaN(v) ? undefined : v);
+    setPage(1);
+  };
 
   const handleAction = async (id: string, action: string) => {
     try {
       if (action === 'submit') await submitPlan(id);
       else if (action === 'approve') await approvePlan(id);
       else if (action === 'publish') await publishPlan(id);
+      else if (action === 'in_progress' || action === 'completed') await updatePlanStatus(id, action);
       message.success(`${action} 成功`);
       fetchData();
     } catch (e: any) {
@@ -120,6 +140,8 @@ const PlanList: React.FC = () => {
           {record.status === 'draft' && <Button type="link" size="small" onClick={() => handleAction(record.id, 'submit')}>提交</Button>}
           {record.status === 'submitted' && <Button type="link" size="small" onClick={() => handleAction(record.id, 'approve')}>批准</Button>}
           {record.status === 'approved' && <Button type="link" size="small" onClick={() => handleAction(record.id, 'publish')}>发布</Button>}
+          {record.status === 'published' && <Button type="link" size="small" onClick={() => handleAction(record.id, 'in_progress')}>开始执行</Button>}
+          {record.status === 'in_progress' && <Button type="link" size="small" onClick={() => handleAction(record.id, 'completed')}>完成</Button>}
           <Popconfirm title="确认删除该计划？" onConfirm={() => handleDelete(record.id)}>
             <Button type="link" danger size="small">删除</Button>
           </Popconfirm>
@@ -131,9 +153,30 @@ const PlanList: React.FC = () => {
   return (
     <div>
       <PageHeader title="巡察计划" breadcrumbs={[{ name: '巡察计划' }, { name: '计划管理' }]} />
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal} style={{ marginRight: 8 }}>新建计划</Button>
         <Button onClick={() => exportPlans().catch(e => message.error('导出失败'))}>导出</Button>
+        <Input placeholder="搜索计划名称" style={{ width: 160 }} onChange={handleKeywordChange} />
+        <Select
+          placeholder="按状态筛选"
+          allowClear
+          style={{ width: 120 }}
+          options={[
+            { label: '草稿', value: 'draft' },
+            { label: '已提交', value: 'submitted' },
+            { label: '已批准', value: 'approved' },
+            { label: '已发布', value: 'published' },
+            { label: '进行中', value: 'in_progress' },
+            { label: '已完成', value: 'completed' },
+          ]}
+          onChange={handleStatusChange}
+        />
+        <Input
+          placeholder="年份"
+          type="number"
+          style={{ width: 100 }}
+          onChange={handleYearChange}
+        />
       </div>
       <Table columns={columns} dataSource={data} rowKey="id" loading={loading}
         pagination={{ current: page, pageSize, total, onChange: (p, ps) => { setPage(p); setPageSize(ps); }, showTotal: (t) => `共 ${t} 条` }} />

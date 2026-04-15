@@ -24,6 +24,9 @@ export const publishPlan = (id: string) =>
 export const deletePlan = (id: string) =>
   api.delete(`/plans/${id}`);
 
+export const updatePlanStatus = (id: string, status: string) =>
+  api.post(`/plans/${id}/status`, { status });
+
 export const exportPlans = (params?: { year?: number; status?: string }) => {
   return api.get('/plans/download', { params, responseType: 'blob' }).then(res => {
     const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });

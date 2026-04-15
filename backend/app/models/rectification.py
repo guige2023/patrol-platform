@@ -31,6 +31,8 @@ class Rectification(Base):
     alert_level = Column(String(16), default="green")  # green/yellow/red
     alert_triggered_at = Column(DateTime)
     is_active = Column(Boolean, default=True)
+
+    unit = relationship("Unit")
     created_by = Column(Guid, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
