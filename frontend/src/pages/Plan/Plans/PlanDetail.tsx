@@ -83,7 +83,10 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
       if (values.round_name) payload.round_name = values.round_name;
       if (values.scope) payload.scope = values.scope;
 
-      if (values.focus_areas) payload.focus_areas = values.focus_areas;
+      // focus_areas 表单是 string，转为 List[str]
+      if (values.focus_areas) {
+        payload.focus_areas = values.focus_areas.split(/[，,\n]/).map((s: string) => s.trim()).filter(Boolean);
+      }
       if (values.authorization_letter) payload.authorization_letter = values.authorization_letter;
       if (values.authorization_date) payload.authorization_date = values.authorization_date.format('YYYY-MM-DD');
       if (values.planned_date_range) {
@@ -97,6 +100,8 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
       if (values.status) payload.status = values.status;
       if (values.approval_comment) payload.approval_comment = values.approval_comment;
       if (values.version) payload.version = values.version;
+      // target_units 编辑时需保留原值
+      if (values.target_units) payload.target_units = values.target_units;
 
       if (mode === 'create') {
         await createPlan(payload);
@@ -123,7 +128,9 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
       <Descriptions.Item label="轮次">{planData?.round_name || '-'}</Descriptions.Item>
       <Descriptions.Item label="巡察范围">{planData?.scope || '-'}</Descriptions.Item>
 
-      <Descriptions.Item label="重点领域">{planData?.focus_areas || '-'}</Descriptions.Item>
+      <Descriptions.Item label="重点领域">
+        {Array.isArray(planData?.focus_areas) ? planData.focus_areas.join('、') : (planData?.focus_areas || '-')}
+      </Descriptions.Item>
       <Descriptions.Item label="授权文书">{planData?.authorization_letter || '-'}</Descriptions.Item>
       <Descriptions.Item label="授权日期">
         {planData?.authorization_date ? dayjs(planData.authorization_date).format('YYYY-MM-DD') : '-'}
@@ -194,6 +201,10 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
           </Form.Item>
           <Form.Item name="version" label="版本号">
             <Input placeholder="如：v1.0" />
+          </Form.Item>
+          {/* target_units 隐藏字段，编辑时保留原值 */}
+          <Form.Item name="target_units" style={{ display: 'none' }}>
+            <Input />
           </Form.Item>
           {mode === 'edit' && (
             <>

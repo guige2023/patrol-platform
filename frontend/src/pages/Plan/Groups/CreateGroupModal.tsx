@@ -143,9 +143,13 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
   const handleStep1Next = async () => {
     try {
       await form.validateFields(['name', 'plan_id', 'leader_id']);
+      // 清空步骤2的单位选择，避免旧数据残留
+      setSelectedUnitIds([]);
+      setMatchedCadres([]);
+      setSelectedMemberIds([]);
       setCurrentStep(1);
     } catch {
-      // form validation
+      // form validation 错误已由 form 自己显示
     }
   };
 
@@ -258,36 +262,49 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
     </Form>
   );
 
-  const renderStep2 = () => (
-    <div>
-      <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
-        选择该巡察组负责巡察的单位（可多选）
-      </Text>
-      <div style={{ maxHeight: 420, overflowY: 'auto', border: '1px solid #f0f0f0', borderRadius: 6, padding: 12 }}>
-        <Checkbox.Group
-          value={selectedUnitIds}
-          onChange={(vals) => setSelectedUnitIds(vals as string[])}
-          style={{ display: 'block' }}
-        >
-          <Row gutter={[8, 8]}>
-            {allUnits.map((u) => (
-              <Col span={12} key={u.id}>
-                <Checkbox value={u.id}>
-                  <span>{u.name}</span>
-                  {u.tags && u.tags.length > 0 && u.tags.map((t) => (
-                    <Tag key={t} color="blue" style={{ marginLeft: 4, fontSize: 11 }}>{t}</Tag>
-                  ))}
-                </Checkbox>
-              </Col>
-            ))}
-          </Row>
-        </Checkbox.Group>
+  const renderStep2 = () => {
+    // 获取当前选中计划的 target_units，过滤单位列表
+    const formValues = form.getFieldsValue();
+    const selectedPlan = plans.find((p) => p.id === formValues.plan_id);
+    const targetUnitIds: string[] = selectedPlan?.target_units || [];
+    const filteredUnits = targetUnitIds.length > 0
+      ? allUnits.filter((u) => targetUnitIds.includes(u.id))
+      : allUnits;
+
+    return (
+      <div>
+        <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
+          选择该巡察组负责巡察的单位（可多选）{selectedPlan?.name && `（${selectedPlan.name}）`}
+        </Text>
+        <div style={{ maxHeight: 420, overflowY: 'auto', border: '1px solid #f0f0f0', borderRadius: 6, padding: 12 }}>
+          <Checkbox.Group
+            value={selectedUnitIds}
+            onChange={(vals) => setSelectedUnitIds(vals as string[])}
+            style={{ display: 'block' }}
+          >
+            <Row gutter={[8, 8]}>
+              {filteredUnits.map((u) => (
+                <Col span={12} key={u.id}>
+                  <Checkbox value={u.id}>
+                    <span>{u.name}</span>
+                    {u.tags && u.tags.length > 0 && u.tags.map((t) => (
+                      <Tag key={t} color="blue" style={{ marginLeft: 4, fontSize: 11 }}>{t}</Tag>
+                    ))}
+                  </Checkbox>
+                </Col>
+              ))}
+              {filteredUnits.length === 0 && (
+                <Text type="secondary">该计划暂未指定巡察单位，请返回步骤一修改计划</Text>
+              )}
+            </Row>
+          </Checkbox.Group>
+        </div>
+        <div style={{ marginTop: 8 }}>
+          <Text>已选 {selectedUnitIds.length} 个单位</Text>
+        </div>
       </div>
-      <div style={{ marginTop: 8 }}>
-        <Text>已选 {selectedUnitIds.length} 个单位</Text>
-      </div>
-    </div>
-  );
+    );
+  };
 
   const renderStep3 = () => {
     const memberColumns = [

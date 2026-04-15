@@ -1,0 +1,48 @@
+# patrol_platform 开发任务
+
+## 第一批次：阻断性 Bug 修复（必须先修）
+
+### 巡察计划 - 基础功能修复
+- [ ] **p-edit-1** PlanList 补上"编辑"按钮，与"查看"并列，操作列改为：查看 | 编辑 | 删除
+- [ ] **p-edit-2** PlanDetail 编辑模式：修复 focus_areas（字符串 ↔ 数组双向转换），验证保存后数组正确落库
+- [ ] **p-edit-3** PlanDetail 编辑模式：target_units 需从后端 PlanResponse 正确回填（目前 PlanResponse 缺这个字段），保存时通过隐藏字段传递
+- [ ] **p-edit-4** CreatePlanModal：step3 确认 payload 补上 `target_units: unitIds[]`，不再是只有 scope 字符串
+- [ ] **p-edit-5** PlanResponse schema 补全：`target_units`、`version_history`、`created_by`、`approved_by`、`updated_at`
+- [ ] **p-edit-6** PlanList 补上"删除"按钮，调用 DELETE /plans/{id}，软删除后刷新列表
+
+### 巡察组 - 基础功能修复
+- [ ] **g-edit-1** GroupList 补上"删除"按钮，调用 DELETE /{group_id}，软删除后刷新列表
+- [ ] **g-edit-2** GroupUpdate schema 补上 `unit_ids: List[str]`，后端 groups.py PUT endpoint 正确处理 unit_ids 更新到 target_unit_id
+- [ ] **g-edit-3** GroupDetail 编辑模式：验证修改单位后 unit_ids 确实被保存
+
+---
+
+## 第二批次：数据一致性修复
+
+### 巡察计划
+- [ ] **p-data-1** 成员替换（replace member）做成原子操作：后端新增 `PUT /groups/{id}/members` 全量替换 endpoint，前端改用这个接口
+- [ ] **p-data-2** PlanList 操作列：publish 按钮补上（approved 状态显示），对应 POST /plans/{id}/publish
+- [ ] **p-data-3** PlanDetail 编辑模式：禁止用户直接修改 status 字段，状态变更只能走 submit → approve → publish 流程
+- [ ] **p-data-4** PlanResponse 返回 `version_history`，PlanList/PlanDetail 可展示变更记录
+
+### 巡察组
+- [ ] **g-data-1** GroupMember 表加唯一约束：`(group_id, cadre_id)` 唯一索引，防止重复添加
+- [ ] **g-data-2** GroupDetail 成员列表：每个成员行加"移除"按钮，调用 DELETE /groups/{id}/members/{member_id}
+- [ ] **g-data-3** 后端 add_member endpoint 加去重校验，已存在的 cadre_id 不可重复添加
+- [ ] **g-data-4** vice_leader_id 与 leader_id 互斥校验：后端创建/更新时校验不能为同一人
+
+---
+
+## 第三批次：流程完整性与展示增强
+
+### 巡察计划
+- [ ] **p-flow-1** PlanList：IN_PROGRESS / COMPLETED 状态按钮补上，POST /plans/{id}/status 切换
+- [ ] **p-flow-2** PlanDetail 查看模式：展示 version_history（版本变更记录）
+- [ ] **p-flow-3** 授权书/授权日期字段：PlanDetail 表单加这两个字段，后端正确读写数据库字段
+- [ ] **p-flow-4** get_plan endpoint 加上 `is_active=True` 过滤，保持与列表行为一致
+
+### 巡察组
+- [ ] **g-flow-1** GroupDetail 成员列表：leader 和 vice_leader 有特殊角色标记（非"组员"）
+- [ ] **g-flow-2** 授权书/授权日期：GroupDetail 加这两个字段的展示和编辑，后端 GroupResponse 返回这两个字段
+- [ ] **g-flow-3** GroupList 加 plan_id 和 status 筛选器，对应后端已支持的查询参数
+- [ ] **g-flow-4** POST /groups/{id}/submit 前端入口补上（GroupDetail modal 底部加"提交审批"按钮）

@@ -57,6 +57,25 @@ async def migrate():
             except Exception:
                 pass
 
+        # --- plans: add round_number, authorization_date ---
+        if dialect == 'sqlite':
+            result = await conn.execute(text("PRAGMA table_info(plans)"))
+            columns = [row[1] for row in result.fetchall()]
+            if 'round_number' not in columns:
+                await conn.execute(text("ALTER TABLE plans ADD COLUMN round_number INTEGER"))
+            if 'authorization_date' not in columns:
+                await conn.execute(text("ALTER TABLE plans ADD COLUMN authorization_date DATETIME"))
+        else:
+            # PostgreSQL
+            try:
+                await conn.execute(text("ALTER TABLE plans ADD COLUMN round_number INTEGER"))
+            except Exception:
+                pass
+            try:
+                await conn.execute(text("ALTER TABLE plans ADD COLUMN authorization_date DATETIME"))
+            except Exception:
+                pass
+
         # --- knowledge: add attachments ---
         if dialect == 'sqlite':
             result = await conn.execute(text("PRAGMA table_info(knowledge)"))

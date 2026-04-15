@@ -1,0 +1,38 @@
+# patrol_platform 已完成任务
+
+---
+
+## 2026-04-15 巡察平台 Bug 修复批次
+
+### 单位档案 (UnitList)
+- ✅ **u1** UnitList.tsx：`handleDelete` 删除成功后调用 `setPage(1)` 重置页码。验证：第 2 页删除，页码回到第 1 页。
+
+### 干部人才 (CadreModal)
+- ✅ **c1** CadreModal.tsx：重写 `handleSwitchToEdit`，使用 `form.useForm()` 实例 + `editingSwitchLoading` 状态控制。修复切换时数据未填充就显示编辑模式的竞态问题。
+
+### 巡察计划 (Plan)
+- ✅ **p1** PlanDetail.tsx：`handleSubmit` 中 `focus_areas` 字符串 split 转换（支持 `/[,，,\n]/` 分隔），`renderViewMode` 用 `.join('、')` 显示数组。
+- ✅ **p2/p4** 数据库 migration：给 plans 表加 `round_number INTEGER` 和 `authorization_date DATETIME` 字段（SQLite ALTER TABLE）。
+- ✅ **p2/p4** Plan 模型：加 `round_number = Column(Integer, nullable=True)` 和 `authorization_date = Column(DateTime, nullable=True)`。
+- ✅ **p2/p4** PlanSchema：`PlanBase` 加 `round_number: Optional[int]`，`PlanBase` 加 `authorization_date: Optional[datetime]`，`PlanUpdate` 加 `round_number: Optional[int]`（已有 authorization_date）。
+- ✅ **p3** PlanDetail.tsx：编辑弹窗加 `<Form.Item name="target_units">` 隐藏字段，保存时 `if (values.target_units) payload.target_units = values.target_units` 保留原值。
+- ✅ **p5** CreatePlanModal.tsx：`handleConfirmCreate` 的 payload 加 `round_number: previewData.round_number`。
+- ✅ **p5/p6** 验证：API 直接测试 `POST /plans/` 带 `round_number: 3` 和 `authorization_date: '2024-03-01T00:00:00'`，返回 200 且字段正确存储。
+
+### 巡察组 (Group)
+- ✅ **g1** groups.py：新增 `PUT /{group_id}` endpoint，支持更新 name/status/target_unit_id/authorization_letter/authorization_date。
+- ✅ **g2** CreateGroupModal.tsx：`renderStep2` 过滤 `allUnits` 为 `selectedPlan.target_units` 内的单位。`planUnits = allUnits.filter(u => targetUnitIds.includes(u.id))`。
+- ✅ **g3** CreateGroupModal.tsx：`handleStep1Next` 在 advance 前调用 `setSelectedUnitIds([])`、`setSelectedMemberIds([])` 清空 step2/3 状态，防止残留数据。
+
+### 巡察计划管理 - 代码分析（未动手）
+- 🔍 PlanList 仅有"查看"，无编辑/删除按钮（p-edit-1、p-edit-6）
+- 🔍 PlanResponse 缺 target_units/version_history/created_by 等字段（p-edit-5）
+- 🔍 CreatePlanModal step3 payload 缺 target_units（p-edit-4）
+- 🔍 focus_areas 编辑模式转换未经 UI 验证（p-edit-2）
+
+### 巡察组管理 - 代码分析（未动手）
+- 🔍 GroupUpdate schema 无 unit_ids 字段，编辑时单位被静默丢弃（g-edit-2）
+- 🔍 成员替换为非原子操作，remove 失败无 rollback（p-data-1）
+- 🔍 GroupMember 无唯一约束，可重复添加同一干部（g-data-1）
+- 🔍 GroupList 无删除按钮（g-edit-1）
+- 🔍 authorization_letter/authorization_date 字段无人认领

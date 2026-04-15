@@ -150,6 +150,8 @@ const CreatePlanModal: React.FC<CreatePlanModalProps> = ({ open, onClose, onSucc
         selectedUnits,
         planned_start_date: values.planned_start_date?.format('YYYY-MM-DD'),
         planned_end_date: values.planned_end_date?.format('YYYY-MM-DD'),
+        actual_start_date: values.actual_start_date?.format('YYYY-MM-DD'),
+        actual_end_date: values.actual_end_date?.format('YYYY-MM-DD'),
       });
       setCurrentStep(2);
     } catch {
@@ -186,6 +188,7 @@ const CreatePlanModal: React.FC<CreatePlanModalProps> = ({ open, onClose, onSucc
         name: previewData.name,
         year: previewData.year,
         round_name: previewData.round_name,
+        round_number: previewData.round_number,
         scope: selectedUnits.map((u) => u.name).join('、'),
         focus_areas: focusAreasList,
         target_units: selectedUnitIds,
@@ -196,6 +199,12 @@ const CreatePlanModal: React.FC<CreatePlanModalProps> = ({ open, onClose, onSucc
           ? `${previewData.planned_end_date}T00:00:00`
           : undefined,
       };
+      if (previewData.actual_start_date) {
+        payload.actual_start_date = `${previewData.actual_start_date}T00:00:00`;
+      }
+      if (previewData.actual_end_date) {
+        payload.actual_end_date = `${previewData.actual_end_date}T00:00:00`;
+      }
       if (previewData.authorization_letter) {
         payload.authorization_letter = previewData.authorization_letter;
       }
@@ -335,6 +344,18 @@ const CreatePlanModal: React.FC<CreatePlanModalProps> = ({ open, onClose, onSucc
         </Col>
         <Col span={12}>
           <Form.Item name="planned_end_date" label="巡察结束日期（自动计算工作日，可调整）">
+            <DatePicker style={{ width: '100%' }} />
+          </Form.Item>
+        </Col>
+      </Row>
+      <Row gutter={16}>
+        <Col span={12}>
+          <Form.Item name="actual_start_date" label="实际开始日期">
+            <DatePicker style={{ width: '100%' }} />
+          </Form.Item>
+        </Col>
+        <Col span={12}>
+          <Form.Item name="actual_end_date" label="实际结束日期">
             <DatePicker style={{ width: '100%' }} />
           </Form.Item>
         </Col>

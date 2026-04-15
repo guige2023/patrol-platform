@@ -7,6 +7,7 @@ from datetime import datetime
 class PlanBase(BaseModel):
     name: str
     round_name: Optional[str] = None
+    round_number: Optional[int] = None
     year: int
     planned_start_date: Optional[datetime] = None
     planned_end_date: Optional[datetime] = None
@@ -16,6 +17,7 @@ class PlanBase(BaseModel):
     focus_areas: Optional[List[str]] = []
     target_units: Optional[List[str]] = []
     authorization_letter: Optional[str] = None
+    authorization_date: Optional[datetime] = None
 
 
 class PlanCreate(PlanBase):
@@ -25,6 +27,7 @@ class PlanCreate(PlanBase):
 class PlanUpdate(BaseModel):
     name: Optional[str] = None
     round_name: Optional[str] = None
+    round_number: Optional[int] = None
     planned_start_date: Optional[datetime] = None
     planned_end_date: Optional[datetime] = None
     actual_start_date: Optional[datetime] = None
@@ -34,6 +37,7 @@ class PlanUpdate(BaseModel):
     target_units: Optional[List[str]] = None
     status: Optional[str] = None
     authorization_letter: Optional[str] = None
+    authorization_date: Optional[datetime] = None
 
 
 class PlanResponse(PlanBase):

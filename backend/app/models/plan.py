@@ -32,9 +32,11 @@ class Plan(Base):
     scope = Column(Text)  # 巡察范围
     focus_areas = Column(JSON, default=list)  # 重点领域
     target_units = Column(JSON, default=list)  # 目标单位 [unit_id, ...]
+    round_number = Column(Integer, nullable=True)  # 轮次编号
     version = Column(Integer, default=1)
     version_history = Column(JSON, default=list)
     authorization_letter = Column(Text)  # 授权书
+    authorization_date = Column(DateTime, nullable=True)  # 授权日期
     approval_comment = Column(Text)
     approved_by = Column(Guid)
     is_active = Column(Boolean, default=True)

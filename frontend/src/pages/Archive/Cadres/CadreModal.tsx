@@ -116,18 +116,42 @@ const CadreModal: React.FC<CadreModalProps> = ({ open, cadreId, onClose, onSucce
     onClose();
   };
 
-  const handleSwitchToEdit = () => {
-    if (cadreData) {
+  const handleSwitchToEdit = async () => {
+    // 如果 cadreData 还未加载，先获取数据
+    if (!cadreData && cadreId) {
+      setLoading(true);
+      try {
+        const res = await getCadre(cadreId);
+        setCadreData(res);
+        const data: any = { ...res };
+        if (data.birth_date) {
+          data.birth_date = dayjs(data.birth_date);
+        }
+        if (data.tags && typeof data.tags === 'object' && !Array.isArray(data.tags)) {
+          const expertise = data.tags["熟悉领域"];
+          data.tags = expertise ? expertise.split("、").filter(Boolean) : [];
+        }
+        const ach = data.achievements;
+        if (Array.isArray(ach) && ach.length > 0) {
+          data.achievements = ach.map((a: any) => typeof a === 'string' ? a : a.content || '').join('；');
+        } else {
+          data.achievements = '';
+        }
+        form.setFieldsValue(data);
+      } catch {
+        message.error('获取干部详情失败');
+      } finally {
+        setLoading(false);
+      }
+    } else if (cadreData) {
       const data: any = { ...cadreData };
       if (data.birth_date) {
         data.birth_date = dayjs(data.birth_date);
       }
-      // tags 后端存 dict，前端 Select 需要 string[]
       if (data.tags && typeof data.tags === 'object' && !Array.isArray(data.tags)) {
         const expertise = data.tags["熟悉领域"];
         data.tags = expertise ? expertise.split("、").filter(Boolean) : [];
       }
-      // achievements 列表转文本
       const ach = data.achievements;
       if (Array.isArray(ach) && ach.length > 0) {
         data.achievements = ach.map((a: any) => typeof a === 'string' ? a : a.content || '').join('；');

@@ -88,6 +88,8 @@ const UnitList: React.FC = () => {
       try {
         await deleteUnit(id);
         message.success('删除成功');
+        // 删除后重置到第1页，避免页码越界
+        setPage(1);
         fetchData();
       } catch (e: any) {
         message.error(getErrorMessage(e) || '删除失败');
