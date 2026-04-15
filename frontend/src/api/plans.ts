@@ -25,12 +25,12 @@ export const deletePlan = (id: string) =>
   api.delete(`/plans/${id}`);
 
 export const exportPlans = (params?: { year?: number; status?: string }) => {
-  return api.get('/plans/export', { params, responseType: 'blob' }).then(res => {
+  return api.get('/plans/download', { params, responseType: 'blob' }).then(res => {
     const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = '巡察计划导出.xlsx';
+    a.download = 'plans.xlsx';
     a.click();
     window.URL.revokeObjectURL(url);
   });
@@ -42,7 +42,7 @@ export const downloadPlanTemplate = () => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = '巡察计划导入模板.xlsx';
+    a.download = 'plan_template.xlsx';
     a.click();
     window.URL.revokeObjectURL(url);
   });

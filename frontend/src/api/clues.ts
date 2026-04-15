@@ -12,12 +12,12 @@ export const transferClue = (id: string, target: string, comment?: string) =>
   api.post(`/clues/${id}/transfer`, { target, comment });
 
 export const exportClues = (params?: { status?: string; source?: string }) => {
-  return api.get('/clues/export', { params, responseType: 'blob' }).then(res => {
+  return api.get('/clues/download', { params, responseType: 'blob' }).then(res => {
     const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = '线索管理导出.xlsx';
+    a.download = 'clues.xlsx';
     a.click();
     window.URL.revokeObjectURL(url);
   });

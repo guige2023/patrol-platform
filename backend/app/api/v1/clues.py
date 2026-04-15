@@ -47,54 +47,6 @@ async def list_clues(
     )
 
 
-@router.get("/{clue_id}", response_model=ClueResponse)
-async def get_clue(clue_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Clue).where(Clue.id == clue_id))
-    clue = result.scalar_one_or_none()
-    if not clue:
-        raise HTTPException(status_code=404, detail="Clue not found")
-    return clue
-
-
-@router.post("/", response_model=ClueResponse, status_code=201)
-async def create_clue(clue_data: ClueCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    clue = Clue(**clue_data.model_dump(), registered_by=current_user.id)
-    db.add(clue)
-    await db.commit()
-    await db.refresh(clue)
-    await write_audit_log(db, current_user.id, "create", "clue", clue.id, {"title": clue.title})
-    return clue
-
-
-@router.put("/{clue_id}", response_model=ClueResponse)
-async def update_clue(clue_id: UUID, clue_data: ClueUpdate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Clue).where(Clue.id == clue_id))
-    clue = result.scalar_one_or_none()
-    if not clue:
-        raise HTTPException(status_code=404, detail="Clue not found")
-    for key, value in clue_data.model_dump(exclude_unset=True).items():
-        setattr(clue, key, value)
-    await db.commit()
-    await db.refresh(clue)
-    await write_audit_log(db, current_user.id, "update", "clue", clue_id, {})
-    return clue
-
-
-@router.post("/{clue_id}/transfer")
-async def transfer_clue(clue_id: UUID, body: ClueTransfer = Body(...), db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Clue).where(Clue.id == clue_id))
-    clue = result.scalar_one_or_none()
-    if not clue:
-        raise HTTPException(status_code=404, detail="Clue not found")
-    clue.status = "transferred"
-    clue.transfer_target = body.target
-    clue.transfer_date = func.now()
-    clue.transfer_comment = body.comment
-    await db.commit()
-    await write_audit_log(db, current_user.id, "transfer", "clue", clue_id, {"target": body.target})
-    return {"message": "Clue transferred"}
-
-
 STATUS_LABELS = {
     "registered": "已登记",
     "transferring": "移交中",
@@ -110,7 +62,7 @@ SEVERITY_LABELS = {
 }
 
 
-@router.get("/export")
+@router.get("/download")
 async def export_clues(
     status: Optional[str] = None,
     source: Optional[str] = None,
@@ -181,5 +133,53 @@ async def export_clues(
     return StreamingResponse(
         output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename*=UTF-8''clues_export.xlsx"},
+        headers={"Content-Disposition": "attachment; filename*=UTF-8''clues.xlsx"},
     )
+
+
+@router.get("/{clue_id}", response_model=ClueResponse)
+async def get_clue(clue_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    result = await db.execute(select(Clue).where(Clue.id == clue_id))
+    clue = result.scalar_one_or_none()
+    if not clue:
+        raise HTTPException(status_code=404, detail="Clue not found")
+    return clue
+
+
+@router.post("/", response_model=ClueResponse, status_code=201)
+async def create_clue(clue_data: ClueCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    clue = Clue(**clue_data.model_dump(), registered_by=current_user.id)
+    db.add(clue)
+    await db.commit()
+    await db.refresh(clue)
+    await write_audit_log(db, current_user.id, "create", "clue", clue.id, {"title": clue.title})
+    return clue
+
+
+@router.put("/{clue_id}", response_model=ClueResponse)
+async def update_clue(clue_id: UUID, clue_data: ClueUpdate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    result = await db.execute(select(Clue).where(Clue.id == clue_id))
+    clue = result.scalar_one_or_none()
+    if not clue:
+        raise HTTPException(status_code=404, detail="Clue not found")
+    for key, value in clue_data.model_dump(exclude_unset=True).items():
+        setattr(clue, key, value)
+    await db.commit()
+    await db.refresh(clue)
+    await write_audit_log(db, current_user.id, "update", "clue", clue_id, {})
+    return clue
+
+
+@router.post("/{clue_id}/transfer")
+async def transfer_clue(clue_id: UUID, body: ClueTransfer = Body(...), db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    result = await db.execute(select(Clue).where(Clue.id == clue_id))
+    clue = result.scalar_one_or_none()
+    if not clue:
+        raise HTTPException(status_code=404, detail="Clue not found")
+    clue.status = "transferred"
+    clue.transfer_target = body.target
+    clue.transfer_date = func.now()
+    clue.transfer_comment = body.comment
+    await db.commit()
+    await write_audit_log(db, current_user.id, "transfer", "clue", clue_id, {"target": body.target})
+    return {"message": "Clue transferred"}

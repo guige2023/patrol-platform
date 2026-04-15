@@ -20,12 +20,12 @@ export const deleteGroup = (id: string) =>
   api.delete(`/groups/${id}`);
 
 export const exportGroups = (params?: { plan_id?: string; status?: string }) => {
-  return api.get('/groups/export', { params, responseType: 'blob' }).then(res => {
+  return api.get('/groups/download', { params, responseType: 'blob' }).then(res => {
     const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = '巡察组导出.xlsx';
+    a.download = 'groups.xlsx';
     a.click();
     window.URL.revokeObjectURL(url);
   });

@@ -68,7 +68,10 @@ async def export_groups(
     """Export all inspection groups with member info as .xlsx."""
     query = (
         select(InspectionGroup)
-        .options(selectinload(InspectionGroup.members), selectinload(InspectionGroup.plan))
+        .options(
+            selectinload(InspectionGroup.members).selectinload(GroupMember.cadre),
+            selectinload(InspectionGroup.plan),
+        )
         .where(InspectionGroup.is_active == True)
     )
     if plan_id:
@@ -101,16 +104,17 @@ async def export_groups(
 
     for g in groups:
         plan_name = g.plan.name if g.plan else ""
-        member_names = ",".join([m.name for m in g.members]) if g.members else ""
+        members_list = g.members or []
+        member_names = ",".join([(m.cadre.name if m.cadre else "未知") for m in members_list]) if members_list else ""
         created = g.created_at.strftime('%Y-%m-%d %H:%M') if g.created_at else ""
         ws.append([
             g.name or "",
             plan_name,
             STATUS_LABELS.get(g.status, g.status or ""),
-            ",".join([m.name for m in g.members if m.role == "leader"]) or "",
-            ",".join([m.name for m in g.members if m.role == "deputy_leader"]) or "",
-            ",".join([m.name for m in g.members if m.role == "liaison"]) or "",
-            len(g.members),
+            ",".join([(m.cadre.name if m.cadre else "未知") for m in members_list if m.role in ("leader", "组长")]) or "",
+            ",".join([(m.cadre.name if m.cadre else "未知") for m in members_list if m.role in ("deputy_leader", "副组长")]) or "",
+            ",".join([(m.cadre.name if m.cadre else "未知") for m in members_list if m.role in ("liaison", "联络员")]) or "",
+            len(members_list),
             member_names,
             created,
         ])
