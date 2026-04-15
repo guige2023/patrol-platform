@@ -12,3 +12,4 @@ dist/
 .env.local
 coverage/
 fix_drafts.py
+patrol.db
