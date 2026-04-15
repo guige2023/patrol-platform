@@ -19,19 +19,16 @@ interface Rectification {
 const statusColors: Record<string, string> = {
   dispatched: 'default',
   signed: 'processing',
-  in_progress: 'warning',
+  progressing: 'warning',
   completed: 'success',
   verified: 'green',
   rejected: 'error',
 };
 
 const statusLabels: Record<string, string> = {
-  drafted: '草稿',
-  submitted: '已提交',
-  approved: '已批准',
   dispatched: '已派发',
   signed: '已签收',
-  in_progress: '整改中',
+  progressing: '整改中',
   completed: '已完成',
   verified: '已验收',
   rejected: '已驳回',
