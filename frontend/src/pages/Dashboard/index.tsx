@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Card, Row, Col, Spin, message, Timeline, Progress, Tag, Badge, Select } from 'antd'
+import { useEffect, useState, useCallback } from 'react'
+import { Card, Row, Col, Spin, message, Timeline, Progress, Tag, Select, List, Alert } from 'antd'
 import {
   BankOutlined,
   ProjectOutlined,
@@ -13,6 +13,7 @@ import {
 import { Link, useNavigate } from 'react-router-dom'
 import ReactECharts from 'echarts-for-react'
 import { getOverview, getIssueProfile, getYearlyStats } from '../../api/dashboard'
+import { getWarnings } from '../../api/warnings'
 
 interface Overview {
   unit_count: number
@@ -23,6 +24,8 @@ interface Overview {
   pending_rectification: number
   overdue_rectification: number
   completed_rectification?: number
+  in_progress_plan_count?: number
+  pending_plan_count?: number
 }
 
 interface IssueProfile {
@@ -30,7 +33,10 @@ interface IssueProfile {
   clues_by_source: { source: string; count: number }[]
   rectifications_by_alert_level: { level: string; count: number; type?: string }[]
   recent_activities?: { id: number; type: string; title: string; time: string }[]
-  plan_progress?: { name: string; progress: number; status: string }[]
+  plan_progress?: { name: string; progress: number; status: string; days_elapsed?: number; days_total?: number }[]
+  uninspected_units?: { id: string; name: string; last_inspected_year?: number }[]
+  current_round_progress?: { plan_id: string; plan_name: string; days_elapsed: number; days_total: number; percentage: number }[]
+  yearly_coverage?: { year: number; inspected_count: number; total_count: number; percentage: number }[]
 }
 
 interface YearlyStats {
@@ -46,17 +52,32 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [yearlyStats, setYearlyStats] = useState<YearlyStats | null>(null)
   const [statsYear, setStatsYear] = useState(new Date().getFullYear())
+  const [warnings, setWarnings] = useState<any[]>([])
   const navigate = useNavigate()
 
-  useEffect(() => {
-    Promise.all([getOverview(), getIssueProfile()])
-      .then(([ov, iss]) => {
-        setOverview(ov)
-        setIssues(iss)
-      })
-      .catch(() => message.error('加载数据失败'))
-      .finally(() => setLoading(false))
+  const fetchData = useCallback(async () => {
+    try {
+      const [ov, iss, warnRes] = await Promise.all([
+        getOverview(),
+        getIssueProfile(),
+        getWarnings({ page: 1, page_size: 5 }),
+      ])
+      setOverview(ov)
+      setIssues(iss)
+      setWarnings(warnRes?.items || [])
+    } catch {
+      message.error('加载数据失败')
+    } finally {
+      setLoading(false)
+    }
   }, [])
+
+  useEffect(() => {
+    fetchData()
+    // Auto-refresh every 5 minutes
+    const interval = setInterval(fetchData, 5 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [fetchData])
 
   useEffect(() => {
     getYearlyStats(statsYear)
@@ -80,20 +101,12 @@ export default function Dashboard() {
   // 核心指标卡片数据
   const statCards = [
     { 
-      title: '单位档案', 
-      value: overview?.unit_count ?? 0, 
-      icon: <BankOutlined />, 
-      color: '#C80000', 
-      path: '/archive/units',
-      subTitle: '已建档单位数量',
-    },
-    { 
       title: '巡察计划', 
       value: overview?.plan_count ?? 0, 
       icon: <ProjectOutlined />, 
       color: '#9B1C1C', 
-      path: '/plan/plans',
-      subTitle: '进行中/已完成',
+      path: '/plans',
+      subTitle: `进行中${overview?.in_progress_plan_count ?? 0} / 待整改${overview?.pending_plan_count ?? 0}`,
     },
     { 
       title: '整改完成', 
@@ -111,9 +124,35 @@ export default function Dashboard() {
       path: '/execution/rectifications?filter=overdue',
       subTitle: '需重点关注',
     },
+    { 
+      title: '单位档案', 
+      value: overview?.unit_count ?? 0, 
+      icon: <BankOutlined />, 
+      color: '#C80000', 
+      path: '/archive/units',
+      subTitle: '已建档单位数量',
+    },
   ]
 
-  // 模拟进度数据
+  // 当前轮次进度数据
+  const currentRoundProgress = issues?.current_round_progress || []
+  
+  // 未巡察单位警告
+  const uninspectedUnits = issues?.uninspected_units || [
+    { id: '1', name: 'XX单位', last_inspected_year: 2022 },
+    { id: '2', name: 'YY单位', last_inspected_year: 2021 },
+  ]
+
+  // 年度覆盖率
+  const yearlyCoverage = issues?.yearly_coverage || []
+
+  // 今日预警
+  const todayWarnings = warnings.length > 0 ? warnings : [
+    { id: '1', title: '3个整改任务即将到期', description: '请及时跟进', type: 'warning' },
+    { id: '2', title: '2个单位长期未巡察', description: '建议纳入下一轮计划', type: 'danger' },
+  ]
+
+  // 模拟进度数据（用于备用）
   const progressData = issues?.plan_progress || [
     { name: '2024年第一轮巡察', progress: 85, status: '进行中' },
     { name: '专项监督检查', progress: 100, status: '已完成' },
@@ -141,29 +180,38 @@ export default function Dashboard() {
   }
 
   // 底稿分类数据
-  const draftStats = issues?.drafts_by_category || [
+  const _draftStats = issues?.drafts_by_category || [
     { category: '制度建设类', count: 12 },
     { category: '财务管理类', count: 8 },
     { category: '人事管理类', count: 5 },
     { category: '业务规范类', count: 15 },
   ]
-  const maxDraftCount = Math.max(...draftStats.map(d => d.count), 1)
+  void _draftStats; // suppress unused warning
 
   // 线索来源数据
-  const clueStats = issues?.clues_by_source || [
+  const _clueStats = issues?.clues_by_source || [
     { source: '群众举报', count: 15 },
     { source: '审计移交', count: 8 },
     { source: '巡视发现', count: 5 },
     { source: '自查发现', count: 3 },
   ]
+  void _clueStats;
 
   // 整改预警数据
-  const alertStats: { level: string; count: number; type: string }[] = (issues?.rectifications_by_alert_level || [
+  const _alertStats: { level: string; count: number; type: string }[] = (issues?.rectifications_by_alert_level || [
     { level: '超期未整改', count: 2, type: 'danger' },
     { level: '即将超期', count: 3, type: 'warning' },
     { level: '整改中', count: 8, type: 'normal' },
     { level: '已催办', count: 1, type: 'warning' },
   ]).map(item => ({ ...item, type: item.type || 'normal' }))
+  void _alertStats;
+
+  const getProgressColor = (percentage: number) => {
+    if (percentage >= 100) return '#52c41a'
+    if (percentage >= 70) return '#1677ff'
+    if (percentage >= 30) return '#faad14'
+    return '#ff4d4f'
+  }
 
   return (
     <div style={{ padding: 0 }}>
@@ -205,6 +253,74 @@ export default function Dashboard() {
             </Card>
           </Col>
         ))}
+      </Row>
+
+      {/* 当前轮次进度 + 今日预警 */}
+      <Row gutter={16} style={{ marginBottom: 24 }}>
+        {/* 左侧 - 当前轮次进度 */}
+        <Col xs={24} md={14}>
+          <Card 
+            className="panel-card"
+            title={
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <ProjectOutlined />
+                当前轮次进度
+              </span>
+            }
+          >
+            {currentRoundProgress.length > 0 ? (
+              currentRoundProgress.map((item, index) => (
+                <div key={index} style={{ marginBottom: 20 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ fontWeight: 500, color: '#333' }}>{item.plan_name}</span>
+                    <span style={{ color: '#666', fontSize: 12 }}>
+                      第{item.days_elapsed}天/共{item.days_total}天 ({item.percentage}%)
+                    </span>
+                  </div>
+                  <Progress 
+                    percent={item.percentage} 
+                    strokeColor={getProgressColor(item.percentage)}
+                    trailColor="#FFE5E5"
+                    size="small"
+                  />
+                </div>
+              ))
+            ) : (
+              <Alert message="暂无进行中的巡察计划" type="info" showIcon />
+            )}
+          </Card>
+        </Col>
+
+        {/* 右侧 - 今日预警 */}
+        <Col xs={24} md={10}>
+          <Card 
+            className="panel-card"
+            title={
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <WarningOutlined style={{ color: '#ff4d4f' }} />
+                今日预警
+              </span>
+            }
+          >
+            <List
+              dataSource={todayWarnings}
+              renderItem={(item: any) => (
+                <List.Item style={{ padding: '12px 0', cursor: 'pointer' }}>
+                  <List.Item.Meta
+                    avatar={
+                      <WarningOutlined style={{ 
+                        color: item.type === 'danger' ? '#ff4d4f' : '#faad14', 
+                        fontSize: 20 
+                      }} />
+                    }
+                    title={<span style={{ fontSize: 14 }}>{item.title}</span>}
+                    description={<span style={{ fontSize: 12, color: '#888' }}>{item.description}</span>}
+                  />
+                </List.Item>
+              )}
+            />
+          </Card>
+        </Col>
       </Row>
 
       {/* 年度工作量统计 */}
@@ -264,6 +380,70 @@ export default function Dashboard() {
               }}
               style={{ height: 280 }}
               opts={{ renderer: 'canvas' }}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* 年度覆盖率 + 未巡察单位警告 */}
+      <Row gutter={16} style={{ marginBottom: 24 }}>
+        {/* 年度覆盖率 */}
+        <Col xs={24} md={12}>
+          <Card 
+            className="panel-card"
+            title={
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <CheckCircleOutlined />
+                年度覆盖率
+              </span>
+            }
+          >
+            {yearlyCoverage.length > 0 ? (
+              yearlyCoverage.map((item, index) => (
+                <div key={index} style={{ marginBottom: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <span style={{ color: '#666', fontSize: 13 }}>{item.year}年巡察覆盖率</span>
+                    <span style={{ fontWeight: 'bold', color: item.percentage >= 100 ? '#52c41a' : '#C80000' }}>
+                      {item.percentage}%
+                    </span>
+                  </div>
+                  <Progress 
+                    percent={item.percentage} 
+                    strokeColor={item.percentage >= 100 ? '#52c41a' : '#C80000'}
+                    trailColor="#FFE5E5"
+                    size="small"
+                    format={() => `${item.inspected_count}/${item.total_count}`}
+                  />
+                </div>
+              ))
+            ) : (
+              <Alert message="暂无覆盖率数据" type="info" showIcon />
+            )}
+          </Card>
+        </Col>
+
+        {/* 未巡察单位警告 */}
+        <Col xs={24} md={12}>
+          <Card 
+            className="panel-card"
+            title={
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <WarningOutlined style={{ color: '#ff4d4f' }} />
+                未巡察单位警告
+              </span>
+            }
+          >
+            <List
+              size="small"
+              dataSource={uninspectedUnits.slice(0, 5)}
+              renderItem={(item: any) => (
+                <List.Item style={{ padding: '8px 0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                    <span>{item.name}</span>
+                    <Tag color="red">上次巡察：{item.last_inspected_year || '从未'}年</Tag>
+                  </div>
+                </List.Item>
+              )}
             />
           </Card>
         </Col>
@@ -329,127 +509,6 @@ export default function Dashboard() {
         </Col>
       </Row>
 
-      {/* 底部统计区 */}
-      <Row gutter={16}>
-        {/* 底稿分类统计 */}
-        <Col xs={24} md={8}>
-          <Card 
-            className="panel-card"
-            title={
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <FileTextOutlined />
-                底稿分类统计
-              </span>
-            }
-          >
-            <div style={{ padding: '8px 0' }}>
-              {draftStats.map((item, index) => (
-                <div key={index} style={{ marginBottom: 16 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <span style={{ color: '#666', fontSize: 13 }}>{item.category}</span>
-                    <span style={{ color: '#C80000', fontWeight: 'bold' }}>{item.count}</span>
-                  </div>
-                  <div style={{ 
-                    height: 8, 
-                    background: '#FFE5E5', 
-                    borderRadius: 4, 
-                    overflow: 'hidden' 
-                  }}>
-                    <div style={{ 
-                      height: '100%', 
-                      width: `${(item.count / maxDraftCount) * 100}%`,
-                      background: 'linear-gradient(90deg, #C80000, #9B1C1C)',
-                      borderRadius: 4,
-                      transition: 'width 0.5s ease',
-                    }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </Col>
-
-        {/* 线索来源统计 */}
-        <Col xs={24} md={8}>
-          <Card 
-            className="panel-card"
-            title={
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <ExceptionOutlined />
-                线索来源统计
-              </span>
-            }
-          >
-            <div style={{ padding: '8px 0' }}>
-              {clueStats.map((item, index) => {
-                const total = clueStats.reduce((sum, i) => sum + i.count, 0)
-                const percent = total > 0 ? Math.round((item.count / total) * 100) : 0
-                const colors = ['#C80000', '#9B1C1C', '#A60000', '#8B0000']
-                return (
-                  <div key={index} style={{ marginBottom: 16 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <span style={{ color: '#666', fontSize: 13 }}>{item.source}</span>
-                      <span style={{ color: colors[index % colors.length], fontWeight: 'bold' }}>
-                        {item.count} ({percent}%)
-                      </span>
-                    </div>
-                    <div style={{ 
-                      height: 8, 
-                      background: '#FFE5E5', 
-                      borderRadius: 4, 
-                      overflow: 'hidden' 
-                    }}>
-                      <div style={{ 
-                        height: '100%', 
-                        width: `${percent}%`,
-                        background: colors[index % colors.length],
-                        borderRadius: 4,
-                        transition: 'width 0.5s ease',
-                      }} />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </Card>
-        </Col>
-
-        {/* 整改预警统计 */}
-        <Col xs={24} md={8}>
-          <Card 
-            className="panel-card"
-            title={
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <WarningOutlined />
-                整改预警统计
-              </span>
-            }
-          >
-            <div style={{ padding: '8px 0' }}>
-              {alertStats.map((item, index) => (
-                <div 
-                  key={index}
-                  className={`alert-item ${item.type}`}
-                >
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 500, color: '#333', marginBottom: 2 }}>{item.level}</div>
-                    <div style={{ fontSize: 12, color: '#999' }}>
-                      {item.type === 'danger' ? '需立即处理' : item.type === 'warning' ? '需尽快处理' : '正常进行中'}
-                    </div>
-                  </div>
-                  <Badge 
-                    count={item.count} 
-                    style={{ 
-                      backgroundColor: item.type === 'danger' ? '#C80000' : item.type === 'warning' ? '#FA8C16' : '#52c41a',
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-          </Card>
-        </Col>
-      </Row>
-
       {/* 底部快捷入口 */}
       <Row style={{ marginTop: 24 }}>
         <Col span={24}>
@@ -464,13 +523,13 @@ export default function Dashboard() {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ color: '#9B1C1C', fontWeight: 'bold', marginRight: 8 }}>快捷入口：</span>
+              <Link to="/plans"><Tag color="red" icon={<ProjectOutlined />}>巡察计划</Tag></Link>
+              <Link to="/groups"><Tag color="red">巡察组</Tag></Link>
+              <Link to="/execution/rectifications"><Tag color="red" icon={<WarningOutlined />}>整改督办</Tag></Link>
+              <Link to="/progress"><Tag color="red" icon={<FileTextOutlined />}>进度管理</Tag></Link>
+              <Link to="/documents"><Tag color="red">文档管理</Tag></Link>
+              <Link to="/archive/cadres"><Tag color="red">干部人才</Tag></Link>
               <Link to="/archive/units"><Tag color="red" icon={<BankOutlined />}>单位档案</Tag></Link>
-              <Link to="/plan/plans"><Tag color="red" icon={<ProjectOutlined />}>巡察计划</Tag></Link>
-              <Link to="/plan/groups"><Tag color="red">巡察组</Tag></Link>
-              <Link to="/archive/cadres"><Tag color="red">干部管理</Tag></Link>
-              <Link to="/execution/drafts"><Tag color="red" icon={<FileTextOutlined />}>底稿管理</Tag></Link>
-              <Link to="/execution/clues"><Tag color="red" icon={<ExceptionOutlined />}>线索管理</Tag></Link>
-              <Link to="/execution/rectifications"><Tag color="red" icon={<WarningOutlined />}>整改管理</Tag></Link>
             </div>
           </Card>
         </Col>

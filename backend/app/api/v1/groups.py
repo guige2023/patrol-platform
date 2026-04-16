@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from uuid import UUID
@@ -15,6 +15,7 @@ from app.models.audit_log import AuditLog
 from app.core.audit import write_audit_log
 from app.services.rule_engine import RuleEngine
 from app.schemas.group import GroupCreate, GroupUpdate, GroupMemberCreate, GroupMembersReplace
+from app.schemas.common import PaginatedResponse, PageResult
 import io
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -22,10 +23,12 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 router = APIRouter()
 
 
-@router.get("/")
+@router.get("/", response_model=PaginatedResponse)
 async def list_groups(
     plan_id: Optional[UUID] = None,
     status: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=9999),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -35,10 +38,14 @@ async def list_groups(
     if status:
         query = query.where(InspectionGroup.status == status)
 
-    result = await db.execute(query.order_by(InspectionGroup.created_at.desc()))
+    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+    total = count_result.scalar()
+
+    query = query.order_by(InspectionGroup.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
+    result = await db.execute(query)
     groups = result.scalars().all()
 
-    return [
+    items = [
         {
             "id": g.id,
             "name": g.name,
@@ -50,6 +57,7 @@ async def list_groups(
         }
         for g in groups
     ]
+    return PaginatedResponse(data=PageResult(items=items, total=total, page=page, page_size=page_size))
 
 
 STATUS_LABELS = {

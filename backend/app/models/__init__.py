@@ -15,6 +15,8 @@ from app.models.rule_config import RuleConfig
 from app.models.notification import Notification
 from app.models.system_config import SystemConfig
 from app.models.field_option import FieldOption
+from app.models.progress import Progress
+from app.models.document import Document
 
 __all__ = [
     "User", "Role", "Permission",
@@ -27,4 +29,6 @@ __all__ = [
     "ModuleConfig", "RuleConfig", "Notification",
     "SystemConfig",
     "FieldOption",
+    "Progress",
+    "Document",
 ]

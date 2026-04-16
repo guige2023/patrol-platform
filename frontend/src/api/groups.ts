@@ -39,3 +39,15 @@ export const exportGroups = (params?: { plan_id?: string; status?: string; ids?:
 
 export const batchDeleteGroups = (ids: string[]) =>
   api.post('/groups/batch-delete', ids);
+
+export const getAvailableCadres = (planId: string) =>
+  api.get(`/groups/available-cadres?plan_id=${planId}`).then(res => res.data);
+
+export const autoMatchGroup = (planId: string, data: { leader_id: string; deputy_leader_ids: string[]; excluded_cadre_ids?: { cadre_id: string; reason: string }[] }) =>
+  api.post('/groups/auto-match', { plan_id: planId, ...data }).then(res => res.data);
+
+export const assignConcurrentRoles = (groupId: string, clueOfficerId?: string, liaisonOfficerId?: string) =>
+  api.post(`/groups/${groupId}/concurrent-roles`, { clue_officer_id: clueOfficerId, liaison_officer_id: liaisonOfficerId });
+
+export const getGroupPhaseLogs = (groupId: string) =>
+  api.get(`/groups/${groupId}/phase-logs`).then(res => res.data);
