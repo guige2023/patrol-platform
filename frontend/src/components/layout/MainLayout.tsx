@@ -94,6 +94,8 @@ const MainLayout: React.FC = () => {
       { key: '/admin/users', label: '用户管理' },
       { key: '/admin/roles', label: '角色管理' },
       { key: '/admin/audit', label: '审计日志' },
+      { key: '/admin/modules', label: '模块配置' },
+      { key: '/admin/fields', label: '字段配置' },
       { key: '/admin/configs', label: '系统配置' },
       { key: '/admin/backup', label: '备份恢复' },
     ]},

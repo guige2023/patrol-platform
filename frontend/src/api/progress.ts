@@ -25,8 +25,9 @@ export interface ProgressRecord {
 export const getProgressList = (params?: { plan_id?: string; group_id?: string; page?: number; page_size?: number }) =>
   api.get('/progress/', { params }).then(res => res.data);
 
+// Backend returns {data: {progress_fields}, message: "..."} — manual unwrap needed.
 export const getProgress = (id: string) =>
-  api.get(`/progress/${id}`).then(res => res.data);
+  api.get(`/progress/${id}`).then(res => (res.data as any).data);
 
 export const createProgress = (data: any) =>
   api.post('/progress/', data).then(res => res.data);

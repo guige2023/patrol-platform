@@ -24,7 +24,7 @@ class Cadre(Base):
     position = Column(String(128))  # 当前职务
     rank = Column(String(32))  # 职级
     category = Column(String(100), nullable=True)  # 干部类别
-    tags = Column(JSON, default=list)  # ["纪检监察", "财务审计"]
+    tags = Column(JSON, default=dict)  # {"熟悉领域": "纪检监察", "财务审计"}
     profile = Column(Text)  # 干部简历
     resume = Column(Text)  # 工作经历
     achievements = Column(JSON, default=list)  # 表彰奖励

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Form, Input, Select, DatePicker, message, Descriptions, Tag, Upload, Button, List } from 'antd';
-import { UploadOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons';
+import { UploadOutlined, DownloadOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
 import { createKnowledge, updateKnowledge, getKnowledge } from '@/api/knowledge';
 import api from '@/api/client';
 import dayjs from 'dayjs';
@@ -42,6 +42,9 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
   const [knowledgeData, setKnowledgeData] = useState<KnowledgeData | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string>('');
+  const [previewFilename, setPreviewFilename] = useState<string>('');
 
   const { getOptions } = useFieldOptions();
   const categoryOptions = getOptions('knowledge_category');
@@ -90,7 +93,7 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
     if (!knowledgeId) return;
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`/api/v1/knowledge/${knowledgeId}/attachments/${att.filename}/download`, {
+      const res = await fetch(`/api/v1/knowledge/${knowledgeId}/attachments/${att.filename}/download?watermark=true`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('download failed');
@@ -103,6 +106,24 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
       window.URL.revokeObjectURL(blobUrl);
     } catch {
       message.error('下载失败');
+    }
+  };
+
+  const handlePreview = async (att: Attachment) => {
+    if (!knowledgeId) return;
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`/api/v1/knowledge/${knowledgeId}/attachments/${att.filename}?watermark=true`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('preview failed');
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      setPreviewUrl(blobUrl);
+      setPreviewFilename(att.filename);
+      setPreviewOpen(true);
+    } catch {
+      message.error('预览失败');
     }
   };
 
@@ -205,6 +226,7 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
               renderItem={(att: Attachment) => (
                 <List.Item
                   actions={[
+                    <Button type="link" size="small" key="preview" icon={<EyeOutlined />} onClick={() => handlePreview(att)}>预览</Button>,
                     <Button type="link" size="small" key="download" icon={<DownloadOutlined />} onClick={() => handleDownload(att)}>下载</Button>,
                     <Button type="link" size="small" danger key="delete" icon={<DeleteOutlined />} onClick={() => handleDeleteAttachment(att)}>删除</Button>,
                   ]}
@@ -257,6 +279,30 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
             <DatePicker style={{ width: '100%' }} />
           </Form.Item>
         </Form>
+      )}
+    </Modal>
+
+    {/* 预览 Modal */}
+    <Modal
+      title={`预览：${previewFilename}`}
+      open={previewOpen}
+      onCancel={() => {
+        setPreviewOpen(false);
+        if (previewUrl) {
+          window.URL.revokeObjectURL(previewUrl);
+          setPreviewUrl('');
+        }
+      }}
+      footer={null}
+      width={800}
+      bodyStyle={{ height: '70vh', padding: 0 }}
+    >
+      {previewUrl && (
+        <iframe
+          src={previewUrl}
+          style={{ width: '100%', height: '100%', border: 'none' }}
+          title={`预览：${previewFilename}`}
+        />
       )}
     </Modal>
   );

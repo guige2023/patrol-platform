@@ -22,11 +22,11 @@ class GroupMembersReplace(BaseModel):
 
 class GroupCreate(BaseModel):
     name: str
-    plan_id: UUID
-    target_unit_id: Optional[UUID] = None
-    unit_ids: List[UUID] = []
+    plan_id: Optional[UUID] = None
+    target_unit_id: Optional[str] = None
+    unit_ids: List[str] = []
     leader_id: Optional[UUID] = None
-    vice_leader_id: Optional[UUID] = None
+    vice_leader_ids: List[UUID] = []
     member_ids: List[UUID] = []
     authorization_letter: Optional[str] = None
     authorization_date: Optional[datetime] = None
@@ -35,8 +35,8 @@ class GroupCreate(BaseModel):
 class GroupUpdate(BaseModel):
     name: Optional[str] = None
     status: Optional[str] = None
-    target_unit_id: Optional[UUID] = None
-    unit_ids: Optional[List[UUID]] = None
+    target_unit_id: Optional[str] = None
+    unit_ids: Optional[List[str]] = None
     authorization_letter: Optional[str] = None
     authorization_date: Optional[datetime] = None
 

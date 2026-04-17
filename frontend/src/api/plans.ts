@@ -4,8 +4,10 @@ import { message } from 'antd';
 export const getPlans = (params?: { page?: number; page_size?: number; name?: string; year?: number; status?: string; principal_id?: string }) =>
   api.get('/plans/', { params }).then(res => res.data);
 
+// Backend returns {data: {plan_fields}, message: "..."} for single-object GET.
+// The response interceptor does NOT unwrap it (no items/total). Unwrap manually.
 export const getPlan = (id: string) =>
-  api.get(`/plans/${id}`).then(res => res.data);
+  api.get(`/plans/${id}`).then(res => (res.data as any).data);
 
 export const createPlan = (data: any) =>
   api.post('/plans/', data).then(res => res.data);
@@ -76,4 +78,18 @@ export const exportPlanReport = (planId: string, planName?: string) => {
       window.URL.revokeObjectURL(url);
     })
     .catch(() => message.error('导出报告失败'));
+};
+
+export const exportPlanChecklist = (planId: string, planName?: string) => {
+  api.get(`/plans/${planId}/checklist`, { responseType: 'blob' })
+    .then(res => {
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = planName ? `${planName}_检查清单.pdf` : '巡察检查清单.pdf';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    })
+    .catch(() => message.error('导出检查清单失败'));
 };

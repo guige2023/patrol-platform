@@ -10,30 +10,29 @@ api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  } else {
+    console.warn(`[API] No token for ${config.method?.toUpperCase()} ${config.url}`);
   }
   return config;
 });
 
 api.interceptors.response.use(
   (response) => {
-    // Backend wraps responses in {data: payload, message: "..."}
-    // List endpoints: payload = {items, total, page, page_size}
-    // Single endpoints: payload = the entity object
-    // Groups endpoint: returns raw array (no pagination)
+    // Backend wraps list responses in {data: {items, total, page, page_size}}
+    // But login endpoint returns {access_token, token_type, user} directly (no wrapper)
+    // Only unwrap if we detect the pagination pattern
     const rd = response.data;
-    if (rd && typeof rd === 'object' && !Array.isArray(rd) && 'data' in rd) {
-      const inner = (rd as any).data;
-      if (inner && typeof inner === 'object' && !Array.isArray(inner)) {
-        if ('items' in inner && 'total' in inner) {
-          // Paginated list: {items, total, ...}
-          response.data = inner;
-        } else {
-          // Single entity
-          response.data = inner;
-        }
-      }
+    if (
+      rd &&
+      typeof rd === 'object' &&
+      !Array.isArray(rd) &&
+      'data' in rd &&
+      'items' in (rd as any).data &&
+      'total' in (rd as any).data
+    ) {
+      // Paginated list: {data: {items, total, page, page_size}}
+      response.data = (rd as any).data;
     }
-    // For raw arrays (like groups list), response.data stays as-is
     return response;
   },
   (error) => {

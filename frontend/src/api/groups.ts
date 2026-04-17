@@ -2,9 +2,10 @@ import api from './client';
 
 export const getGroups = (params?: { plan_id?: string; status?: string }) =>
   api.get('/groups/', { params }).then(res => res.data);
+// Backend returns {data: {group_fields}, message: "..."} — manual unwrap needed.
 export const getGroup = (id: string) =>
-  api.get(`/groups/${id}`).then(res => res.data);
-export const createGroup = (data: { name: string; plan_id: string; target_unit_id?: string }) =>
+  api.get(`/groups/${id}`).then(res => (res.data as any).data);
+export const createGroup = (data: { name: string; plan_id: string; target_unit_id?: string; unit_ids?: string[]; authorization_letter?: string; authorization_date?: string; status?: string }) =>
   api.post('/groups/', data).then(res => res.data);
 export const updateGroup = (id: string, data: any) =>
   api.put(`/groups/${id}`, data).then(res => res.data);

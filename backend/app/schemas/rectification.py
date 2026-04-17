@@ -13,6 +13,7 @@ class RectificationBase(BaseModel):
 
 
 class RectificationCreate(RectificationBase):
+    plan_id: Optional[UUID] = None
     clue_id: Optional[UUID] = None
     draft_id: Optional[UUID] = None
     alert_level: Optional[str] = "green"
@@ -29,10 +30,13 @@ class RectificationUpdate(BaseModel):
     completion_report: Optional[str] = None
     verification_comment: Optional[str] = None
     alert_level: Optional[str] = None
+    confirmed_completed: Optional[bool] = None
+    confirm_notes: Optional[str] = None
 
 
 class RectificationResponse(RectificationBase):
     id: UUID
+    plan_id: Optional[UUID] = None
     clue_id: Optional[UUID] = None
     draft_id: Optional[UUID] = None
     status: str
@@ -46,6 +50,10 @@ class RectificationResponse(RectificationBase):
     verification_comment: Optional[str] = None
     verified_by: Optional[UUID] = None
     verified_at: Optional[datetime] = None
+    confirmed_completed: Optional[bool] = None
+    confirm_notes: Optional[str] = None
+    confirmed_at: Optional[datetime] = None
+    confirmed_by: Optional[UUID] = None
     is_active: bool
     created_by: UUID
     created_at: Optional[datetime] = None

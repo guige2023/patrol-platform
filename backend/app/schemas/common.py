@@ -7,7 +7,7 @@ T = TypeVar("T")
 
 class Response(BaseModel, Generic[T]):
     data: Optional[T] = None
-    message: Optional[str] = None
+    message: str = "success"
 
 
 class PageResult(BaseModel, Generic[T]):

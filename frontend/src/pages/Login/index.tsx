@@ -32,15 +32,15 @@ const Login: React.FC = () => {
   const handleSubmit = async (user?: string, pwd?: string) => {
     const u = user ?? username;
     const p = pwd ?? password;
+    console.log('[Login] handleSubmit called:', { user, pwd, u, p, username, password });
     if (!u || !p) {
       message.error('请输入用户名和密码');
       return;
     }
     setLoading(true);
     try {
-      const res = await api.post('/auth/login', { username: u, password: p });
-      // interceptor unwraps {data: {access_token}} → res = {access_token}
-      const { access_token } = res as unknown as { access_token: string };
+      const res = await api.post<{ access_token: string; token_type: string; user: any }>('/auth/login', { username: u, password: p });
+      const { access_token } = res.data;
       localStorage.setItem('token', access_token);
       message.success('登录成功');
       navigate('/');

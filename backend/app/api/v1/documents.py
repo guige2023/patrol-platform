@@ -52,13 +52,13 @@ async def list_documents(
     )
 
 
-@router.get("/{document_id}", response_model=DocumentResponse)
+@router.get("/{document_id}")
 async def get_document(document_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Document).where(Document.id == document_id, Document.is_active == True))
+    result = await db.execute(select(Document).where(Document.id == document_id))
     item = result.scalar_one_or_none()
     if not item:
         raise HTTPException(status_code=404, detail="Document not found")
-    return item
+    return {"data": DocumentResponse.model_validate(item), "message": "success"}
 
 
 @router.delete("/{document_id}")

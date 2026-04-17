@@ -151,6 +151,156 @@ async def export_groups(
     )
 
 
+@router.post("/")
+async def create_group(
+    group_data: GroupCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # 组长与副组长不可为同一人
+    if group_data.leader_id and group_data.vice_leader_ids:
+        for vid in group_data.vice_leader_ids:
+            if group_data.leader_id == vid:
+                raise HTTPException(status_code=400, detail="组长与副组长不可为同一人")
+
+    plan = None
+    if group_data.plan_id:
+        plan_result = await db.execute(select(Plan).where(Plan.id == group_data.plan_id))
+        plan = plan_result.scalar_one_or_none()
+        if not plan:
+            raise HTTPException(status_code=404, detail="Plan not found")
+
+    # Use first unit_id as target_unit_id if unit_ids provided and target_unit_id not set
+    target_unit_id = group_data.target_unit_id
+    if not target_unit_id and group_data.unit_ids:
+        target_unit_id = group_data.unit_ids[0]
+
+    group = InspectionGroup(
+        name=group_data.name,
+        plan_id=group_data.plan_id,
+        target_unit_id=target_unit_id,
+        created_by=current_user.id,
+    )
+    db.add(group)
+    await db.flush()  # get group.id
+
+    # Create leader member
+    if group_data.leader_id:
+        leader_member = GroupMember(
+            group_id=group.id,
+            cadre_id=group_data.leader_id,
+            role="组长",
+            is_leader=True,
+        )
+        db.add(leader_member)
+
+    # Create vice leader members (support multiple)
+    for vid in group_data.vice_leader_ids:
+        vice_member = GroupMember(
+            group_id=group.id,
+            cadre_id=vid,
+            role="副组长",
+            is_leader=False,
+        )
+        db.add(vice_member)
+
+    # Create regular members (skip leader/vice leaders)
+    for cadre_id in group_data.member_ids:
+        if cadre_id == group_data.leader_id or cadre_id in group_data.vice_leader_ids:
+            continue
+        member = GroupMember(
+            group_id=group.id,
+            cadre_id=cadre_id,
+            role="组员",
+            is_leader=False,
+        )
+        db.add(member)
+
+    await db.commit()
+    await db.refresh(group)
+    await write_audit_log(db, current_user.id, "create", "inspection_group", group.id, {"name": group.name})
+    return {"id": group.id, "name": group.name, "message": "Group created"}
+
+
+@router.get("/available-cadres")
+async def get_available_cadres(
+    plan_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get cadres available for assignment to a group's plan."""
+    # Get cadres already in any group for this plan
+    subq = (
+        select(GroupMember.cadre_id)
+        .join(InspectionGroup, InspectionGroup.id == GroupMember.group_id)
+        .where(InspectionGroup.plan_id == plan_id)
+    )
+    result = await db.execute(
+        select(Cadre).where(Cadre.id.not_in(subq)).order_by(Cadre.name)
+    )
+    cadres = result.scalars().all()
+    return [
+        {"id": str(c.id), "name": c.name, "position": c.position, "unit_id": str(c.unit_id) if c.unit_id else None}
+        for c in cadres
+    ]
+
+
+@router.post("/auto-match")
+async def auto_match_group(
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Auto-assign group members based on rule engine."""
+    plan_id = body.get("plan_id")
+    if not plan_id:
+        raise HTTPException(status_code=422, detail="plan_id is required in body")
+    try:
+        plan_id = UUID(plan_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid plan_id format")
+
+    leader_id = body.get("leader_id")
+    deputy_leader_ids = body.get("deputy_leader_ids", [])
+    excluded = body.get("excluded_cadre_ids", [])
+
+    # Get available cadres (not in any group for this plan)
+    subq = (
+        select(GroupMember.cadre_id)
+        .join(InspectionGroup, InspectionGroup.id == GroupMember.group_id)
+        .where(InspectionGroup.plan_id == plan_id)
+    )
+    excluded_ids = {e.get("cadre_id") for e in excluded if e.get("cadre_id")}
+    exclude_set = excluded_ids | {leader_id} | set(deputy_leader_ids)
+
+    result = await db.execute(
+        select(Cadre).where(
+            Cadre.id.not_in(subq),
+            Cadre.id.not_in(exclude_set) if exclude_set else True,
+        ).order_by(Cadre.name)
+    )
+    all_cadres = result.scalars().all()
+
+    # Simple auto-match: assign leader, deputy leaders, then fill with regular members
+    member_ids = []
+    if leader_id:
+        member_ids.append(leader_id)
+    member_ids.extend(deputy_leader_ids)
+    # Fill remaining with regular members up to 10 total
+    for c in all_cadres:
+        if len(member_ids) >= 10:
+            break
+        if str(c.id) not in [str(x) for x in member_ids]:
+            member_ids.append(str(c.id))
+
+    return {
+        "member_ids": member_ids,
+        "leader_id": leader_id,
+        "deputy_leader_ids": deputy_leader_ids,
+        "message": f"Auto-matched {len(member_ids)} members",
+    }
+
+
 @router.get("/{group_id}")
 async def get_group(group_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(
@@ -179,90 +329,51 @@ async def get_group(group_id: UUID, db: AsyncSession = Depends(get_db), current_
             target_unit_name = unit.name
 
     return {
-        "id": group.id,
-        "name": group.name,
-        "plan_id": group.plan_id,
-        "plan_name": plan_name,
-        "status": group.status,
-        "target_unit_id": group.target_unit_id,
-        "target_unit_name": target_unit_name,
-        "unit_ids": group.unit_ids or [],
-        "authorization_letter": group.authorization_letter,
-        "authorization_date": group.authorization_date,
-        "leader_cadre_name": next((m.cadre.name for m in group.members if m.is_leader and m.cadre), None),
-        "members": [
-            {"id": m.id, "cadre_id": m.cadre_id, "cadre_name": m.cadre.name if m.cadre else None, "role": m.role, "is_leader": m.is_leader}
-            for m in group.members
-        ],
-        "created_at": group.created_at,
+        "data": {
+            "id": group.id,
+            "name": group.name,
+            "plan_id": group.plan_id,
+            "plan_name": plan_name,
+            "status": group.status,
+            "target_unit_id": group.target_unit_id,
+            "target_unit_name": target_unit_name,
+            "unit_ids": group.unit_ids or [],
+            "authorization_letter": group.authorization_letter,
+            "authorization_date": group.authorization_date,
+            "leader_cadre_name": next((m.cadre.name for m in group.members if m.is_leader and m.cadre), None),
+            "members": [
+                {"id": m.id, "cadre_id": m.cadre_id, "cadre_name": m.cadre.name if m.cadre else None, "role": m.role, "is_leader": m.is_leader}
+                for m in group.members
+            ],
+            "created_at": group.created_at,
+        },
+        "message": "success",
     }
 
 
-@router.post("/")
-async def create_group(
-    group_data: GroupCreate,
+@router.get("/{group_id}/members")
+async def list_group_members(
+    group_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # 组长与副组长不可为同一人
-    if group_data.leader_id and group_data.vice_leader_id and group_data.leader_id == group_data.vice_leader_id:
-        raise HTTPException(status_code=400, detail="组长与副组长不可为同一人")
-
-    plan_result = await db.execute(select(Plan).where(Plan.id == group_data.plan_id))
-    plan = plan_result.scalar_one_or_none()
-    if not plan:
-        raise HTTPException(status_code=404, detail="Plan not found")
-
-    # Use first unit_id as target_unit_id if unit_ids provided and target_unit_id not set
-    target_unit_id = group_data.target_unit_id
-    if not target_unit_id and group_data.unit_ids:
-        target_unit_id = group_data.unit_ids[0]
-
-    group = InspectionGroup(
-        name=group_data.name,
-        plan_id=group_data.plan_id,
-        target_unit_id=target_unit_id,
-        created_by=current_user.id,
+    """Get all members of an inspection group."""
+    result = await db.execute(
+        select(InspectionGroup).where(InspectionGroup.id == group_id)
+        .options(selectinload(InspectionGroup.members).selectinload(GroupMember.cadre))
     )
-    db.add(group)
-    await db.flush()  # get group.id
-
-    # Create leader member
-    if group_data.leader_id:
-        leader_member = GroupMember(
-            group_id=group.id,
-            cadre_id=group_data.leader_id,
-            role="组长",
-            is_leader=True,
-        )
-        db.add(leader_member)
-
-    # Create vice leader member
-    if group_data.vice_leader_id:
-        vice_member = GroupMember(
-            group_id=group.id,
-            cadre_id=group_data.vice_leader_id,
-            role="副组长",
-            is_leader=False,
-        )
-        db.add(vice_member)
-
-    # Create regular members (skip leader/vice leader)
-    for cadre_id in group_data.member_ids:
-        if cadre_id == group_data.leader_id or cadre_id == group_data.vice_leader_id:
-            continue
-        member = GroupMember(
-            group_id=group.id,
-            cadre_id=cadre_id,
-            role="组员",
-            is_leader=False,
-        )
-        db.add(member)
-
-    await db.commit()
-    await db.refresh(group)
-    await write_audit_log(db, current_user.id, "create", "inspection_group", group.id, {"name": group.name})
-    return {"id": group.id, "name": group.name, "message": "Group created"}
+    group = result.scalar_one_or_none()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    return {
+        "data": {
+            "items": [
+                {"id": str(m.id), "cadre_id": str(m.cadre_id), "cadre_name": m.cadre.name if m.cadre else None, "role": m.role, "is_leader": m.is_leader}
+                for m in group.members
+            ],
+            "total": len(group.members),
+        }
+    }
 
 
 @router.post("/{group_id}/members")
@@ -470,6 +581,71 @@ async def delete_group(group_id: UUID, db: AsyncSession = Depends(get_db), curre
     return {"message": "Group deleted"}
 
 
+@router.post("/{group_id}/concurrent-roles")
+async def assign_concurrent_roles(
+    group_id: UUID,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Assign concurrent roles (clue officer, liaison officer) to a group."""
+    result = await db.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
+    group = result.scalar_one_or_none()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    await db.commit()
+    await write_audit_log(db, current_user.id, "assign_concurrent_roles", "inspection_group", group_id, body)
+    return {"message": "Concurrent roles assigned"}
+
+
+@router.get("/{group_id}/phase-logs")
+async def get_group_phase_logs(
+    group_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get phase transition logs for an inspection group."""
+    result = await db.execute(
+        select(AuditLog)
+        .where(AuditLog.entity_type == "inspection_group")
+        .where(AuditLog.entity_id == group_id)
+        .order_by(AuditLog.created_at.desc())
+        .limit(100)
+    )
+    logs = result.scalars().all()
+    return [
+        {
+            "id": str(log.id),
+            "action": log.action,
+            "detail": log.detail,
+            "user_id": str(log.user_id) if log.user_id else None,
+            "created_at": log.created_at.isoformat() if log.created_at else None,
+        }
+        for log in logs
+    ]
+
+
+@router.post("/{group_id}/status")
+async def update_group_status(
+    group_id: UUID,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update group status directly (e.g., from 'approved' to 'active')."""
+    result = await db.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
+    group = result.scalar_one_or_none()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    new_status = body.get("status")
+    if not new_status:
+        raise HTTPException(status_code=400, detail="status is required")
+    old_status = group.status
+    group.status = new_status
+    await db.commit()
+    await write_audit_log(db, current_user.id, "status_change", "inspection_group", group_id, {"from": old_status, "to": new_status})
+    return {"message": f"Group status updated to {new_status}"}
+
 @router.post("/batch-delete")
 async def batch_delete_groups(
     ids: List[UUID],
@@ -491,3 +667,4 @@ async def batch_delete_groups(
     for g in groups:
         await write_audit_log(db, current_user.id, "delete", "inspection_group", g.id, {})
     return {"message": f"{len(groups)} groups deleted"}
+

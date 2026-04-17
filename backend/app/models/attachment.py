@@ -11,7 +11,7 @@ class Attachment(Base):
 
     id = Column(Guid, primary_key=True, default=uuid.uuid4)
     entity_type = Column(String(32), nullable=False)  # draft/rectification/knowledge
-    entity_id = Column(Guid, nullable=False)
+    entity_id = Column(Guid, nullable=True)
     file_name = Column(String(256), nullable=False)
     file_path = Column(String(512), nullable=False)
     file_size = Column(Integer, nullable=False)

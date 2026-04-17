@@ -53,6 +53,15 @@ class UnitResponse(UnitBase):
             return None
         return str(v)
 
+    @field_validator('tags', mode='before')
+    @classmethod
+    def tags_list_to_dict(cls, v):
+        if v is None:
+            return {}
+        if isinstance(v, list):
+            return {} if v == [] else v
+        return v
+
     class Config:
         from_attributes = True
 

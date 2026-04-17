@@ -17,8 +17,9 @@ export interface Document {
 export const getDocuments = (params?: { type?: string; plan_id?: string; page?: number; page_size?: number }) =>
   api.get('/documents/', { params }).then(res => res.data);
 
+// Backend returns {data: {doc_fields}, message: "..."} — manual unwrap needed.
 export const getDocument = (id: string) =>
-  api.get(`/documents/${id}`).then(res => res.data);
+  api.get(`/documents/${id}`).then(res => (res.data as any).data);
 
 export const deleteDocument = (id: string) =>
   api.delete(`/documents/${id}`);

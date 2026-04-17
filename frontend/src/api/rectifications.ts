@@ -3,8 +3,9 @@ import api from './client';
 export const getRectifications = (params?: { page?: number; page_size?: number; status?: string; unit_id?: string }) =>
   api.get('/rectifications/', { params }).then(res => res.data);
 
+// Backend returns {data: {rectification_fields}, message: "..."} — manual unwrap needed.
 export const getRectification = (id: string) =>
-  api.get(`/rectifications/${id}`).then(res => res.data);
+  api.get(`/rectifications/${id}`).then(res => (res.data as any).data);
 
 export const createRectification = (data: any) =>
   api.post('/rectifications/', data).then(res => res.data);

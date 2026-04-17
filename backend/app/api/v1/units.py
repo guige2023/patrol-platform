@@ -238,13 +238,13 @@ async def download_unit_template(
     )
 
 
-@router.get("/{unit_id}", response_model=UnitResponse)
+@router.get("/{unit_id}")
 async def get_unit(unit_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(select(Unit).where(Unit.id == unit_id))
     unit = result.scalar_one_or_none()
     if not unit:
         raise HTTPException(status_code=404, detail="Unit not found")
-    return unit
+    return {"data": UnitResponse.model_validate(unit), "message": "success"}
 
 
 @router.post("/", response_model=UnitResponse, status_code=201)

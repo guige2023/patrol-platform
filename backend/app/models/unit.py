@@ -17,7 +17,7 @@ class Unit(Base):
     unit_type = Column(String(32))  # province/city/county/department
     level = Column(String(20), nullable=True)  # 一级单位、二级单位
     sort_order = Column(Integer, default=0)
-    tags = Column(JSON, default=list)
+    tags = Column(JSON, default=dict)
     profile = Column(Text)  # 单位简介
     leadership = Column(JSON)  # {"secretary": "...", "head": "..."}
     contact = Column(JSON)  # {"phone": "...", "address": "..."}

@@ -18,10 +18,28 @@ from app.models.cadre import Cadre
 from app.models.unit import Unit
 from app.schemas.plan import PlanCreate, PlanUpdate, PlanResponse
 from app.schemas.common import PaginatedResponse, PageResult
+from app.schemas.common import Response as ResponseWrapper
 from app.core.audit import write_audit_log
 import io
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.units import mm
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+import os
+
+# 注册中文字体（宋体）
+FONT_PATH = "/System/Library/Fonts/Supplemental/Songti.ttc"
+if os.path.exists(FONT_PATH):
+    pdfmetrics.registerFont(TTFont('Songti', FONT_PATH))
+    CHINESE_FONT = 'Songti'
+else:
+    CHINESE_FONT = 'Helvetica'
 
 router = APIRouter()
 
@@ -464,26 +482,408 @@ async def export_plan_report(
     )
 
 
-@router.get("/{plan_id}", response_model=PlanResponse)
+@router.get("/{plan_id}/checklist")
+async def export_plan_checklist_pdf(
+    plan_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Export inspection checklist as printable PDF."""
+    # 1. Plan
+    result = await db.execute(select(Plan).where(Plan.id == plan_id, Plan.is_active == True))
+    plan = result.scalar_one_or_none()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    # 2. Groups with members + unit names
+    groups_result = await db.execute(
+        select(InspectionGroup)
+        .options(selectinload(InspectionGroup.members).selectinload(GroupMember.cadre))
+        .where(InspectionGroup.plan_id == plan_id, InspectionGroup.is_active == True)
+    )
+    groups = groups_result.scalars().all()
+
+    # Build unit map
+    all_unit_ids = list({g.target_unit_id for g in groups if g.target_unit_id})
+    unit_map = {}
+    if all_unit_ids:
+        units_result = await db.execute(select(Unit).where(Unit.id.in_(all_unit_ids)))
+        for u in units_result.scalars().all():
+            unit_map[u.id] = u.name
+
+    # 3. Rectifications for target units
+    rectifications = []
+    if all_unit_ids:
+        rect_result = await db.execute(
+            select(Rectification).where(
+                Rectification.unit_id.in_(all_unit_ids),
+                Rectification.is_active == True
+            )
+        )
+        rectifications = rect_result.scalars().all()
+
+    # 4. Build PDF
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=20*mm, rightMargin=20*mm,
+        topMargin=20*mm, bottomMargin=20*mm
+    )
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('Title', parent=styles['Title'], fontName=CHINESE_FONT, fontSize=16, alignment=TA_CENTER, spaceAfter=6)
+    subtitle_style = ParagraphStyle('Subtitle', parent=styles['Normal'], fontName=CHINESE_FONT, fontSize=10, alignment=TA_CENTER, textColor=colors.grey, spaceAfter=12)
+    section_style = ParagraphStyle('Section', parent=styles['Heading2'], fontName=CHINESE_FONT, fontSize=12, spaceBefore=12, spaceAfter=4, textColor=colors.HexColor('#1677ff'))
+    normal_style = ParagraphStyle('Normal', parent=styles['Normal'], fontName=CHINESE_FONT, fontSize=9)
+
+    story = []
+
+    # ── 封面 ──
+    story.append(Paragraph(plan.name or "巡察检查清单", title_style))
+    year_str = f"{plan.year}年" if plan.year else ""
+    round_str = plan.round_name or ""
+    story.append(Paragraph(f"{year_str} {round_str} 巡察检查清单  |  生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}", subtitle_style))
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#1677ff'), spaceAfter=12))
+
+    # ── 计划基本信息 ──
+    story.append(Paragraph("一、计划信息", section_style))
+    info_data = [
+        ["计划名称", plan.name or "-"],
+        ["年　　份", str(plan.year) if plan.year else "-"],
+        ["轮　　次", plan.round_name or "-"],
+        ["巡察范围", plan.scope or "-"],
+        ["重点领域", ", ".join(plan.focus_areas) if plan.focus_areas else "-"],
+        ["授权文书", plan.authorization_letter or "-"],
+        ["计划起止", f"{plan.planned_start_date or '-'} ~ {plan.planned_end_date or '-'}"],
+        ["实际起止", f"{plan.actual_start_date or '-'} ~ {plan.actual_end_date or '-'}"],
+    ]
+    info_table = Table(info_data, colWidths=[40*mm, 130*mm])
+    info_table.setStyle(TableStyle([
+        ('FONTNAME', (0,0), (-1,-1), CHINESE_FONT),
+        ('FONTSIZE', (0,0), (-1,-1), 9),
+        ('FONTNAME', (0,0), (0,-1), CHINESE_FONT),
+        ('FONTNAME', (1,0), (1,-1), CHINESE_FONT),
+        ('TEXTCOLOR', (0,0), (0,-1), colors.HexColor('#555555')),
+        ('BACKGROUND', (0,0), (0,-1), colors.HexColor('#f5f5f5')),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#dddddd')),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('LEFTPADDING', (0,0), (-1,-1), 6),
+    ]))
+    story.append(info_table)
+    story.append(Spacer(1, 8*mm))
+
+    # ── 巡察组信息 ──
+    story.append(Paragraph("二、巡察组信息", section_style))
+    if groups:
+        group_header = ["序号", "巡察组名称", "被巡察单位", "组长", "副组长", "联络员", "组员", "状态"]
+        group_rows = []
+        for i, g in enumerate(groups, 1):
+            unit_name = unit_map.get(g.target_unit_id, "-") if g.target_unit_id else "-"
+            members = g.members or []
+            leader = next((m.cadre.name if m.cadre else "" for m in members if m.is_leader), "-")
+            vice = ", ".join([m.cadre.name if m.cadre else "" for m in members if not m.is_leader and getattr(m, 'role', None) == '副组长']) or "-"
+            liaison = ", ".join([m.cadre.name if m.cadre else "" for m in members if not m.is_leader and getattr(m, 'role', None) == '联络员']) or "-"
+            members_names = ", ".join([m.cadre.name if m.cadre else "" for m in members if m.cadre]) or "-"
+            STATUS_LABELS_GROUP = {"draft": "草稿", "approved": "已审批", "active": "进行中", "completed": "已完成"}
+            group_rows.append([
+                str(i),
+                g.name or "-",
+                unit_name,
+                leader,
+                vice,
+                liaison,
+                members_names[:30],
+                STATUS_LABELS_GROUP.get(g.status, g.status or "-"),
+            ])
+        group_table = Table([group_header] + group_rows, colWidths=[10*mm, 30*mm, 30*mm, 20*mm, 20*mm, 18*mm, 40*mm, 14*mm])
+        group_table.setStyle(TableStyle([
+            ('FONTNAME', (0,0), (-1,-1), CHINESE_FONT),
+            ('FONTSIZE', (0,0), (-1,-1), 8),
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1677ff')),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+            ('FONTNAME', (0,0), (-1,0), CHINESE_FONT),
+            ('ALIGN', (0,0), (-1,0), 'CENTER'),
+            ('ALIGN', (0,1), (0,-1), 'CENTER'),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cccccc')),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('TOPPADDING', (0,0), (-1,-1), 3),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+            ('LEFTPADDING', (0,0), (-1,-1), 4),
+            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#f9f9f9')]),
+        ]))
+        story.append(group_table)
+    else:
+        story.append(Paragraph("暂无巡察组数据", normal_style))
+    story.append(Spacer(1, 8*mm))
+
+    # ── 整改项检查 ──
+    story.append(Paragraph("三、整改项检查", section_style))
+    if rectifications:
+        rect_header = ["序号", "标题", "责任单位", "状态", "进度", "截止日期", "派发日期"]
+        rect_rows = []
+        RECT_STATUS = {"dispatched": "已派发", "signed": "已签收", "progressing": "整改中", "completed": "已完成", "submitted": "待验收", "verified": "已验收", "rejected": "已驳回"}
+        for i, r in enumerate(rectifications[:50], 1):  # limit to 50
+            unit_name = unit_map.get(r.unit_id, "-") if r.unit_id else "-"
+            rect_rows.append([
+                str(i),
+                (r.title or "-")[:35],
+                unit_name[:15],
+                RECT_STATUS.get(r.status, r.status or "-"),
+                f"{r.progress or 0}%",
+                r.deadline or "-",
+                r.created_at.strftime('%Y-%m-%d') if r.created_at else "-",
+            ])
+        rect_table = Table([rect_header] + rect_rows, colWidths=[10*mm, 55*mm, 30*mm, 20*mm, 15*mm, 25*mm, 17*mm])
+        rect_table.setStyle(TableStyle([
+            ('FONTNAME', (0,0), (-1,-1), CHINESE_FONT),
+            ('FONTSIZE', (0,0), (-1,-1), 8),
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#52c41a')),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+            ('FONTNAME', (0,0), (-1,0), CHINESE_FONT),
+            ('ALIGN', (0,0), (-1,0), 'CENTER'),
+            ('ALIGN', (0,1), (0,-1), 'CENTER'),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cccccc')),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('TOPPADDING', (0,0), (-1,-1), 3),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+            ('LEFTPADDING', (0,0), (-1,-1), 4),
+            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#f9f9f9')]),
+        ]))
+        story.append(rect_table)
+    else:
+        story.append(Paragraph("暂无整改项数据", normal_style))
+    story.append(Spacer(1, 8*mm))
+
+    # ── 签字栏 ──
+    story.append(Paragraph("四、签字确认", section_style))
+    sign_data = [
+        ["巡察组组长签字：", "签字日期："],
+        ["被巡察单位负责人签字：", "签字日期："],
+        ["巡察办审核签字：", "签字日期："],
+    ]
+    sign_table = Table(sign_data, colWidths=[85*mm, 85*mm])
+    sign_table.setStyle(TableStyle([
+        ('FONTNAME', (0,0), (-1,-1), CHINESE_FONT),
+        ('FONTSIZE', (0,0), (-1,-1), 9),
+        ('TOPPADDING', (0,0), (-1,-1), 14),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 14),
+        ('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor('#cccccc')),
+    ]))
+    story.append(sign_table)
+
+    doc.build(story)
+    buffer.seek(0)
+    plan_name_safe = (plan.name or "巡察检查清单").replace("/", "_").replace("\\", "_")
+    filename = f"{plan_name_safe}_检查清单.pdf"
+    encoded_filename = quote(filename)
+    return Response(
+        buffer.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"},
+    )
+
+
+@router.get("/{plan_id}/feedback")
+async def get_plan_feedback(
+    plan_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get all feedback for a plan: rectification confirmations + draft reviews."""
+    from app.models.draft import Draft
+    from app.models.rectification import Rectification
+
+    # Verify plan exists
+    plan_result = await db.execute(select(Plan).where(Plan.id == plan_id, Plan.is_active == True))
+    plan = plan_result.scalar_one_or_none()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    # Get groups for this plan
+    groups_result = await db.execute(
+        select(InspectionGroup).where(InspectionGroup.plan_id == plan_id, InspectionGroup.is_active == True)
+    )
+    groups = groups_result.scalars().all()
+    group_ids = [g.id for g in groups]
+    target_unit_ids = list({g.target_unit_id for g in groups if g.target_unit_id})
+
+    # Get confirmed rectifications (feedback from units)
+    confirmed_rects = []
+    if target_unit_ids:
+        rect_result = await db.execute(
+            select(Rectification).where(
+                Rectification.unit_id.in_(target_unit_ids),
+                Rectification.is_active == True,
+                Rectification.confirmed_completed == True,
+            )
+        )
+        rectifications = rect_result.scalars().all()
+        for r in rectifications:
+            unit_result = await db.execute(select(Unit).where(Unit.id == r.unit_id))
+            unit = unit_result.scalar_one_or_none()
+            confirmed_rects.append({
+                "rectification_id": str(r.id),
+                "unit_id": str(r.unit_id) if r.unit_id else None,
+                "unit_name": unit.name if unit else None,
+                "problem_description": r.problem_description,
+                "confirmed_at": r.confirmed_at.isoformat() if r.confirmed_at else None,
+                "confirm_notes": r.confirm_notes,
+            })
+
+    # Get draft reviews (feedback from supervisors)
+    draft_feedback = []
+    if group_ids:
+        draft_result = await db.execute(
+            select(Draft).where(Draft.group_id.in_(group_ids), Draft.is_active == True)
+        )
+        drafts = draft_result.scalars().all()
+        for d in drafts:
+            if d.preliminary_review_comment or d.final_review_comment:
+                draft_feedback.append({
+                    "draft_id": str(d.id),
+                    "title": d.title,
+                    "category": d.category,
+                    "status": d.status,
+                    "preliminary_review_comment": d.preliminary_review_comment,
+                    "final_review_comment": d.final_review_comment,
+                })
+
+    return {
+        "plan_id": str(plan_id),
+        "plan_name": plan.name,
+        "confirmed_rectifications": confirmed_rects,
+        "draft_feedback": draft_feedback,
+        "summary": {
+            "total_confirmed_rectifications": len(confirmed_rects),
+            "total_draft_feedback": len(draft_feedback),
+        },
+    }
+
+
+@router.get("/{plan_id}/cadre-export")
+async def export_plan_cadres(
+    plan_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Export all cadres (inspectors) for a plan as Excel."""
+    # Verify plan exists
+    plan_result = await db.execute(select(Plan).where(Plan.id == plan_id, Plan.is_active == True))
+    plan = plan_result.scalar_one_or_none()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    # Get groups + members + cadres
+    groups_result = await db.execute(
+        select(InspectionGroup)
+        .options(selectinload(InspectionGroup.members).selectinload(GroupMember.cadre))
+        .where(InspectionGroup.plan_id == plan_id, InspectionGroup.is_active == True)
+    )
+    groups = groups_result.scalars().all()
+
+    rows = []
+    for group in groups:
+        for member in (group.members or []):
+            cadre = member.cadre
+            if not cadre:
+                continue
+            unit_result = await db.execute(select(Unit).where(Unit.id == cadre.unit_id))
+            unit = unit_result.scalar_one_or_none()
+            rows.append([
+                group.name or "",
+                member.role or "",
+                "是" if member.is_leader else "否",
+                cadre.name or "",
+                cadre.gender or "",
+                cadre.position or "",
+                cadre.rank or "",
+                unit.name if unit else "",
+                cadre.phone or "",
+                cadre.political_status or "",
+            ])
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "巡察干部"
+
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill("solid", fgColor="1677FF")
+    headers = ["巡察组", "角色", "组长", "姓名", "性别", "职务", "职级", "所在单位", "联系电话", "政治面貌"]
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+
+    for row in rows:
+        ws.append(row)
+
+    for col in ws.columns:
+        max_len = max(len(str(cell.value or "")) for cell in col)
+        ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 30)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    plan_name_safe = (plan.name or "巡察干部").replace("/", "_").replace("\\", "_")
+    filename = f"{plan_name_safe}_干部名单.xlsx"
+    encoded_filename = quote(filename)
+    return Response(
+        output.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"},
+    )
+
+
+@router.get("/{plan_id}")
 async def get_plan(plan_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(select(Plan).where(Plan.id == plan_id, Plan.is_active == True))
     plan = result.scalar_one_or_none()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
-    return plan
+    return {"data": plan, "message": "success"}
 
 
-@router.post("/", response_model=PlanResponse, status_code=201)
+@router.post("/", status_code=201)
 async def create_plan(plan_data: PlanCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     plan = Plan(**plan_data.model_dump(), created_by=current_user.id)
     db.add(plan)
     await db.commit()
     await db.refresh(plan)
     await write_audit_log(db, current_user.id, "create", "plan", plan.id, {"name": plan.name})
-    return plan
+    
+    # Serialize manually for consistent {data, message} format
+    plan_dict = {
+        "id": str(plan.id),
+        "name": plan.name,
+        "round_name": plan.round_name,
+        "round_number": plan.round_number,
+        "year": plan.year,
+        "planned_start_date": plan.planned_start_date.isoformat() if plan.planned_start_date else None,
+        "planned_end_date": plan.planned_end_date.isoformat() if plan.planned_end_date else None,
+        "actual_start_date": plan.actual_start_date.isoformat() if plan.actual_start_date else None,
+        "actual_end_date": plan.actual_end_date.isoformat() if plan.actual_end_date else None,
+        "scope": plan.scope,
+        "focus_areas": plan.focus_areas or [],
+        "target_units": plan.target_units or [],
+        "authorization_letter": plan.authorization_letter,
+        "authorization_date": plan.authorization_date.isoformat() if plan.authorization_date else None,
+        "status": plan.status,
+        "version": plan.version,
+        "version_history": plan.version_history or [],
+        "approval_comment": plan.approval_comment,
+        "approved_by": str(plan.approved_by) if plan.approved_by else None,
+        "is_active": plan.is_active,
+        "created_by": str(plan.created_by) if plan.created_by else None,
+        "created_at": plan.created_at.isoformat() if plan.created_at else None,
+        "updated_at": plan.updated_at.isoformat() if plan.updated_at else None,
+    }
+    return {"data": plan_dict, "message": "success"}
 
 
-@router.put("/{plan_id}", response_model=PlanResponse)
+@router.put("/{plan_id}")
 async def update_plan(plan_id: UUID, plan_data: PlanUpdate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(select(Plan).where(Plan.id == plan_id))
     plan = result.scalar_one_or_none()
@@ -502,7 +902,34 @@ async def update_plan(plan_id: UUID, plan_data: PlanUpdate, db: AsyncSession = D
     await db.commit()
     await db.refresh(plan)
     await write_audit_log(db, current_user.id, "update", "plan", plan.id, {"name": plan.name})
-    return plan
+    
+    # Serialize manually for consistent {data, message} format
+    plan_dict = {
+        "id": str(plan.id),
+        "name": plan.name,
+        "round_name": plan.round_name,
+        "round_number": plan.round_number,
+        "year": plan.year,
+        "planned_start_date": plan.planned_start_date.isoformat() if plan.planned_start_date else None,
+        "planned_end_date": plan.planned_end_date.isoformat() if plan.planned_end_date else None,
+        "actual_start_date": plan.actual_start_date.isoformat() if plan.actual_start_date else None,
+        "actual_end_date": plan.actual_end_date.isoformat() if plan.actual_end_date else None,
+        "scope": plan.scope,
+        "focus_areas": plan.focus_areas or [],
+        "target_units": plan.target_units or [],
+        "authorization_letter": plan.authorization_letter,
+        "authorization_date": plan.authorization_date.isoformat() if plan.authorization_date else None,
+        "status": plan.status,
+        "version": plan.version,
+        "version_history": plan.version_history or [],
+        "approval_comment": plan.approval_comment,
+        "approved_by": str(plan.approved_by) if plan.approved_by else None,
+        "is_active": plan.is_active,
+        "created_by": str(plan.created_by) if plan.created_by else None,
+        "created_at": plan.created_at.isoformat() if plan.created_at else None,
+        "updated_at": plan.updated_at.isoformat() if plan.updated_at else None,
+    }
+    return {"data": plan_dict, "message": "success"}
 
 
 @router.post("/{plan_id}/submit")

@@ -147,13 +147,13 @@ async def export_clues(
     )
 
 
-@router.get("/{clue_id}", response_model=ClueResponse)
+@router.get("/{clue_id}")
 async def get_clue(clue_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(select(Clue).where(Clue.id == clue_id))
     clue = result.scalar_one_or_none()
     if not clue:
         raise HTTPException(status_code=404, detail="Clue not found")
-    return clue
+    return {"data": ClueResponse.model_validate(clue), "message": "success"}
 
 
 @router.post("/", response_model=ClueResponse, status_code=201)

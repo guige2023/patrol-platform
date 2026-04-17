@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Body
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -206,13 +206,14 @@ async def download_cadre_template(
 
 
 
-@router.get("/{cadre_id}", response_model=CadreResponse)
+@router.get("/{cadre_id}")
 async def get_cadre(cadre_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     result = await db.execute(select(Cadre).where(Cadre.id == cadre_id))
     cadre = result.scalar_one_or_none()
     if not cadre:
         raise HTTPException(status_code=404, detail="Cadre not found")
-    return cadre
+    from app.schemas.cadre import CadreResponse
+    return {"data": CadreResponse.model_validate(cadre), "message": "success"}
 
 
 @router.post("/", response_model=CadreResponse, status_code=201)
@@ -259,7 +260,7 @@ async def delete_cadre(cadre_id: UUID, db: AsyncSession = Depends(get_db), curre
 
 @router.post("/batch-delete")
 async def batch_delete_cadres(
-    ids: List[UUID],
+    ids: List[UUID] = Body(...),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):

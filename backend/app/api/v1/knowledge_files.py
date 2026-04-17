@@ -1,16 +1,18 @@
 import os
 import json
 import uuid
+import io
 import aiofiles
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import List
+from typing import List, Optional
 from app.dependencies import get_db, get_current_user
 from app.models.user import User
 from app.models.knowledge import Knowledge
+from app.utils.watermark import apply_watermark
 
 router = APIRouter(prefix="/knowledge", tags=["知识库文件"])
 
@@ -114,14 +116,15 @@ async def delete_attachment(
     return {"message": "附件已删除"}
 
 
-@router.get("/{knowledge_id}/attachments/{filename}/download")
-async def download_attachment(
+@router.get("/{knowledge_id}/attachments/{filename}")
+async def preview_attachment(
     knowledge_id: uuid.UUID,
     filename: str,
+    watermark: bool = Query(False, description="是否添加水印"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """下载附件"""
+    """预览附件（支持水印）"""
     result = await db.execute(select(Knowledge).where(Knowledge.id == knowledge_id))
     knowledge = result.scalar_one_or_none()
     if not knowledge:
@@ -141,4 +144,89 @@ async def download_attachment(
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="文件不存在")
 
-    return FileResponse(file_path, filename=filename)
+    # 读取文件内容
+    with open(file_path, "rb") as f:
+        file_bytes = f.read()
+
+    # 确定 MIME 类型
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    mime_types = {
+        "pdf": "application/pdf",
+        "png": "image/png",
+        "jpg": "jpeg",
+        "jpeg": "image/jpeg",
+        "gif": "image/gif",
+        "bmp": "image/bmp",
+        "webp": "image/webp",
+    }
+    media_type = mime_types.get(ext, "application/octet-stream")
+
+    if watermark:
+        file_bytes = apply_watermark(file_bytes, filename)
+
+    return StreamingResponse(
+        io.BytesIO(file_bytes),
+        media_type=media_type,
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
+@router.get("/{knowledge_id}/attachments/{filename}/download")
+async def download_attachment(
+    knowledge_id: uuid.UUID,
+    filename: str,
+    watermark: bool = Query(False, description="是否添加水印"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """下载附件（支持水印）"""
+    result = await db.execute(select(Knowledge).where(Knowledge.id == knowledge_id))
+    knowledge = result.scalar_one_or_none()
+    if not knowledge:
+        raise HTTPException(status_code=404, detail="知识库条目不存在")
+
+    attachments = knowledge.attachments or []
+    att = None
+    for a in attachments:
+        if a["filename"] == filename:
+            att = a
+            break
+    if not att:
+        raise HTTPException(status_code=404, detail="附件不存在")
+
+    safe_filename = att["url"].split("/")[-1]
+    file_path = os.path.join(UPLOAD_BASE, str(knowledge_id), safe_filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    # 读取文件内容
+    with open(file_path, "rb") as f:
+        file_bytes = f.read()
+
+    # 确定 MIME 类型
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    mime_types = {
+        "pdf": "application/pdf",
+        "png": "image/png",
+        "jpg": "jpeg",
+        "jpeg": "image/jpeg",
+        "gif": "image/gif",
+        "bmp": "image/bmp",
+        "webp": "image/webp",
+    }
+    media_type = mime_types.get(ext, "application/octet-stream")
+
+    if watermark:
+        file_bytes = apply_watermark(file_bytes, filename)
+        # 水印后文件名加 _watermarked 前缀
+        name_part = filename.rsplit(".", 1)
+        if len(name_part) == 2:
+            filename = f"{name_part[0]}_watermarked.{name_part[1]}"
+        else:
+            filename = f"{filename}_watermarked"
+
+    return StreamingResponse(
+        io.BytesIO(file_bytes),
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

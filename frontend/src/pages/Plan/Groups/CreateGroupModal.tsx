@@ -48,7 +48,7 @@ function matchCadres(selectedUnits: UnitOption[], allCadres: CadreOption[]): Cad
   const unitNames: string[] = selectedUnits.map((u) => u.name);
   const unitIds: string[] = selectedUnits.map((u) => u.id);
   selectedUnits.forEach((u) => {
-    if (u.tags) unitTags.push(...u.tags);
+    if (Array.isArray(u.tags)) unitTags.push(...u.tags);
   });
 
   // Determine target categories
@@ -173,16 +173,16 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
     const selectedPlan = plans.find((p) => p.id === formValues.plan_id);
     const selectedUnits = allUnits.filter((u) => selectedUnitIds.includes(u.id));
     const leader = allCadres.find((c) => c.id === formValues.leader_id);
-    const viceLeader = formValues.vice_leader_id
-      ? allCadres.find((c) => c.id === formValues.vice_leader_id)
-      : null;
+    const viceLeaders = (formValues.vice_leader_ids || [])
+      .map((id: string) => allCadres.find((c) => c.id === id))
+      .filter(Boolean);
     const members = allCadres.filter((c) => selectedMemberIds.includes(c.id));
 
     setPreviewData({
       name: formValues.name,
       plan: selectedPlan,
       leader,
-      viceLeader,
+      viceLeaders,
       selectedUnits,
       members,
       formValues,
@@ -199,9 +199,9 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
         plan_id: formValues.plan_id,
         unit_ids: selectedUnitIds,
         leader_id: formValues.leader_id,
-        vice_leader_id: formValues.vice_leader_id || null,
+        vice_leader_ids: formValues.vice_leader_ids || [],
         member_ids: selectedMemberIds.filter(
-          (id) => id !== formValues.leader_id && id !== formValues.vice_leader_id
+          (id) => id !== formValues.leader_id && !(formValues.vice_leader_ids || []).includes(id)
         ),
       };
       await createGroup(payload);
@@ -248,14 +248,16 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
           </Form.Item>
         </Col>
         <Col span={12}>
-          <Form.Item name="vice_leader_id" label="副组长">
+          <Form.Item name="vice_leader_ids" label="副组长">
             <Select
-              placeholder="请选择副组长（可选）"
+              mode="multiple"
+              placeholder="请选择副组长（可多选）"
               showSearch
               filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
               options={cadreOptions}
               allowClear
               loading={loading}
+              maxCount={5}
             />
           </Form.Item>
         </Col>
@@ -270,31 +272,37 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
     const targetUnitIds: string[] = selectedPlan?.target_units || [];
     const filteredUnits = targetUnitIds.length > 0
       ? allUnits.filter((u) => targetUnitIds.includes(u.id))
-      : allUnits;
+      : [];
 
     return (
       <div>
         <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
           选择该巡察组负责巡察的单位（可多选）{selectedPlan?.name && `（${selectedPlan.name}）`}
         </Text>
-        <div style={{ maxHeight: 420, overflowY: 'auto', border: '1px solid #f0f0f0', borderRadius: 6, padding: 12 }}>
+        {targetUnitIds.length === 0 && (
+          <Text type="danger" style={{ display: 'block', marginBottom: 12 }}>
+            该计划未设置被巡察单位，请返回步骤一修改计划，或在「计划管理」中编辑该计划的被巡察单位后再试。
+          </Text>
+        )}
+        <div style={{ maxHeight: 420, overflowY: 'auto', border: targetUnitIds.length === 0 ? '1px dashed #ff4d4f' : '1px solid #f0f0f0', borderRadius: 6, padding: 12, opacity: targetUnitIds.length === 0 ? 0.5 : 1 }}>
           <Checkbox.Group
             value={selectedUnitIds}
             onChange={(vals) => setSelectedUnitIds(vals as string[])}
             style={{ display: 'block' }}
+            disabled={targetUnitIds.length === 0}
           >
             <Row gutter={[8, 8]}>
               {filteredUnits.map((u) => (
                 <Col span={12} key={u.id}>
                   <Checkbox value={u.id}>
                     <span>{u.name}</span>
-                    {u.tags && u.tags.length > 0 && u.tags.map((t) => (
+                    {Array.isArray(u.tags) && u.tags.length > 0 && u.tags.map((t) => (
                       <Tag key={t} color="blue" style={{ marginLeft: 4, fontSize: 11 }}>{t}</Tag>
                     ))}
                   </Checkbox>
                 </Col>
               ))}
-              {filteredUnits.length === 0 && (
+              {filteredUnits.length === 0 && targetUnitIds.length > 0 && (
                 <Text type="secondary">该计划暂未指定巡察单位，请返回步骤一修改计划</Text>
               )}
             </Row>
@@ -400,7 +408,7 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
     const members = allCadres.filter((c) =>
       selectedMemberIds.includes(c.id) &&
       c.id !== formVals.leader_id &&
-      c.id !== formVals.vice_leader_id
+      !(formVals.vice_leader_ids || []).includes(c.id)
     );
 
     return (
@@ -408,7 +416,11 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
         <Descriptions.Item label="关联计划">{previewData.plan?.name || '-'}</Descriptions.Item>
         <Descriptions.Item label="巡察组名称">{previewData.name}</Descriptions.Item>
         <Descriptions.Item label="组长">{previewData.leader?.name || '-'}</Descriptions.Item>
-        <Descriptions.Item label="副组长">{previewData.viceLeader?.name || '（无）'}</Descriptions.Item>
+        <Descriptions.Item label="副组长">
+          {previewData.viceLeaders?.length > 0
+            ? previewData.viceLeaders.map((v: any) => v.name).join('、')
+            : '（无）'}
+        </Descriptions.Item>
         <Descriptions.Item label="被巡察单位">
           {previewData.selectedUnits.map((u: UnitOption) => <Tag key={u.id}>{u.name}</Tag>)}
         </Descriptions.Item>

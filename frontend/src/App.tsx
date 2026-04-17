@@ -71,6 +71,11 @@ function App() {
   useEffect(() => {
     // Check if system needs initialization
     const checkInit = async () => {
+      // Only check auth if token exists — avoids 401 that clears localStorage
+      if (!localStorage.getItem('token')) {
+        setCheckingInit(false)
+        return
+      }
       try {
         await getMe()
       } catch {

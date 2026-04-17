@@ -12,9 +12,10 @@ class Rectification(Base):
 
     id = Column(Guid, primary_key=True, default=uuid.uuid4)
     title = Column(String(256), nullable=False)
+    plan_id = Column(Guid, ForeignKey("plans.id", ondelete="SET NULL"))
     clue_id = Column(Guid, ForeignKey("clues.id", ondelete="SET NULL"))
     draft_id = Column(Guid, ForeignKey("drafts.id", ondelete="SET NULL"))
-    unit_id = Column(Guid, ForeignKey("units.id", ondelete="CASCADE"), nullable=False)
+    unit_id = Column(Guid, ForeignKey("units.id", ondelete="CASCADE"))
     problem_description = Column(Text, nullable=False)
     rectification_requirement = Column(Text)  # 整改要求
     deadline = Column(DateTime)
@@ -30,6 +31,10 @@ class Rectification(Base):
     verified_at = Column(DateTime)
     alert_level = Column(String(16), default="green")  # green/yellow/red
     alert_triggered_at = Column(DateTime)
+    confirmed_completed = Column(Boolean, default=None)  # 确认完成
+    confirm_notes = Column(Text)  # 确认意见
+    confirmed_at = Column(DateTime)  # 确认时间
+    confirmed_by = Column(Guid)  # 确认人
     is_active = Column(Boolean, default=True)
 
     unit = relationship("Unit")

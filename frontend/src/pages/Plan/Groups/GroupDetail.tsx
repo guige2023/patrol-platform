@@ -282,6 +282,11 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
                 新建
               </Button>
             )}
+            {isEdit && (
+              <Button type="primary" onClick={handleSubmit} disabled={initialLoading || submitLoading} loading={submitLoading}>
+                保存
+              </Button>
+            )}
             {isView && groupData?.status === 'draft' && (
               <Button type="primary" onClick={handleSubmitGroup}>提交审批</Button>
             )}

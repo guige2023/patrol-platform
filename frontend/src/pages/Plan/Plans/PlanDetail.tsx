@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Form, Input, Button, Space, Modal, message, DatePicker, Descriptions } from 'antd';
-import { getPlan, createPlan, updatePlan, exportPlanReport } from '@/api/plans';
+import { getPlan, createPlan, updatePlan, exportPlanReport, exportPlanChecklist } from '@/api/plans';
 import dayjs from 'dayjs';
 import { getErrorMessage } from '@/utils/error';
 
@@ -30,6 +30,7 @@ interface PlanData {
   version_history?: any[];
   approval_comment?: string;
   created_at?: string;
+  target_units?: string[];
 }
 
 const PLAN_STATUS_MAP: Record<string, string> = {
@@ -58,6 +59,9 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
       getPlan(planId).then((res: any) => {
         setPlanData(res);
         const formData: any = { ...res };
+        if (res.planned_start_date && res.planned_end_date) {
+          formData.planned_date_range = [dayjs(res.planned_start_date), dayjs(res.planned_end_date)];
+        }
         if (res.actual_start_date && res.actual_end_date) {
           formData.actual_date_range = [dayjs(res.actual_start_date), dayjs(res.actual_end_date)];
         }
@@ -182,6 +186,9 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
         isView ? (
           <Space>
             <Button onClick={onClose}>关闭</Button>
+            <Button onClick={() => exportPlanChecklist(planData?.id!, planData?.name)}>
+              导出检查清单 PDF
+            </Button>
             <Button type="primary" onClick={() => exportPlanReport(planData?.id!, planData?.name)}>
               导出完整报告
             </Button>
