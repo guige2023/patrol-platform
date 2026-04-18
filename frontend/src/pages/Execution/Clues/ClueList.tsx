@@ -4,6 +4,7 @@ import { Table, Button, Space, Tag, Modal, message, Input, Select, Collapse, Row
 import { PlusOutlined, LinkOutlined, FilterOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import { getClues, transferClue, exportClues } from '@/api/clues';
+import { getUnits } from '@/api/units';
 import ClueModal from './ClueModal';
 import type { ColumnsType } from 'antd/es/table';
 import { getErrorMessage } from '@/utils/error';
@@ -104,19 +105,33 @@ const ClueList: React.FC = () => {
   };
 
   const [transferTarget, setTransferTarget] = useState('');
+  const [unitOptions, setUnitOptions] = useState<{ label: string; value: string }[]>([]);
+
+  useEffect(() => {
+    getUnits({ page: 1, page_size: 999 }).then((res: any) => {
+      setUnitOptions((res.items || []).map((u: any) => ({ label: u.name, value: u.name })));
+    }).catch(() => {});
+  }, []);
+
   const handleTransfer = (id: string) => {
     setTransferTarget('');
     Modal.confirm({
       title: '移交线索',
       content: (
-        <Input
-          placeholder="请输入移交目标"
-          onChange={(e) => setTransferTarget(e.target.value)}
+        <Select
+          placeholder="请选择移交目标单位"
+          options={unitOptions}
+          showSearch
+          filterOption={(input, option) =>
+            (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
+          }
+          onChange={(val) => setTransferTarget(val)}
+          style={{ width: '100%' }}
         />
       ),
       onOk: async () => {
         if (!transferTarget.trim()) {
-          message.warning('请输入移交目标');
+          message.warning('请选择移交目标单位');
           return;
         }
         try {
