@@ -25,6 +25,7 @@ import BackupPage from './pages/Admin/Backup/BackupPage'
 import Notifications from './pages/Admin/Notifications/Notifications'
 import Alerts from './pages/Admin/Alerts/Alerts'
 import InitWizard from './pages/Init/InitWizard'
+import GlobalSearch from './pages/GlobalSearch/GlobalSearch'
 import { useEffect, useState } from 'react'
 import { getMe } from './api/auth'
 
@@ -37,6 +38,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: 'dashboard', element: <Dashboard /> },
+      { path: 'search', element: <GlobalSearch /> },
       // 档案管理
       { path: 'archive/units', element: <UnitList /> },
       { path: 'archive/cadres', element: <CadreList /> },

@@ -11,6 +11,7 @@ import {
   BellOutlined,
   ExceptionOutlined,
   SafetyOutlined,
+  SearchOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '@/store/auth';
 import { getUnreadWarningCount, getWarnings, Warning } from '@/api/warnings';
@@ -74,6 +75,7 @@ const MainLayout: React.FC = () => {
 
   const menuItems = [
     { key: '/dashboard', icon: <DashboardOutlined />, label: '数据看板' },
+    { key: '/search', icon: <SearchOutlined />, label: '全局搜索' },
     { key: '/archive', icon: <BankOutlined />, label: '档案管理', children: [
       { key: '/archive/units', label: '单位档案' },
       { key: '/archive/cadres', label: '干部人才' },
