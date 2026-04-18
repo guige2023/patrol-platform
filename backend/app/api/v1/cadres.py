@@ -32,7 +32,7 @@ async def list_cadres(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = select(Cadre).where(Cadre.is_active == True)
+    query = select(Cadre).where(Cadre.is_active == True).options(selectinload(Cadre.unit))
     if name:
         query = query.where(Cadre.name.ilike(f"%{name}%"))
     if unit_id:
@@ -46,9 +46,16 @@ async def list_cadres(
     query = query.order_by(Cadre.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(query)
     items = result.scalars().all()
-    
+
+    # 填充 unit_name（Cadre.unit 通过 selectinload 预加载）
+    items_with_unit_name = []
+    for c in items:
+        item = CadreResponse.model_validate(c, from_attributes=True).model_dump()
+        item['unit_name'] = c.unit.name if c.unit else None
+        items_with_unit_name.append(item)
+
     return PaginatedResponse(
-        data=PageResult(items=items, total=total, page=page, page_size=page_size)
+        data=PageResult(items=items_with_unit_name, total=total, page=page, page_size=page_size)
     )
 
 

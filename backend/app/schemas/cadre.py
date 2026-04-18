@@ -94,6 +94,7 @@ class CadreResponse(CadreBase):
     id: UUID
     is_active: bool
     created_at: Optional[datetime] = None
+    unit_name: Optional[str] = None  # 关联单位名称（列表展示用）
 
     class Config:
         from_attributes = True

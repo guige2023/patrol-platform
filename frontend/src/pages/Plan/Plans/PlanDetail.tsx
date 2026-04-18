@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Form, Input, Button, Space, Modal, message, DatePicker, Descriptions } from 'antd';
 import { getPlan, createPlan, updatePlan, exportPlanReport, exportPlanChecklist } from '@/api/plans';
+import { getUnits } from '@/api/units';
 import dayjs from 'dayjs';
 import { getErrorMessage } from '@/utils/error';
 
@@ -10,6 +11,7 @@ interface PlanDetailProps {
   mode: 'create' | 'view' | 'edit';
   onClose: () => void;
   onSuccess: () => void;
+  onEdit?: () => void; // 切换到编辑模式
 }
 
 interface PlanData {
@@ -46,6 +48,34 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
   const [form] = Form.useForm();
   const [loading, setLoading] = React.useState(false);
   const [planData, setPlanData] = useState<PlanData | null>(null);
+  const [targetUnitNames, setTargetUnitNames] = useState<string[]>([]);
+  // 内部模式状态，支持在查看模式下直接点击"编辑"切换，无需父组件协调
+  const [internalMode, setInternalMode] = useState<'view' | 'edit'>(() => mode as 'view' | 'edit');
+
+  // 加载被巡察单位名称
+  useEffect(() => {
+    if (planData?.target_units?.length) {
+      getUnits({ page: 1, page_size: 999 }).then((res: any) => {
+        const units = res.items || [];
+        const names = (planData.target_units || [])
+          .map((id: string) => units.find((u: any) => u.id === id)?.name)
+          .filter(Boolean);
+        setTargetUnitNames(names);
+      }).catch(() => {});
+    } else {
+      setTargetUnitNames([]);
+    }
+  }, [planData]);
+
+  // 同步外部 mode 变化
+  useEffect(() => {
+    if (mode === 'view' || mode === 'edit') {
+      setInternalMode(mode);
+    }
+  }, [mode]);
+
+  const isView = internalMode === 'view';
+  const isEdit = internalMode === 'edit';
 
   useEffect(() => {
     if (open && mode === 'create') {
@@ -65,11 +95,9 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
         if (res.actual_start_date && res.actual_end_date) {
           formData.actual_date_range = [dayjs(res.actual_start_date), dayjs(res.actual_end_date)];
         }
-        // focus_areas: API 返回数组，表单是字符串，编辑时需转换
         if (Array.isArray(res.focus_areas)) {
           formData.focus_areas = res.focus_areas.join('、');
         }
-        // authorization_date: API 返回 ISO 字符串，表单 DatePicker 需要 dayjs
         if (res.authorization_date) {
           formData.authorization_date = dayjs(res.authorization_date);
         }
@@ -81,6 +109,8 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
       setPlanData(null);
     }
   }, [open, planId, mode]);
+
+  const switchToEdit = () => setInternalMode('edit');
 
   const isView = mode === 'view';
 
@@ -140,6 +170,9 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
       <Descriptions.Item label="年份">{planData?.year || '-'}</Descriptions.Item>
       <Descriptions.Item label="轮次">{planData?.round_name || '-'}</Descriptions.Item>
       <Descriptions.Item label="巡察范围">{planData?.scope || '-'}</Descriptions.Item>
+      <Descriptions.Item label="被巡察单位">
+        {targetUnitNames.length > 0 ? targetUnitNames.join('、') : '-'}
+      </Descriptions.Item>
 
       <Descriptions.Item label="重点领域">
         {Array.isArray(planData?.focus_areas) ? planData.focus_areas.join('、') : (planData?.focus_areas || '-')}
@@ -175,7 +208,7 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
     </Descriptions>
   );
 
-  const title = mode === 'create' ? '新建计划' : mode === 'view' ? '查看计划' : '编辑计划';
+  const title = mode === 'create' ? '新建计划' : internalMode === 'edit' ? '编辑计划' : '查看计划';
 
   return (
     <Modal
@@ -186,6 +219,7 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
         isView ? (
           <Space>
             <Button onClick={onClose}>关闭</Button>
+            <Button onClick={switchToEdit}>编辑</Button>
             <Button onClick={() => exportPlanChecklist(planData?.id!, planData?.name)}>
               导出检查清单 PDF
             </Button>
@@ -195,8 +229,10 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
           </Space>
         ) : (
           <Space>
-            <Button onClick={onClose}>取消</Button>
-            <Button type="primary" onClick={handleSubmit} loading={loading}>确定</Button>
+            <Button onClick={onClose}>{mode === 'create' ? '取消' : '关闭'}</Button>
+            {mode === 'create' && (
+              <Button type="primary" onClick={handleSubmit} loading={loading}>确定</Button>
+            )}
           </Space>
         )
       }
