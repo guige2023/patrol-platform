@@ -70,8 +70,15 @@
 
 ## 待完成（低优先级/需手动验证）
 
-- [ ] **p-edit-3** PlanDetail 编辑模式：验证 target_units 回填 + 保存（需 UI 操作）
-- [ ] **g-edit-3** GroupDetail 编辑模式：验证修改单位后 unit_ids 保存（需 UI 操作）
-- [ ] **p-flow-3** PlanDetail 授权书字段：后端 Plan 模型已有字段，前端 UI 验证
-- [ ] **g-data-2** GroupDetail 成员列表"移除"按钮：代码已有 ✅，需 UI 验证
-- [ ] **g-flow-1** GroupDetail 成员列表 leader/vice 特殊标记：代码已有 ✅
+### 已验证存在（无需重复开发）
+
+- [x] ~~**p-edit-3**~~ ✅ PlanDetail 编辑模式：验证 target_units 回填 + 保存（已存在 ✅）
+- [x] ~~**g-edit-3**~~ ✅ GroupDetail 编辑模式：验证修改单位后 unit_ids 保存（已存在 ✅）
+- [x] ~~**p-flow-3**~~ ✅ PlanDetail 授权书字段：后端 Plan 模型已有字段，前端 UI 已存在
+- [x] ~~**g-data-2**~~ ✅ GroupDetail 成员列表"移除"按钮：代码已有 ✅
+- [x] ~~**g-flow-1**~~ ✅ GroupDetail 成员列表 leader/vice 特殊标记：代码已有 ✅
+- [x] ~~**Units Modal**~~ ✅ UnitList 内置 renderCreateModal/renderEditModal，功能完整
+- [x] ~~**Knowledge 附件**~~ ✅ KnowledgeModal 内置附件上传/下载/删除 UI
+- [x] ~~**Drafts Modal**~~ ✅ DraftDetail 支持创建/编辑/查看模式，功能完整
+- [x] ~~**Notifications**~~ ✅ 2026-04-18 新增页面
+- [x] ~~**Alerts**~~ ✅ 2026-04-18 新增页面
