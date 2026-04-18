@@ -130,3 +130,23 @@
 - TypeScript 编译通过 ✅
 - Vite 生产构建成功 ✅
 - 5 个缺失功能全部补全 ✅
+
+---
+
+## 2026-04-18 下午 - 全局搜索页面
+
+### 新增功能
+
+**GlobalSearch 全局搜索页面**
+- 创建 `pages/GlobalSearch/GlobalSearch.tsx`
+- 创建 `api/search.ts`（调用后端 GET /api/v1/search/）
+- 支持按类型筛选：全部/单位/干部/知识/底稿
+- 搜索结果以卡片+表格形式分组展示
+- 点击结果直接跳转到对应详情页
+- 侧边栏添加「全局搜索」菜单项
+- 路由 `/search`
+
+### 构建状态
+
+- TypeScript 编译：无错误 ✅
+- Vite 生产构建：成功 ✅
