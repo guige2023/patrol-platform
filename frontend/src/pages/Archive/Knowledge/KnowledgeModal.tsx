@@ -245,6 +245,7 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
   );
 
   return (
+    <>
     <Modal
       title={knowledgeId ? (viewMode ? '知识详情' : '编辑知识') : '新建知识'}
       open={open}
@@ -305,6 +306,7 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
         />
       )}
     </Modal>
+    </>
   );
 };
 

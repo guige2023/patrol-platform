@@ -112,8 +112,6 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
 
   const switchToEdit = () => setInternalMode('edit');
 
-  const isView = mode === 'view';
-
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
