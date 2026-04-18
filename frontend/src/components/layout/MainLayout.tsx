@@ -98,6 +98,8 @@ const MainLayout: React.FC = () => {
       { key: '/admin/fields', label: '字段配置' },
       { key: '/admin/configs', label: '系统配置' },
       { key: '/admin/backup', label: '备份恢复' },
+      { key: '/admin/notifications', label: '通知消息' },
+      { key: '/admin/alerts', label: '系统告警' },
     ]},
   ];
 

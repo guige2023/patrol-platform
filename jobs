@@ -49,3 +49,84 @@
 - `GET /groups/{id}` → 返回 unit_ids 字段 ✅
 - Migration 成功：inspection_groups.unit_ids + group_members 唯一索引 ✅
 - 后端 500 → 修复：`str(group_id)` UUID 绑定参数问题 ✅
+
+---
+
+## 2026-04-18 全面调试
+
+### 后端API全面测试
+
+所有主要API端点测试通过：
+- Plans: GET/POST/DELETE + submit/approve/publish/status 状态流转 ✅
+- Groups: GET/POST/PUT + members原子替换 ✅
+- Cadres: GET/POST/PUT/DELETE ✅
+- Units: GET/POST/PUT/DELETE ✅
+- Clues: GET/POST/PUT ✅
+- Rectifications: CRUD + sign/progress/submit/verify 完整状态流转 ✅
+- Drafts: GET/POST/PUT ✅
+- Knowledge: GET/POST/PUT/DELETE ✅
+- Admin: roles/permissions/users ✅
+- Dashboard: stats ✅
+
+### 前端构建修复
+
+- 修复 PlanDetail.tsx: 删除未使用的 `isEdit` 变量
+- TypeScript构建通过 ✅
+- Vite生产构建成功 ✅
+
+### 状态流转验证
+
+**Plan状态流转** (全部正常):
+- draft → submitted ✅
+- submitted → approved ✅
+- approved → published ✅
+- published → in_progress ✅ (自动设置actual_start_date)
+- in_progress → completed ✅ (自动设置actual_end_date)
+
+**Rectification状态流转** (全部正常):
+- dispatched → progressing (sign) ✅
+- progressing → completed (progress=100) ✅
+- completed → submitted (submit) ✅
+- submitted → verified (verify) ✅
+
+### 服务状态
+
+- 后端: http://localhost:18800 ✅
+- 前端: http://localhost:3000 ✅
+- 数据库: SQLite patrol.db ✅
+
+### 已知数据问题 (非代码bug)
+
+- Cadres: 部分记录的 unit_name/birth_date 为 null (历史数据问题)
+- Groups: 部分成员的 cadre_id 未设置导致 leader_cadre_name 为 null
+- Clues: 部分记录的 handling_result 为 null
+
+---
+
+## 2026-04-18 功能补全
+
+### 新增页面
+
+**Notifications 通知页面**
+- 创建 `pages/Admin/Notifications/Notifications.tsx`
+- 支持全部/未读通知切换
+- 支持标记单条/全部已读
+- 后端 API 已存在（admin.ts 已有 getNotifications/markNotificationRead/markAllNotificationsRead）
+
+**Alerts 告警页面**
+- 创建 `pages/Admin/Alerts/Alerts.tsx`
+- 支持按状态（已解决/未解决）和级别（critical/high/medium/low/info）筛选
+- 支持标记告警为已解决
+- 后端 API 已存在（admin.ts 已有 getAlerts/resolveAlert）
+
+### 路由和菜单补全
+
+- App.tsx: 添加 `/admin/notifications` 和 `/admin/alerts` 路由
+- MainLayout.tsx: 系统管理菜单添加「通知消息」和「系统告警」菜单项
+- 修复 SystemConfigPage 导入但无路由的问题，添加 `admin/configs` 路由
+
+### 验证结果
+
+- TypeScript 编译通过 ✅
+- Vite 生产构建成功 ✅
+- 5 个缺失功能全部补全 ✅

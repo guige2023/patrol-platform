@@ -22,6 +22,8 @@ import ModuleConfig from './pages/Admin/Modules/ModuleConfig'
 import FieldOptionsConfig from './pages/Admin/Fields/FieldOptionsConfig'
 import SystemConfigPage from './pages/Admin/Configs/SystemConfigPage'
 import BackupPage from './pages/Admin/Backup/BackupPage'
+import Notifications from './pages/Admin/Notifications/Notifications'
+import Alerts from './pages/Admin/Alerts/Alerts'
 import InitWizard from './pages/Init/InitWizard'
 import { useEffect, useState } from 'react'
 import { getMe } from './api/auth'
@@ -61,6 +63,8 @@ const router = createBrowserRouter([
       { path: 'admin/fields', element: <FieldOptionsConfig /> },
       { path: 'admin/configs', element: <SystemConfigPage /> },
       { path: 'admin/backup', element: <BackupPage /> },
+      { path: 'admin/notifications', element: <Notifications /> },
+      { path: 'admin/alerts', element: <Alerts /> },
     ],
   },
 ])
