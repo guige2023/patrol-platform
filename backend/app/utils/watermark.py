@@ -23,6 +23,28 @@ def _get_watermark_color():
     return (128, 128, 128)
 
 
+def _load_font(size: int):
+    """加载中文字体，优先使用系统黑体"""
+    from PIL import ImageFont
+
+    # 尝试多个字体路径
+    font_paths = [
+        "/System/Library/Fonts/STHeiti Light.ttc",
+        "/System/Library/Fonts/STHeiti Medium.ttc",
+        "/System/Library/Fonts/Hiragino Sans GB.ttc",
+        "/System/Library/Fonts/PingFang.ttc",
+    ]
+
+    for font_path in font_paths:
+        try:
+            return ImageFont.truetype(font_path, size)
+        except Exception:
+            continue
+
+    # 如果都失败，使用默认字体
+    return ImageFont.load_default()
+
+
 def watermark_pdf(pdf_bytes: bytes, username: str, date_str: str) -> bytes:
     """
     对 PDF 添加水印，使用向量绘制半透明斜向文字。
@@ -46,7 +68,6 @@ def watermark_pdf(pdf_bytes: bytes, username: str, date_str: str) -> bytes:
         # 斜向文字水印（两条交叉）
         for angle in [30, -30]:
             shape = page.new_shape()
-            # 旋转角度绘制，30度斜向排列
             shape.insert_text(
                 (w * 0.1, h * 0.5),
                 text,
@@ -72,7 +93,7 @@ def watermark_image(
     对图片添加文字水印，返回新的图片字节流。
     支持 JPEG、PNG 等 Pillow 支持的格式。
     """
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image, ImageDraw
 
     img = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
     width, height = img.size
@@ -87,15 +108,8 @@ def watermark_image(
     if font_size <= 0:
         font_size = max(12, int(width * 0.018))
 
-    # 尝试加载系统中文字体，失败则用默认字体
-    font_path = "/System/Library/Fonts/PingFang.ttc"
-    try:
-        font = ImageFont.truetype(font_path, font_size)
-    except Exception:
-        try:
-            font = ImageFont.truetype("/System/Library/Fonts/STHeiti Light.ttc", font_size)
-        except Exception:
-            font = ImageFont.load_default()
+    # 加载字体
+    font = _load_font(font_size)
 
     # 文字颜色：灰色半透明
     text_color = (*_get_watermark_color(), WATERMARK_OPACITY)
@@ -115,11 +129,11 @@ def watermark_image(
     watermarked = Image.alpha_composite(img, watermark_layer).convert("RGB")
 
     out = io.BytesIO()
-    # 保持原格式
+    # 保持原格式，使用高质量保存
     if img.format == "PNG":
         watermarked.save(out, format="PNG")
     else:
-        watermarked.save(out, format="JPEG", quality=90)
+        watermarked.save(out, format="JPEG", quality=95)
     out.seek(0)
     return out.read()
 

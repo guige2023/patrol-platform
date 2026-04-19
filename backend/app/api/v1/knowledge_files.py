@@ -173,7 +173,7 @@ async def preview_attachment(
 
     if watermark:
         from datetime import datetime
-        file_bytes = apply_watermark(file_bytes, filename, username=current_user.name, date_str=datetime.now().strftime("%Y-%m-%d"))
+        file_bytes = apply_watermark(file_bytes, filename, username=current_user.full_name, date_str=datetime.now().strftime("%Y-%m-%d"))
 
     return StreamingResponse(
         io.BytesIO(file_bytes),
@@ -229,7 +229,7 @@ async def download_attachment(
 
     if watermark:
         from datetime import datetime
-        file_bytes = apply_watermark(file_bytes, filename, username=current_user.name, date_str=datetime.now().strftime("%Y-%m-%d"))
+        file_bytes = apply_watermark(file_bytes, filename, username=current_user.full_name, date_str=datetime.now().strftime("%Y-%m-%d"))
         # 水印后文件名加 _watermarked 前缀
         name_part = filename.rsplit(".", 1)
         if len(name_part) == 2:
