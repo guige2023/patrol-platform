@@ -7,10 +7,11 @@ import io
 from datetime import datetime
 
 # 水印透明度 0~255，越小越透明
-WATERMARK_OPACITY = 80
+WATERMARK_OPACITY = 120
 
 # 水印字体大小（PDF pt，图片 px）
-WATERMARK_FONT_SIZE = 18
+# 注意：macOS中文字体渲染为细线条轮廓，需要足够大才能看清
+WATERMARK_FONT_SIZE = 28
 
 
 def _make_watermark_text(username: str, date_str: str) -> str:
@@ -20,7 +21,7 @@ def _make_watermark_text(username: str, date_str: str) -> str:
 
 def _get_watermark_color():
     """返回 (R, G, B) 元组，灰色"""
-    return (100, 100, 100)
+    return (80, 80, 80)
 
 
 def _load_font(size: int):
@@ -104,13 +105,9 @@ def watermark_image(
     x = cx - text_w / 2
     y = cy - text_h / 2
 
-    # 先画一层实心文字（描边效果，增强可见性）
-    # 由于字体是轮廓渲染，先画一层完全不透明的作为底
-    solid_color = (*_get_watermark_color(), 255)
-    draw.text((x, y), text, font=font, fill=solid_color)
-
-    # 再画一层半透明的文字叠加
-    draw.text((x, y), text, font=font, fill=text_color)
+    # 多次绘制以增强可见性（macOS中文字体渲染为细线）
+    for _ in range(3):
+        draw.text((x, y), text, font=font, fill=text_color)
 
     # 合成
     watermarked = Image.alpha_composite(img, watermark_layer).convert("RGB")
