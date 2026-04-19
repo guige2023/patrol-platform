@@ -12,7 +12,8 @@ import io
 import json
 import zipfile
 import os
-from app.dependencies import get_db, get_current_user
+from app.dependencies import get_uow, get_current_user
+from app.database import UnitOfWork
 from app.models.user import User
 from app.core.audit import write_audit_log
 from app.config import settings
@@ -106,7 +107,7 @@ async def list_backups(current_user: User = Depends(get_current_user)):
 @router.post("/")
 async def create_backup(
     type: str = Query("manual", description="backup type: manual or auto"),
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Create a full database backup, returns zip file download."""
@@ -119,7 +120,7 @@ async def create_backup(
     table_data = {}
     for table_name in TABLES_TO_BACKUP:
         try:
-            result = await db.execute(text(f'SELECT * FROM "{table_name}"'))
+            result = await uow.execute(text(f'SELECT * FROM "{table_name}"'))
             rows = result.fetchall()
             columns = result.keys()
             records = [dict(zip(columns, row)) for row in rows]
@@ -213,7 +214,7 @@ async def delete_backup(filename: str, current_user: User = Depends(get_current_
 @router.post("/{filename}/restore")
 async def restore_backup(
     filename: str,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Restore database from a backup zip file."""
@@ -249,7 +250,7 @@ async def restore_backup(
 
                 # Clear existing data and insert new
                 try:
-                    await db.execute(text(f'TTRUNCATE TABLE "{table_name}" RESTART IDENTITY CASCADE'))
+                    await uow.execute(text(f'TTRUNCATE TABLE "{table_name}" RESTART IDENTITY CASCADE'))
                 except Exception:
                     pass  # Table might not support truncate
 
@@ -271,20 +272,20 @@ async def restore_backup(
                     col_str = ", ".join([f'"{c}"' for c in cols])
                     sql = text(f'INSERT INTO "{table_name}" ({col_str}) VALUES ({placeholders})')
                     try:
-                        await db.execute(sql, record)
+                        await uow.execute(sql, record)
                     except Exception as e:
                         pass  # Skip problematic records
 
                 restored_tables.append(table_name)
 
-            await db.commit()
+            await uow.commit()
 
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Restore failed: {str(e)}")
 
-    await write_audit_log(db, current_user.id, "restore", "backup", None, {"filename": filename, "tables": restored_tables})
+    await write_audit_log(uow.session, current_user.id, "restore", "backup", None, {"filename": filename, "tables": restored_tables})
 
     return {
         "message": "Restore completed",

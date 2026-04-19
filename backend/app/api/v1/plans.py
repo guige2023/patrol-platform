@@ -8,7 +8,8 @@ from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
 from urllib.parse import quote
-from app.dependencies import get_db, get_current_user
+from app.dependencies import get_uow, get_current_user
+from app.database import UnitOfWork
 from app.models.plan import Plan, PlanVersion, PlanStatus
 from app.models.user import User
 from app.models.inspection_group import InspectionGroup, GroupMember
@@ -52,7 +53,7 @@ async def list_plans(
     year: Optional[int] = None,
     status: Optional[str] = None,
     principal_id: Optional[UUID] = None,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     query = select(Plan).where(Plan.is_active == True)
@@ -65,18 +66,18 @@ async def list_plans(
     if principal_id:
         query = query.where(Plan.created_by == principal_id)
 
-    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+    count_result = await uow.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar()
 
     query = query.order_by(Plan.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
-    result = await db.execute(query)
+    result = await uow.execute(query)
     items = result.scalars().all()
 
     # Fetch principal names
     user_ids = list({item.created_by for item in items if item.created_by})
     user_map: dict[str, str] = {}
     if user_ids:
-        user_result = await db.execute(
+        user_result = await uow.execute(
             select(User.id, User.full_name).where(User.id.in_(user_ids))
         )
         user_map = {str(uid): fname for uid, fname in user_result.all()}
@@ -100,11 +101,11 @@ async def list_plans(
 
 @router.get("/years")
 async def get_plan_years(
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Return all distinct years that have plans."""
-    result = await db.execute(
+    result = await uow.execute(
         select(Plan.year).where(Plan.is_active == True).distinct().order_by(Plan.year.desc())
     )
     years = [row[0] for row in result.all() if row[0]]
@@ -126,7 +127,7 @@ async def export_plans(
     year: Optional[int] = None,
     status: Optional[str] = None,
     ids: Optional[str] = None,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Export plans as .xlsx. If ids is provided (comma-separated UUIDs), export only those."""
@@ -140,7 +141,7 @@ async def export_plans(
         if id_list:
             query = query.where(Plan.id.in_(id_list))
     query = query.order_by(Plan.year.desc(), Plan.created_at.desc()).limit(10000)
-    result = await db.execute(query)
+    result = await uow.execute(query)
     plans = result.scalars().all()
 
     wb = openpyxl.Workbook()
@@ -325,7 +326,7 @@ def _auto_width(ws):
 @router.get("/{plan_id}/report")
 async def export_plan_report(
     plan_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Export complete inspection plan report as multi-sheet Excel.
@@ -333,13 +334,13 @@ async def export_plan_report(
     Sheets: 巡察计划 | 巡察组 | 整改项 | 底稿
     """
     # 1. Plan
-    result = await db.execute(select(Plan).where(Plan.id == plan_id, Plan.is_active == True))
+    result = await uow.execute(select(Plan).where(Plan.id == plan_id, Plan.is_active == True))
     plan = result.scalar_one_or_none()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
 
     # 2. Groups for this plan
-    groups_result = await db.execute(
+    groups_result = await uow.execute(
         select(InspectionGroup)
         .options(selectinload(InspectionGroup.members).selectinload(GroupMember.cadre))
         .where(InspectionGroup.plan_id == plan_id, InspectionGroup.is_active == True)
@@ -351,7 +352,7 @@ async def export_plan_report(
     # 3. Drafts for these groups
     drafts = []
     if group_ids:
-        drafts_result = await db.execute(
+        drafts_result = await uow.execute(
             select(Draft).where(Draft.group_id.in_(group_ids), Draft.is_active == True)
         )
         drafts = drafts_result.scalars().all()
@@ -359,7 +360,7 @@ async def export_plan_report(
     # 4. Rectifications for target units
     rectifications = []
     if target_unit_ids:
-        rect_result = await db.execute(
+        rect_result = await uow.execute(
             select(Rectification).where(
                 Rectification.unit_id.in_(target_unit_ids),
                 Rectification.is_active == True
@@ -419,7 +420,7 @@ async def export_plan_report(
                 member_by_role["组员"].append(name)
         target_unit_name = ""
         if g.target_unit_id:
-            u_result = await db.execute(select(Unit).where(Unit.id == g.target_unit_id))
+            u_result = await uow.execute(select(Unit).where(Unit.id == g.target_unit_id))
             u = u_result.scalar_one_or_none()
             if u:
                 target_unit_name = u.name
@@ -445,7 +446,7 @@ async def export_plan_report(
     for r in rectifications:
         unit_name = ""
         if r.unit_id:
-            u_result = await db.execute(select(Unit).where(Unit.id == r.unit_id))
+            u_result = await uow.execute(select(Unit).where(Unit.id == r.unit_id))
             u = u_result.scalar_one_or_none()
             if u:
                 unit_name = u.name
@@ -498,18 +499,18 @@ async def export_plan_report(
 @router.get("/{plan_id}/checklist")
 async def export_plan_checklist_pdf(
     plan_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Export inspection checklist as printable PDF."""
     # 1. Plan
-    result = await db.execute(select(Plan).where(Plan.id == plan_id, Plan.is_active == True))
+    result = await uow.execute(select(Plan).where(Plan.id == plan_id, Plan.is_active == True))
     plan = result.scalar_one_or_none()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
 
     # 2. Groups with members + unit names
-    groups_result = await db.execute(
+    groups_result = await uow.execute(
         select(InspectionGroup)
         .options(selectinload(InspectionGroup.members).selectinload(GroupMember.cadre))
         .where(InspectionGroup.plan_id == plan_id, InspectionGroup.is_active == True)
@@ -520,14 +521,14 @@ async def export_plan_checklist_pdf(
     all_unit_ids = list({g.target_unit_id for g in groups if g.target_unit_id})
     unit_map = {}
     if all_unit_ids:
-        units_result = await db.execute(select(Unit).where(Unit.id.in_(all_unit_ids)))
+        units_result = await uow.execute(select(Unit).where(Unit.id.in_(all_unit_ids)))
         for u in units_result.scalars().all():
             unit_map[u.id] = u.name
 
     # 3. Rectifications for target units
     rectifications = []
     if all_unit_ids:
-        rect_result = await db.execute(
+        rect_result = await uow.execute(
             select(Rectification).where(
                 Rectification.unit_id.in_(all_unit_ids),
                 Rectification.is_active == True
@@ -702,7 +703,7 @@ async def export_plan_checklist_pdf(
 @router.get("/{plan_id}/feedback")
 async def get_plan_feedback(
     plan_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Get all feedback for a plan: rectification confirmations + draft reviews."""
@@ -710,13 +711,13 @@ async def get_plan_feedback(
     from app.models.rectification import Rectification
 
     # Verify plan exists
-    plan_result = await db.execute(select(Plan).where(Plan.id == plan_id, Plan.is_active == True))
+    plan_result = await uow.execute(select(Plan).where(Plan.id == plan_id, Plan.is_active == True))
     plan = plan_result.scalar_one_or_none()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
 
     # Get groups for this plan
-    groups_result = await db.execute(
+    groups_result = await uow.execute(
         select(InspectionGroup).where(InspectionGroup.plan_id == plan_id, InspectionGroup.is_active == True)
     )
     groups = groups_result.scalars().all()
@@ -726,7 +727,7 @@ async def get_plan_feedback(
     # Get confirmed rectifications (feedback from units)
     confirmed_rects = []
     if target_unit_ids:
-        rect_result = await db.execute(
+        rect_result = await uow.execute(
             select(Rectification).where(
                 Rectification.unit_id.in_(target_unit_ids),
                 Rectification.is_active == True,
@@ -735,7 +736,7 @@ async def get_plan_feedback(
         )
         rectifications = rect_result.scalars().all()
         for r in rectifications:
-            unit_result = await db.execute(select(Unit).where(Unit.id == r.unit_id))
+            unit_result = await uow.execute(select(Unit).where(Unit.id == r.unit_id))
             unit = unit_result.scalar_one_or_none()
             confirmed_rects.append({
                 "rectification_id": str(r.id),
@@ -749,7 +750,7 @@ async def get_plan_feedback(
     # Get draft reviews (feedback from supervisors)
     draft_feedback = []
     if group_ids:
-        draft_result = await db.execute(
+        draft_result = await uow.execute(
             select(Draft).where(Draft.group_id.in_(group_ids), Draft.is_active == True)
         )
         drafts = draft_result.scalars().all()
@@ -779,18 +780,18 @@ async def get_plan_feedback(
 @router.get("/{plan_id}/cadre-export")
 async def export_plan_cadres(
     plan_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Export all cadres (inspectors) for a plan as Excel."""
     # Verify plan exists
-    plan_result = await db.execute(select(Plan).where(Plan.id == plan_id, Plan.is_active == True))
+    plan_result = await uow.execute(select(Plan).where(Plan.id == plan_id, Plan.is_active == True))
     plan = plan_result.scalar_one_or_none()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
 
     # Get groups + members + cadres
-    groups_result = await db.execute(
+    groups_result = await uow.execute(
         select(InspectionGroup)
         .options(selectinload(InspectionGroup.members).selectinload(GroupMember.cadre))
         .where(InspectionGroup.plan_id == plan_id, InspectionGroup.is_active == True)
@@ -803,7 +804,7 @@ async def export_plan_cadres(
             cadre = member.cadre
             if not cadre:
                 continue
-            unit_result = await db.execute(select(Unit).where(Unit.id == cadre.unit_id))
+            unit_result = await uow.execute(select(Unit).where(Unit.id == cadre.unit_id))
             unit = unit_result.scalar_one_or_none()
             rows.append([
                 group.name or "",
@@ -851,8 +852,8 @@ async def export_plan_cadres(
 
 
 @router.get("/{plan_id}")
-async def get_plan(plan_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Plan).where(Plan.id == plan_id, Plan.is_active == True))
+async def get_plan(plan_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Plan).where(Plan.id == plan_id, Plan.is_active == True))
     plan = result.scalar_one_or_none()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
@@ -860,12 +861,12 @@ async def get_plan(plan_id: UUID, db: AsyncSession = Depends(get_db), current_us
 
 
 @router.post("/", status_code=201)
-async def create_plan(plan_data: PlanCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def create_plan(plan_data: PlanCreate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
     plan = Plan(**plan_data.model_dump(), created_by=current_user.id)
-    db.add(plan)
-    await db.commit()
-    await db.refresh(plan)
-    await write_audit_log(db, current_user.id, "create", "plan", plan.id, {"name": plan.name})
+    uow.add(plan)
+    await uow.commit()
+    await uow.refresh(plan)
+    await write_audit_log(uow.session, current_user.id, "create", "plan", plan.id, {"name": plan.name})
     
     # Serialize manually for consistent {data, message} format
     plan_dict = {
@@ -897,8 +898,8 @@ async def create_plan(plan_data: PlanCreate, db: AsyncSession = Depends(get_db),
 
 
 @router.put("/{plan_id}")
-async def update_plan(plan_id: UUID, plan_data: PlanUpdate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Plan).where(Plan.id == plan_id))
+async def update_plan(plan_id: UUID, plan_data: PlanUpdate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Plan).where(Plan.id == plan_id))
     plan = result.scalar_one_or_none()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
@@ -912,9 +913,9 @@ async def update_plan(plan_id: UUID, plan_data: PlanUpdate, db: AsyncSession = D
     for key, value in data.items():
         setattr(plan, key, value)
     
-    await db.commit()
-    await db.refresh(plan)
-    await write_audit_log(db, current_user.id, "update", "plan", plan.id, {"name": plan.name})
+    await uow.commit()
+    await uow.refresh(plan)
+    await write_audit_log(uow.session, current_user.id, "update", "plan", plan.id, {"name": plan.name})
     
     # Serialize manually for consistent {data, message} format
     plan_dict = {
@@ -946,22 +947,22 @@ async def update_plan(plan_id: UUID, plan_data: PlanUpdate, db: AsyncSession = D
 
 
 @router.post("/{plan_id}/submit")
-async def submit_plan(plan_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Plan).where(Plan.id == plan_id))
+async def submit_plan(plan_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Plan).where(Plan.id == plan_id))
     plan = result.scalar_one_or_none()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
     if plan.status != PlanStatus.DRAFT.value:
         raise HTTPException(status_code=400, detail="Only draft plans can be submitted")
     plan.status = PlanStatus.SUBMITTED.value
-    await db.commit()
-    await write_audit_log(db, current_user.id, "submit", "plan", plan.id, {})
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "submit", "plan", plan.id, {})
     return {"message": "Plan submitted for approval"}
 
 
 @router.post("/{plan_id}/approve")
-async def approve_plan(plan_id: UUID, comment: Optional[str] = None, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Plan).where(Plan.id == plan_id))
+async def approve_plan(plan_id: UUID, comment: Optional[str] = None, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Plan).where(Plan.id == plan_id))
     plan = result.scalar_one_or_none()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
@@ -970,16 +971,16 @@ async def approve_plan(plan_id: UUID, comment: Optional[str] = None, db: AsyncSe
     plan.status = PlanStatus.APPROVED.value
     plan.approved_by = current_user.id
     plan.approval_comment = comment
-    await db.commit()
-    await write_audit_log(db, current_user.id, "approve", "plan", plan.id, {})
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "approve", "plan", plan.id, {})
     return {"message": "Plan approved"}
 
 
 @router.post("/{plan_id}/publish")
-async def publish_plan(plan_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def publish_plan(plan_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
     from datetime import datetime
     from app.models.unit import Unit
-    result = await db.execute(select(Plan).where(Plan.id == plan_id))
+    result = await uow.execute(select(Plan).where(Plan.id == plan_id))
     plan = result.scalar_one_or_none()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
@@ -991,7 +992,7 @@ async def publish_plan(plan_id: UUID, db: AsyncSession = Depends(get_db), curren
     current_year = datetime.now().year
     updated_units = []
     for unit_id in (plan.target_units or []):
-        unit_result = await db.execute(select(Unit).where(Unit.id == unit_id))
+        unit_result = await uow.execute(select(Unit).where(Unit.id == unit_id))
         unit = unit_result.scalar_one_or_none()
         if unit:
             unit.last_inspection_year = current_year
@@ -1000,8 +1001,8 @@ async def publish_plan(plan_id: UUID, db: AsyncSession = Depends(get_db), curren
             unit.inspection_history = (existing + f"; {round_info}").strip("; ")
             updated_units.append(unit.name)
 
-    await db.commit()
-    await write_audit_log(db, current_user.id, "publish", "plan", plan.id, {
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "publish", "plan", plan.id, {
         "target_units": plan.target_units,
         "updated_units": updated_units,
     })
@@ -1009,14 +1010,14 @@ async def publish_plan(plan_id: UUID, db: AsyncSession = Depends(get_db), curren
 
 
 @router.delete("/{plan_id}")
-async def delete_plan(plan_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Plan).where(Plan.id == plan_id))
+async def delete_plan(plan_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Plan).where(Plan.id == plan_id))
     plan = result.scalar_one_or_none()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
     plan.is_active = False
-    await db.commit()
-    await write_audit_log(db, current_user.id, "delete", "plan", plan.id, {"name": plan.name})
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "delete", "plan", plan.id, {"name": plan.name})
 
 
 # p-flow-1: 通用状态切换（用于 published→in_progress, in_progress→completed）
@@ -1028,11 +1029,11 @@ class StatusUpdateRequest(BaseModel):
 async def update_plan_status(
     plan_id: UUID,
     data: StatusUpdateRequest,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """切换计划状态：published → in_progress，或 in_progress → completed"""
-    result = await db.execute(select(Plan).where(Plan.id == plan_id))
+    result = await uow.execute(select(Plan).where(Plan.id == plan_id))
     plan = result.scalar_one_or_none()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
@@ -1059,6 +1060,6 @@ async def update_plan_status(
     else:
         raise HTTPException(status_code=400, detail="状态流转不符合规则")
 
-    await db.commit()
-    await write_audit_log(db, current_user.id, "status_change", "plan", plan_id, {"new_status": data.status})
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "status_change", "plan", plan_id, {"new_status": data.status})
     return {"message": f"状态已更新为 {data.status}"}

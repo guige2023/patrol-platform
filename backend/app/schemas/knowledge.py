@@ -8,7 +8,7 @@ class Attachment(BaseModel):
     filename: str
     url: str
     size: int
-    upload_time: str
+    upload_time: Optional[str] = None
 
 
 class KnowledgeBase(BaseModel):

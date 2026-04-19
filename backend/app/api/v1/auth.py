@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.dependencies import get_db, get_current_user
+from app.dependencies import get_uow, get_current_user
+from app.database import UnitOfWork
 from app.models.user import User
 from app.models.unit import Unit
 from app.schemas.auth import LoginRequest, LoginResponse, UserInfo, ChangePasswordRequest
@@ -13,8 +14,8 @@ router = APIRouter()
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.username == request.username))
+async def login(request: LoginRequest, uow: UnitOfWork = Depends(get_uow)):
+    result = await uow.execute(select(User).where(User.username == request.username))
     user = result.scalar_one_or_none()
     if not user or not verify_password(request.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
@@ -47,11 +48,11 @@ async def get_me(current_user: User = Depends(get_current_user)):
 @router.post("/change-password")
 async def change_password(
     request: ChangePasswordRequest,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     if not verify_password(request.old_password, current_user.hashed_password):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Old password is incorrect")
     current_user.hashed_password = get_password_hash(request.new_password)
-    await db.commit()
+    await uow.commit()
     return {"message": "Password changed successfully"}

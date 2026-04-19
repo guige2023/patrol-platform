@@ -6,7 +6,8 @@ from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
 from pydantic import BaseModel
-from app.dependencies import get_db, get_current_user
+from app.dependencies import get_uow, get_current_user
+from app.database import UnitOfWork
 from app.models.user import User
 from app.models.warning import Warning
 from app.schemas.common import PaginatedResponse, PageResult
@@ -30,7 +31,7 @@ async def list_warnings(
     level: Optional[str] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=9999),
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """List warnings with optional filters."""
@@ -42,11 +43,11 @@ async def list_warnings(
     if level:
         query = query.where(Warning.level == level)
 
-    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+    count_result = await uow.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar()
 
     query = query.order_by(Warning.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
-    result = await db.execute(query)
+    result = await uow.execute(query)
     items = result.scalars().all()
 
     return PaginatedResponse(
@@ -74,11 +75,11 @@ async def list_warnings(
 
 @router.get("/unread-count")
 async def get_unread_count(
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Get count of unread warnings."""
-    result = await db.execute(
+    result = await uow.execute(
         select(func.count()).select_from(Warning).where(Warning.is_read == False)
     )
     return {"count": result.scalar()}
@@ -87,11 +88,11 @@ async def get_unread_count(
 @router.post("/{warning_id}/read")
 async def mark_as_read(
     warning_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Mark a warning as read."""
-    result = await db.execute(select(Warning).where(Warning.id == warning_id))
+    result = await uow.execute(select(Warning).where(Warning.id == warning_id))
     warning = result.scalar_one_or_none()
     if not warning:
         return {"message": "Warning not found"}
@@ -99,46 +100,46 @@ async def mark_as_read(
     warning.is_read = True
     warning.read_at = datetime.utcnow()
     warning.read_by = current_user.id
-    await db.commit()
+    await uow.commit()
     return {"message": "Marked as read"}
 
 
 @router.post("/read-all")
 async def mark_all_as_read(
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Mark all warnings as read."""
-    await db.execute(
+    await uow.execute(
         update(Warning)
         .where(Warning.is_read == False)
         .values(is_read=True, read_at=datetime.utcnow(), read_by=current_user.id)
     )
-    await db.commit()
+    await uow.commit()
     return {"message": "All warnings marked as read"}
 
 
 @router.delete("/{warning_id}")
 async def delete_warning(
     warning_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Delete a warning."""
-    result = await db.execute(select(Warning).where(Warning.id == warning_id))
+    result = await uow.execute(select(Warning).where(Warning.id == warning_id))
     warning = result.scalar_one_or_none()
     if not warning:
         return {"message": "Warning not found"}
 
-    await db.delete(warning)
-    await db.commit()
+    await uow.delete(warning)
+    await uow.commit()
     return {"message": "Deleted"}
 
 
 @router.post("/")
 async def create_warning(
     warning_data: WarningCreate,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Create a new warning (used internally by the system)."""
@@ -150,9 +151,9 @@ async def create_warning(
         source_type=warning_data.source_type,
         level=warning_data.level,
     )
-    db.add(warning)
-    await db.commit()
-    await db.refresh(warning)
+    uow.add(warning)
+    await uow.commit()
+    await uow.refresh(warning)
     return {
         "id": warning.id,
         "type": warning.type,

@@ -5,7 +5,8 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from uuid import UUID
-from app.dependencies import get_db, get_current_user
+from app.dependencies import get_uow, get_current_user
+from app.database import UnitOfWork
 from app.models.inspection_group import InspectionGroup, GroupMember
 from app.models.plan import Plan
 from app.models.unit import Unit
@@ -29,7 +30,7 @@ async def list_groups(
     status: Optional[str] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=9999),
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     query = select(InspectionGroup).where(InspectionGroup.is_active == True).options(selectinload(InspectionGroup.members).selectinload(GroupMember.cadre))
@@ -38,11 +39,11 @@ async def list_groups(
     if status:
         query = query.where(InspectionGroup.status == status)
 
-    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+    count_result = await uow.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar()
 
     query = query.order_by(InspectionGroup.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
-    result = await db.execute(query)
+    result = await uow.execute(query)
     groups = result.scalars().all()
 
     items = [
@@ -73,7 +74,7 @@ async def export_groups(
     plan_id: Optional[UUID] = None,
     status: Optional[str] = None,
     ids: Optional[str] = None,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Export inspection groups as .xlsx. Pass ids=comma-separated UUIDs for batch export."""
@@ -93,7 +94,7 @@ async def export_groups(
     if status:
         query = query.where(InspectionGroup.status == status)
     query = query.order_by(InspectionGroup.created_at.desc()).limit(10000)
-    result = await db.execute(query)
+    result = await uow.execute(query)
     groups = result.scalars().all()
 
     wb = openpyxl.Workbook()
@@ -154,7 +155,7 @@ async def export_groups(
 @router.post("/")
 async def create_group(
     group_data: GroupCreate,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     # 组长与副组长不可为同一人
@@ -165,7 +166,7 @@ async def create_group(
 
     plan = None
     if group_data.plan_id:
-        plan_result = await db.execute(select(Plan).where(Plan.id == group_data.plan_id))
+        plan_result = await uow.execute(select(Plan).where(Plan.id == group_data.plan_id))
         plan = plan_result.scalar_one_or_none()
         if not plan:
             raise HTTPException(status_code=404, detail="Plan not found")
@@ -181,8 +182,8 @@ async def create_group(
         target_unit_id=target_unit_id,
         created_by=current_user.id,
     )
-    db.add(group)
-    await db.flush()  # get group.id
+    uow.add(group)
+    await uow.flush()  # get group.id
 
     # Create leader member
     if group_data.leader_id:
@@ -192,7 +193,7 @@ async def create_group(
             role="组长",
             is_leader=True,
         )
-        db.add(leader_member)
+        uow.add(leader_member)
 
     # Create vice leader members (support multiple)
     for vid in group_data.vice_leader_ids:
@@ -202,7 +203,7 @@ async def create_group(
             role="副组长",
             is_leader=False,
         )
-        db.add(vice_member)
+        uow.add(vice_member)
 
     # Create regular members (skip leader/vice leaders)
     for cadre_id in group_data.member_ids:
@@ -214,18 +215,18 @@ async def create_group(
             role="组员",
             is_leader=False,
         )
-        db.add(member)
+        uow.add(member)
 
-    await db.commit()
-    await db.refresh(group)
-    await write_audit_log(db, current_user.id, "create", "inspection_group", group.id, {"name": group.name})
+    await uow.commit()
+    await uow.refresh(group)
+    await write_audit_log(uow.session, current_user.id, "create", "inspection_group", group.id, {"name": group.name})
     return {"id": group.id, "name": group.name, "message": "Group created"}
 
 
 @router.get("/available-cadres")
 async def get_available_cadres(
     plan_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Get cadres available for assignment to a group's plan."""
@@ -235,7 +236,7 @@ async def get_available_cadres(
         .join(InspectionGroup, InspectionGroup.id == GroupMember.group_id)
         .where(InspectionGroup.plan_id == plan_id)
     )
-    result = await db.execute(
+    result = await uow.execute(
         select(Cadre).where(Cadre.id.not_in(subq)).order_by(Cadre.name)
     )
     cadres = result.scalars().all()
@@ -248,7 +249,7 @@ async def get_available_cadres(
 @router.post("/auto-match")
 async def auto_match_group(
     body: dict,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Auto-assign group members based on rule engine."""
@@ -273,7 +274,7 @@ async def auto_match_group(
     excluded_ids = {e.get("cadre_id") for e in excluded if e.get("cadre_id")}
     exclude_set = excluded_ids | {leader_id} | set(deputy_leader_ids)
 
-    result = await db.execute(
+    result = await uow.execute(
         select(Cadre).where(
             Cadre.id.not_in(subq),
             Cadre.id.not_in(exclude_set) if exclude_set else True,
@@ -302,8 +303,8 @@ async def auto_match_group(
 
 
 @router.get("/{group_id}")
-async def get_group(group_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(
+async def get_group(group_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(
         select(InspectionGroup)
         .where(InspectionGroup.id == group_id)
         .options(selectinload(InspectionGroup.members).selectinload(GroupMember.cadre))
@@ -315,7 +316,7 @@ async def get_group(group_id: UUID, db: AsyncSession = Depends(get_db), current_
     # Look up plan name
     plan_name = None
     if group.plan_id:
-        plan_result = await db.execute(select(Plan).where(Plan.id == group.plan_id))
+        plan_result = await uow.execute(select(Plan).where(Plan.id == group.plan_id))
         plan = plan_result.scalar_one_or_none()
         if plan:
             plan_name = plan.name
@@ -323,7 +324,7 @@ async def get_group(group_id: UUID, db: AsyncSession = Depends(get_db), current_
     # Look up target unit name
     target_unit_name = None
     if group.target_unit_id:
-        unit_result = await db.execute(select(Unit).where(Unit.id == group.target_unit_id))
+        unit_result = await uow.execute(select(Unit).where(Unit.id == group.target_unit_id))
         unit = unit_result.scalar_one_or_none()
         if unit:
             target_unit_name = unit.name
@@ -354,11 +355,11 @@ async def get_group(group_id: UUID, db: AsyncSession = Depends(get_db), current_
 @router.get("/{group_id}/members")
 async def list_group_members(
     group_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Get all members of an inspection group."""
-    result = await db.execute(
+    result = await uow.execute(
         select(InspectionGroup).where(InspectionGroup.id == group_id)
         .options(selectinload(InspectionGroup.members).selectinload(GroupMember.cadre))
     )
@@ -380,21 +381,21 @@ async def list_group_members(
 async def add_member(
     group_id: UUID,
     member_data: GroupMemberCreate,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
+    result = await uow.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
     group = result.scalar_one_or_none()
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
 
-    cadre_result = await db.execute(select(Cadre).where(Cadre.id == member_data.cadre_id))
+    cadre_result = await uow.execute(select(Cadre).where(Cadre.id == member_data.cadre_id))
     cadre = cadre_result.scalar_one_or_none()
     if not cadre:
         raise HTTPException(status_code=404, detail="Cadre not found")
 
     # 去重校验：同一巡察组的同一干部不可重复添加
-    existing = await db.execute(
+    existing = await uow.execute(
         select(GroupMember).where(
             GroupMember.group_id == group_id,
             GroupMember.cadre_id == member_data.cadre_id,
@@ -409,23 +410,23 @@ async def add_member(
         role=member_data.role,
         is_leader=member_data.is_leader,
     )
-    db.add(member)
-    await db.commit()
-    await write_audit_log(db, current_user.id, "add_member", "inspection_group", group_id, {"cadre_id": str(member_data.cadre_id)})
+    uow.add(member)
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "add_member", "inspection_group", group_id, {"cadre_id": str(member_data.cadre_id)})
     return {"message": "Member added"}
 
 
 @router.delete("/{group_id}/members/{cadre_id}")
-async def remove_member(group_id: UUID, cadre_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(
+async def remove_member(group_id: UUID, cadre_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(
         select(GroupMember).where(GroupMember.group_id == group_id, GroupMember.cadre_id == cadre_id)
     )
     member = result.scalar_one_or_none()
     if not member:
         raise HTTPException(status_code=404, detail="Member not found")
-    await db.delete(member)
-    await db.commit()
-    await write_audit_log(db, current_user.id, "remove_member", "inspection_group", group_id, {"cadre_id": str(cadre_id)})
+    await uow.delete(member)
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "remove_member", "inspection_group", group_id, {"cadre_id": str(cadre_id)})
     return {"message": "Member removed"}
 
 
@@ -433,23 +434,23 @@ async def remove_member(group_id: UUID, cadre_id: UUID, db: AsyncSession = Depen
 async def replace_group_members(
     group_id: UUID,
     data: GroupMembersReplace,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """原子全量替换巡察组成员：先删后插，保证原子性"""
-    result = await db.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
+    result = await uow.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
     group = result.scalar_one_or_none()
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
 
     # 删所有现有成员
-    await db.execute(
+    await uow.execute(
         select(GroupMember).where(GroupMember.group_id == group_id)
     )
     # 直接用 text() 确保删除
     from sqlalchemy import text
-    await db.execute(text("DELETE FROM group_members WHERE group_id = :gid"), {"gid": str(group_id)})
-    await db.flush()
+    await uow.execute(text("DELETE FROM group_members WHERE group_id = :gid"), {"gid": str(group_id)})
+    await uow.flush()
 
     # 插入新成员
     for item in data.members:
@@ -459,32 +460,32 @@ async def replace_group_members(
             role=item.role,
             is_leader=item.is_leader,
         )
-        db.add(new_member)
+        uow.add(new_member)
 
-    await db.commit()
-    await write_audit_log(db, current_user.id, "replace_members", "inspection_group", group_id, {
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "replace_members", "inspection_group", group_id, {
         "member_count": len(data.members)
     })
     return {"message": f"Members replaced ({len(data.members)} total)"}
 
 
 @router.post("/{group_id}/submit")
-async def submit_group(group_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
+async def submit_group(group_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
     group = result.scalar_one_or_none()
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
     old_status = group.status
     group.status = "approved"
-    await db.commit()
-    await write_audit_log(db, current_user.id, "status_change", "inspection_group", group_id, {"from": old_status, "to": "approved"})
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "status_change", "inspection_group", group_id, {"from": old_status, "to": "approved"})
     return {"message": "Group submitted"}
 
 
 @router.post("/{group_id}/activate")
-async def activate_group(group_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def activate_group(group_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
     """Start executing the inspection group (approved → active)."""
-    result = await db.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
+    result = await uow.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
     group = result.scalar_one_or_none()
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
@@ -492,15 +493,15 @@ async def activate_group(group_id: UUID, db: AsyncSession = Depends(get_db), cur
         raise HTTPException(status_code=400, detail=f"Cannot activate group in status '{group.status}'")
     old_status = group.status
     group.status = "active"
-    await db.commit()
-    await write_audit_log(db, current_user.id, "status_change", "inspection_group", group_id, {"from": old_status, "to": "active"})
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "status_change", "inspection_group", group_id, {"from": old_status, "to": "active"})
     return {"message": "Group activated"}
 
 
 @router.post("/{group_id}/complete")
-async def complete_group(group_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def complete_group(group_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
     """Mark the inspection group as completed (active → completed)."""
-    result = await db.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
+    result = await uow.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
     group = result.scalar_one_or_none()
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
@@ -508,15 +509,15 @@ async def complete_group(group_id: UUID, db: AsyncSession = Depends(get_db), cur
         raise HTTPException(status_code=400, detail=f"Cannot complete group in status '{group.status}'")
     old_status = group.status
     group.status = "completed"
-    await db.commit()
-    await write_audit_log(db, current_user.id, "status_change", "inspection_group", group_id, {"from": old_status, "to": "completed"})
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "status_change", "inspection_group", group_id, {"from": old_status, "to": "completed"})
     return {"message": "Group completed"}
 
 
 @router.get("/{group_id}/status-logs")
-async def get_group_status_logs(group_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def get_group_status_logs(group_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
     """Get status transition history for a group from audit_logs."""
-    result = await db.execute(
+    result = await uow.execute(
         select(AuditLog)
         .where(AuditLog.entity_type == "inspection_group")
         .where(AuditLog.entity_id == group_id)
@@ -530,7 +531,7 @@ async def get_group_status_logs(group_id: UUID, db: AsyncSession = Depends(get_d
     user_ids = list({log.user_id for log in logs if log.user_id})
     user_map = {}
     if user_ids:
-        user_result = await db.execute(select(User).where(User.id.in_(user_ids)))
+        user_result = await uow.execute(select(User).where(User.id.in_(user_ids)))
         for u in user_result.scalars().all():
             user_map[str(u.id)] = u.full_name or u.username
 
@@ -552,10 +553,10 @@ async def get_group_status_logs(group_id: UUID, db: AsyncSession = Depends(get_d
 async def update_group(
     group_id: UUID,
     group_data: GroupUpdate,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
+    result = await uow.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
     group = result.scalar_one_or_none()
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
@@ -564,20 +565,20 @@ async def update_group(
     for field, value in update_data.items():
         setattr(group, field, value)
 
-    await db.commit()
-    await write_audit_log(db, current_user.id, "update", "inspection_group", group_id, update_data)
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "update", "inspection_group", group_id, update_data)
     return {"message": "Group updated"}
 
 
 @router.delete("/{group_id}")
-async def delete_group(group_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
+async def delete_group(group_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
     group = result.scalar_one_or_none()
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
     group.is_active = False
-    await db.commit()
-    await write_audit_log(db, current_user.id, "delete", "inspection_group", group_id, {})
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "delete", "inspection_group", group_id, {})
     return {"message": "Group deleted"}
 
 
@@ -585,27 +586,27 @@ async def delete_group(group_id: UUID, db: AsyncSession = Depends(get_db), curre
 async def assign_concurrent_roles(
     group_id: UUID,
     body: dict,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Assign concurrent roles (clue officer, liaison officer) to a group."""
-    result = await db.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
+    result = await uow.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
     group = result.scalar_one_or_none()
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
-    await db.commit()
-    await write_audit_log(db, current_user.id, "assign_concurrent_roles", "inspection_group", group_id, body)
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "assign_concurrent_roles", "inspection_group", group_id, body)
     return {"message": "Concurrent roles assigned"}
 
 
 @router.get("/{group_id}/phase-logs")
 async def get_group_phase_logs(
     group_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Get phase transition logs for an inspection group."""
-    result = await db.execute(
+    result = await uow.execute(
         select(AuditLog)
         .where(AuditLog.entity_type == "inspection_group")
         .where(AuditLog.entity_id == group_id)
@@ -629,11 +630,11 @@ async def get_group_phase_logs(
 async def update_group_status(
     group_id: UUID,
     body: dict,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Update group status directly (e.g., from 'approved' to 'active')."""
-    result = await db.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
+    result = await uow.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
     group = result.scalar_one_or_none()
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
@@ -642,20 +643,20 @@ async def update_group_status(
         raise HTTPException(status_code=400, detail="status is required")
     old_status = group.status
     group.status = new_status
-    await db.commit()
-    await write_audit_log(db, current_user.id, "status_change", "inspection_group", group_id, {"from": old_status, "to": new_status})
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "status_change", "inspection_group", group_id, {"from": old_status, "to": new_status})
     return {"message": f"Group status updated to {new_status}"}
 
 @router.post("/batch-delete")
 async def batch_delete_groups(
     ids: List[UUID],
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Soft-delete multiple inspection groups at once."""
     if not ids:
         raise HTTPException(status_code=400, detail="No IDs provided")
-    result = await db.execute(
+    result = await uow.execute(
         select(InspectionGroup).where(InspectionGroup.id.in_(ids), InspectionGroup.is_active == True)
     )
     groups = result.scalars().all()
@@ -663,8 +664,8 @@ async def batch_delete_groups(
         raise HTTPException(status_code=404, detail="No groups found")
     for g in groups:
         g.is_active = False
-    await db.commit()
+    await uow.commit()
     for g in groups:
-        await write_audit_log(db, current_user.id, "delete", "inspection_group", g.id, {})
+        await write_audit_log(uow.session, current_user.id, "delete", "inspection_group", g.id, {})
     return {"message": f"{len(groups)} groups deleted"}
 

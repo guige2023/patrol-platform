@@ -5,7 +5,8 @@ from sqlalchemy import select, func
 from uuid import UUID
 from typing import Optional, List
 from datetime import date, datetime
-from app.dependencies import get_db, get_current_user
+from app.dependencies import get_uow, get_current_user
+from app.database import UnitOfWork
 from app.models.clue import Clue
 from app.models.user import User
 from app.schemas.clue import ClueCreate, ClueUpdate, ClueTransfer, ClueResponse
@@ -28,7 +29,7 @@ async def list_clues(
     category: Optional[str] = None,
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     query = select(Clue)
@@ -45,11 +46,11 @@ async def list_clues(
     if end_date:
         query = query.where(Clue.created_at <= datetime.combine(end_date, datetime.max.time()))
 
-    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+    count_result = await uow.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar()
 
     query = query.order_by(Clue.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
-    result = await db.execute(query)
+    result = await uow.execute(query)
     items = result.scalars().all()
 
     return PaginatedResponse(
@@ -77,7 +78,7 @@ async def export_clues(
     status: Optional[str] = None,
     source: Optional[str] = None,
     category: Optional[str] = None,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Export all clues as .xlsx."""
@@ -89,7 +90,7 @@ async def export_clues(
     if category:
         query = query.where(Clue.category == category)
     query = query.order_by(Clue.created_at.desc()).limit(10000)
-    result = await db.execute(query)
+    result = await uow.execute(query)
     clues = result.scalars().all()
 
     wb = openpyxl.Workbook()
@@ -151,8 +152,8 @@ async def export_clues(
 
 
 @router.get("/{clue_id}")
-async def get_clue(clue_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Clue).where(Clue.id == clue_id))
+async def get_clue(clue_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Clue).where(Clue.id == clue_id))
     clue = result.scalar_one_or_none()
     if not clue:
         raise HTTPException(status_code=404, detail="Clue not found")
@@ -160,32 +161,32 @@ async def get_clue(clue_id: UUID, db: AsyncSession = Depends(get_db), current_us
 
 
 @router.post("/", response_model=ClueResponse, status_code=201)
-async def create_clue(clue_data: ClueCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def create_clue(clue_data: ClueCreate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
     clue = Clue(**clue_data.model_dump(), registered_by=current_user.id)
-    db.add(clue)
-    await db.commit()
-    await db.refresh(clue)
-    await write_audit_log(db, current_user.id, "create", "clue", clue.id, {"title": clue.title})
+    uow.add(clue)
+    await uow.commit()
+    await uow.refresh(clue)
+    await write_audit_log(uow.session, current_user.id, "create", "clue", clue.id, {"title": clue.title})
     return clue
 
 
 @router.put("/{clue_id}", response_model=ClueResponse)
-async def update_clue(clue_id: UUID, clue_data: ClueUpdate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Clue).where(Clue.id == clue_id))
+async def update_clue(clue_id: UUID, clue_data: ClueUpdate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Clue).where(Clue.id == clue_id))
     clue = result.scalar_one_or_none()
     if not clue:
         raise HTTPException(status_code=404, detail="Clue not found")
     for key, value in clue_data.model_dump(exclude_unset=True).items():
         setattr(clue, key, value)
-    await db.commit()
-    await db.refresh(clue)
-    await write_audit_log(db, current_user.id, "update", "clue", clue_id, {})
+    await uow.commit()
+    await uow.refresh(clue)
+    await write_audit_log(uow.session, current_user.id, "update", "clue", clue_id, {})
     return clue
 
 
 @router.post("/{clue_id}/transfer")
-async def transfer_clue(clue_id: UUID, body: ClueTransfer = Body(...), db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Clue).where(Clue.id == clue_id))
+async def transfer_clue(clue_id: UUID, body: ClueTransfer = Body(...), uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Clue).where(Clue.id == clue_id))
     clue = result.scalar_one_or_none()
     if not clue:
         raise HTTPException(status_code=404, detail="Clue not found")
@@ -193,6 +194,6 @@ async def transfer_clue(clue_id: UUID, body: ClueTransfer = Body(...), db: Async
     clue.transfer_target = body.target
     clue.transfer_date = func.now()
     clue.transfer_comment = body.comment
-    await db.commit()
-    await write_audit_log(db, current_user.id, "transfer", "clue", clue_id, {"target": body.target})
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "transfer", "clue", clue_id, {"target": body.target})
     return {"message": "Clue transferred"}

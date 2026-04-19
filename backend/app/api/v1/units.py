@@ -7,7 +7,8 @@ from typing import List, Optional
 from uuid import UUID
 import io, codecs
 
-from app.dependencies import get_db, get_current_user
+from app.dependencies import get_uow, get_current_user
+from app.database import UnitOfWork
 from app.models.unit import Unit
 from app.models.user import User
 from app.schemas.unit import UnitCreate, UnitUpdate, UnitResponse, UnitTreeResponse
@@ -46,10 +47,10 @@ def build_unit_tree(units: List[Unit], parent_id: Optional[UUID] = None) -> List
 
 @router.get("/tree", response_model=List[UnitTreeResponse])
 async def get_unit_tree(
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(Unit).where(Unit.is_active == True).order_by(Unit.sort_order))
+    result = await uow.execute(select(Unit).where(Unit.is_active == True).order_by(Unit.sort_order))
     units = result.scalars().all()
     return build_unit_tree(list(units))
 
@@ -61,7 +62,7 @@ async def list_units(
     name: Optional[str] = None,
     unit_type: Optional[str] = None,
     parent_id: Optional[UUID] = None,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     query = select(Unit)
@@ -72,11 +73,11 @@ async def list_units(
     if parent_id:
         query = query.where(Unit.parent_id == parent_id)
     
-    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+    count_result = await uow.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar()
     
     query = query.order_by(Unit.sort_order).offset((page - 1) * page_size).limit(page_size)
-    result = await db.execute(query)
+    result = await uow.execute(query)
     items = result.scalars().all()
     
     return PaginatedResponse(
@@ -88,7 +89,7 @@ async def list_units(
 async def export_units(
     name: Optional[str] = None,
     unit_type: Optional[str] = None,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Export units as real .xlsx file."""
@@ -98,7 +99,7 @@ async def export_units(
     if unit_type:
         query = query.where(Unit.unit_type == unit_type)
     query = query.order_by(Unit.sort_order or 0, Unit.created_at.desc()).limit(10000)
-    result = await db.execute(query)
+    result = await uow.execute(query)
     units = result.scalars().all()
 
     wb = openpyxl.Workbook()
@@ -239,8 +240,8 @@ async def download_unit_template(
 
 
 @router.get("/{unit_id}")
-async def get_unit(unit_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Unit).where(Unit.id == unit_id))
+async def get_unit(unit_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Unit).where(Unit.id == unit_id))
     unit = result.scalar_one_or_none()
     if not unit:
         raise HTTPException(status_code=404, detail="Unit not found")
@@ -248,38 +249,38 @@ async def get_unit(unit_id: UUID, db: AsyncSession = Depends(get_db), current_us
 
 
 @router.post("/", response_model=UnitResponse, status_code=201)
-async def create_unit(unit_data: UnitCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def create_unit(unit_data: UnitCreate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
     unit = Unit(**unit_data.model_dump())
-    db.add(unit)
-    await db.commit()
-    await db.refresh(unit)
-    await write_audit_log(db, current_user.id, "create", "unit", unit.id, {"name": unit.name})
+    uow.add(unit)
+    await uow.commit()
+    await uow.refresh(unit)
+    await write_audit_log(uow.session, current_user.id, "create", "unit", unit.id, {"name": unit.name})
     return unit
 
 
 @router.put("/{unit_id}", response_model=UnitResponse)
-async def update_unit(unit_id: UUID, unit_data: UnitUpdate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Unit).where(Unit.id == unit_id))
+async def update_unit(unit_id: UUID, unit_data: UnitUpdate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Unit).where(Unit.id == unit_id))
     unit = result.scalar_one_or_none()
     if not unit:
         raise HTTPException(status_code=404, detail="Unit not found")
     for key, value in unit_data.model_dump(exclude_unset=True).items():
         setattr(unit, key, value)
-    await db.commit()
-    await db.refresh(unit)
-    await write_audit_log(db, current_user.id, "update", "unit", unit.id, {"name": unit.name})
+    await uow.commit()
+    await uow.refresh(unit)
+    await write_audit_log(uow.session, current_user.id, "update", "unit", unit.id, {"name": unit.name})
     return unit
 
 
 @router.delete("/{unit_id}")
-async def delete_unit(unit_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Unit).where(Unit.id == unit_id))
+async def delete_unit(unit_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Unit).where(Unit.id == unit_id))
     unit = result.scalar_one_or_none()
     if not unit:
         raise HTTPException(status_code=404, detail="Unit not found")
     unit.is_active = False
-    await db.commit()
-    await write_audit_log(db, current_user.id, "delete", "unit", unit.id, {"name": unit.name})
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "delete", "unit", unit.id, {"name": unit.name})
     return {"message": "Unit deleted"}
 
 
@@ -287,7 +288,7 @@ async def delete_unit(unit_id: UUID, db: AsyncSession = Depends(get_db), current
 @router.post("/import")
 async def import_units(
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -353,7 +354,7 @@ async def import_units(
 
     # 加载字段选项配置，构建校验规则
     from app.models.field_option import FieldOption
-    field_opts_result = await db.execute(select(FieldOption))
+    field_opts_result = await uow.execute(select(FieldOption))
     all_field_opts = field_opts_result.scalars().all()
     # field_key → set of valid labels
     field_option_map: dict[str, set[str]] = {}
@@ -377,7 +378,7 @@ async def import_units(
                 continue
 
             # 检查是否已存在
-            exist = await db.execute(
+            exist = await uow.execute(
                 select(Unit).where(Unit.org_code == str(org_code))
             )
             if exist.scalar_one_or_none():
@@ -419,15 +420,15 @@ async def import_units(
                 continue
 
             unit = Unit(**data)
-            db.add(unit)
-            await db.flush()
+            uow.add(unit)
+            await uow.flush()
             if first_id is None:
                 first_id = unit.id
             created += 1
         except Exception as e:
             errors.append(f"第{row_idx}行: {str(e)}")
 
-    await db.commit()
+    await uow.commit()
     # 只要有校验错误就返回详细提示
     validation_errors = [e for e in errors if "不在系统允许的范围内" in e or "不在可选值范围内" in e]
     if validation_errors:
@@ -445,7 +446,7 @@ async def import_units(
         raise HTTPException(status_code=400, detail=f"导入失败: {'; '.join(errors[:5])}")
 
     if first_id is not None:
-        await write_audit_log(db, current_user.id, "import", "unit", first_id, {
+        await write_audit_log(uow.session, current_user.id, "import", "unit", first_id, {
             "created": created, "skipped": skipped
         })
     return {

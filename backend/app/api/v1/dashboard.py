@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, extract, desc
 from datetime import date, datetime, timedelta
-from app.dependencies import get_db, get_current_user
+from app.dependencies import get_uow, get_current_user
+from app.database import UnitOfWork
 from app.models.user import User
 from app.models.unit import Unit
 from app.models.plan import Plan
@@ -16,21 +17,21 @@ router = APIRouter()
 
 
 @router.get("/overview")
-async def get_overview(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    unit_count = await db.execute(select(func.count()).select_from(Unit).where(Unit.is_active == True))
-    plan_count = await db.execute(select(func.count()).select_from(Plan).where(Plan.is_active == True))
-    draft_count = await db.execute(select(func.count()).select_from(Draft).where(Draft.is_active == True))
-    rect_count = await db.execute(select(func.count()).select_from(Rectification).where(Rectification.is_active == True))
-    clue_count = await db.execute(select(func.count()).select_from(Clue))
+async def get_overview(uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    unit_count = await uow.execute(select(func.count()).select_from(Unit).where(Unit.is_active == True))
+    plan_count = await uow.execute(select(func.count()).select_from(Plan).where(Plan.is_active == True))
+    draft_count = await uow.execute(select(func.count()).select_from(Draft).where(Draft.is_active == True))
+    rect_count = await uow.execute(select(func.count()).select_from(Rectification).where(Rectification.is_active == True))
+    clue_count = await uow.execute(select(func.count()).select_from(Clue))
     
-    pending_rect = await db.execute(
+    pending_rect = await uow.execute(
         select(func.count()).select_from(Rectification).where(
             Rectification.is_active == True,
             Rectification.status.in_(["dispatched", "signed", "progressing"])
         )
     )
     
-    overdue_rect = await db.execute(
+    overdue_rect = await uow.execute(
         select(func.count()).select_from(Rectification).where(
             Rectification.is_active == True,
             Rectification.alert_level == "red"
@@ -38,21 +39,21 @@ async def get_overview(db: AsyncSession = Depends(get_db), current_user: User = 
     )
 
     # Additional stats
-    completed_rect = await db.execute(
+    completed_rect = await uow.execute(
         select(func.count()).select_from(Rectification).where(
             Rectification.is_active == True,
             Rectification.status.in_(["completed", "verified"])
         )
     )
 
-    in_progress_plan = await db.execute(
+    in_progress_plan = await uow.execute(
         select(func.count()).select_from(Plan).where(
             Plan.is_active == True,
             Plan.status.in_(["in_progress", "published"])
         )
     )
 
-    pending_plan = await db.execute(
+    pending_plan = await uow.execute(
         select(func.count()).select_from(Plan).where(
             Plan.is_active == True,
             Plan.status.in_(["draft", "submitted", "approved"])
@@ -74,23 +75,23 @@ async def get_overview(db: AsyncSession = Depends(get_db), current_user: User = 
 
 
 @router.get("/stats")
-async def get_stats(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def get_stats(uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
     """Alias for overview - return same data structure."""
     return await get_overview(db, current_user)
 
 
 @router.get("/issues")
-async def get_issue_profile(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    drafts_by_category = await db.execute(
+async def get_issue_profile(uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    drafts_by_category = await uow.execute(
         select(Draft.category, func.count(Draft.id))
         .where(Draft.is_active == True, Draft.category != None)
         .group_by(Draft.category)
     )
-    clues_by_source = await db.execute(
+    clues_by_source = await uow.execute(
         select(Clue.source, func.count(Clue.id))
         .group_by(Clue.source)
     )
-    rect_by_level = await db.execute(
+    rect_by_level = await uow.execute(
         select(Rectification.alert_level, func.count(Rectification.id))
         .where(Rectification.is_active == True)
         .group_by(Rectification.alert_level)
@@ -100,7 +101,7 @@ async def get_issue_profile(db: AsyncSession = Depends(get_db), current_user: Us
     recent_activities = []
 
     # Recent plans
-    plans_result = await db.execute(
+    plans_result = await uow.execute(
         select(Plan)
         .where(Plan.is_active == True)
         .order_by(desc(Plan.created_at))
@@ -115,7 +116,7 @@ async def get_issue_profile(db: AsyncSession = Depends(get_db), current_user: Us
         })
 
     # Recent drafts
-    drafts_result = await db.execute(
+    drafts_result = await uow.execute(
         select(Draft)
         .where(Draft.is_active == True)
         .order_by(desc(Draft.created_at))
@@ -130,7 +131,7 @@ async def get_issue_profile(db: AsyncSession = Depends(get_db), current_user: Us
         })
 
     # Recent rectifications
-    rects_result = await db.execute(
+    rects_result = await uow.execute(
         select(Rectification)
         .where(Rectification.is_active == True)
         .order_by(desc(Rectification.updated_at))
@@ -145,7 +146,7 @@ async def get_issue_profile(db: AsyncSession = Depends(get_db), current_user: Us
         })
 
     # Recent clues
-    clues_result = await db.execute(
+    clues_result = await uow.execute(
         select(Clue)
         .order_by(desc(Clue.created_at))
         .limit(5)
@@ -164,7 +165,7 @@ async def get_issue_profile(db: AsyncSession = Depends(get_db), current_user: Us
 
     # Plan progress - all active plans with their status
     plan_progress = []
-    plans_for_progress = await db.execute(
+    plans_for_progress = await uow.execute(
         select(Plan)
         .where(Plan.is_active == True)
         .order_by(desc(Plan.created_at))
@@ -197,7 +198,7 @@ async def get_issue_profile(db: AsyncSession = Depends(get_db), current_user: Us
 
     # Current round progress - active plans with date info
     current_round_progress = []
-    active_plans = await db.execute(
+    active_plans = await uow.execute(
         select(Plan)
         .where(Plan.is_active == True, Plan.status.in_(["published", "in_progress"]))
         .order_by(desc(Plan.created_at))
@@ -231,13 +232,13 @@ async def get_issue_profile(db: AsyncSession = Depends(get_db), current_user: Us
     two_years_ago = current_year - 2
 
     # Get all plans and their inspected units via groups
-    plan_units_result = await db.execute(
+    plan_units_result = await uow.execute(
         select(Plan).where(Plan.is_active == True, Plan.year >= two_years_ago)
     )
     inspected_unit_ids = set()
     for p in plan_units_result.scalars().all():
         # Each plan may have groups that inspect specific units
-        groups_result = await db.execute(
+        groups_result = await uow.execute(
             select(InspectionGroup).where(InspectionGroup.plan_id == p.id, InspectionGroup.is_active == True)
         )
         for g in groups_result.scalars().all():
@@ -251,7 +252,7 @@ async def get_issue_profile(db: AsyncSession = Depends(get_db), current_user: Us
                         inspected_unit_ids.add(uid)
 
     # Get units not in the inspected list
-    uninspected_result = await db.execute(
+    uninspected_result = await uow.execute(
         select(Unit)
         .where(Unit.is_active == True)
         .order_by(desc(Unit.created_at))
@@ -271,13 +272,13 @@ async def get_issue_profile(db: AsyncSession = Depends(get_db), current_user: Us
     # Yearly coverage
     yearly_coverage = []
     for year in range(current_year - 3, current_year + 1):
-        year_plans = await db.execute(
+        year_plans = await uow.execute(
             select(Plan).where(Plan.is_active == True, Plan.year == year)
         )
         plan_list = year_plans.scalars().all()
         inspected_count = len(plan_list)
 
-        total_units_result = await db.execute(select(func.count()).select_from(Unit).where(Unit.is_active == True))
+        total_units_result = await uow.execute(select(func.count()).select_from(Unit).where(Unit.is_active == True))
         total_units = total_units_result.scalar() or 1
 
         percentage = min(100, int(inspected_count / total_units * 100)) if total_units > 0 else 0
@@ -304,7 +305,7 @@ async def get_issue_profile(db: AsyncSession = Depends(get_db), current_user: Us
 @router.get("/yearly-stats")
 async def get_yearly_stats(
     year: int = date.today().year,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Monthly counts of plans and inspection groups for a given year."""
@@ -313,7 +314,7 @@ async def get_yearly_stats(
     group_counts = [0] * 12
 
     # Plans per month
-    plan_result = await db.execute(
+    plan_result = await uow.execute(
         select(
             extract("month", Plan.created_at).label("month"),
             func.count(Plan.id).label("count"),
@@ -326,7 +327,7 @@ async def get_yearly_stats(
         plan_counts[m - 1] = row.count
 
     # Groups per month
-    group_result = await db.execute(
+    group_result = await uow.execute(
         select(
             extract("month", InspectionGroup.created_at).label("month"),
             func.count(InspectionGroup.id).label("count"),

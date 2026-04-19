@@ -3,8 +3,11 @@ import MainLayout from './components/layout/MainLayout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import UnitList from './pages/Archive/Units/UnitList'
+import UnitDetail from './pages/Archive/Units/UnitDetail'
 import CadreList from './pages/Archive/Cadres/CadreList'
+import CadreDetail from './pages/Archive/Cadres/CadreDetail'
 import KnowledgeList from './pages/Archive/Knowledge/KnowledgeList'
+import KnowledgeDetail from './pages/Archive/Knowledge/KnowledgeDetail'
 import PlanList from './pages/Plan/Plans/PlanList'
 import PlanCreateWizard from './pages/Plan/Plans/PlanCreateWizard'
 import GroupList from './pages/Plan/Groups/GroupList'
@@ -41,8 +44,11 @@ const router = createBrowserRouter([
       { path: 'search', element: <GlobalSearch /> },
       // 档案管理
       { path: 'archive/units', element: <UnitList /> },
+      { path: 'archive/units/:id', element: <UnitDetail /> },
       { path: 'archive/cadres', element: <CadreList /> },
+      { path: 'archive/cadres/:id', element: <CadreDetail /> },
       { path: 'archive/knowledge', element: <KnowledgeList /> },
+      { path: 'archive/knowledge/:id', element: <KnowledgeDetail /> },
       // 巡察计划
       { path: 'plans', element: <PlanList /> },
       { path: 'plans/new', element: <PlanCreateWizard /> },

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Table, Button, Space, Tag, Modal, message, Popconfirm } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import type { Key } from 'antd/es/table/interface';
+import { useParams, useNavigate } from 'react-router-dom';
 import PageHeader from '@/components/common/PageHeader';
 import SearchForm from '@/components/common/SearchForm';
 import { getDrafts, submitDraft, deleteDraft, exportDrafts, batchDeleteDrafts } from '@/api/drafts';
@@ -36,6 +37,8 @@ const statusLabels: Record<string, string> = {
 };
 
 const DraftList: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<Draft[]>([]);
   const [total, setTotal] = useState(0);
@@ -58,6 +61,14 @@ const DraftList: React.FC = () => {
   };
 
   useEffect(() => { fetchData(); }, [page, pageSize, searchParams]);
+
+  // Auto-open draft detail when navigated via /execution/drafts/:id (e.g., from global search)
+  useEffect(() => {
+    if (id) {
+      setEditingId(id);
+      setDetailModalOpen(true);
+    }
+  }, [id]);
 
   const handleSearch = (values: any) => setSearchParams(values);
   const handleReset = () => setSearchParams({});
@@ -157,8 +168,17 @@ const DraftList: React.FC = () => {
       <DraftDetail
         open={detailModalOpen}
         editingId={editingId}
-        onClose={() => setDetailModalOpen(false)}
-        onSuccess={() => { setDetailModalOpen(false); fetchData(); }}
+        onClose={() => {
+          setDetailModalOpen(false);
+          setEditingId(null);
+          if (id) navigate('/execution/drafts', { replace: true });
+        }}
+        onSuccess={() => {
+          setDetailModalOpen(false);
+          setEditingId(null);
+          fetchData();
+          if (id) navigate('/execution/drafts', { replace: true });
+        }}
       />
     </div>
   );

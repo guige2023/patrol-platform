@@ -3,7 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional
 from uuid import UUID
-from app.dependencies import get_db, get_current_user
+from app.dependencies import get_uow, get_current_user
+from app.database import UnitOfWork
 from app.models.alert import Alert
 from app.models.user import User
 
@@ -14,7 +15,7 @@ router = APIRouter()
 async def list_alerts(
     is_resolved: Optional[bool] = None,
     level: Optional[str] = None,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     query = select(Alert)
@@ -23,7 +24,7 @@ async def list_alerts(
     if level:
         query = query.where(Alert.level == level)
     
-    result = await db.execute(query.order_by(Alert.created_at.desc()))
+    result = await uow.execute(query.order_by(Alert.created_at.desc()))
     alerts = result.scalars().all()
     
     return [
@@ -43,9 +44,9 @@ async def list_alerts(
 
 
 @router.post("/{alert_id}/resolve")
-async def resolve_alert(alert_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def resolve_alert(alert_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
     from sqlalchemy import select
-    result = await db.execute(select(Alert).where(Alert.id == alert_id))
+    result = await uow.execute(select(Alert).where(Alert.id == alert_id))
     alert = result.scalar_one_or_none()
     if not alert:
         from fastapi import HTTPException
@@ -54,5 +55,5 @@ async def resolve_alert(alert_id: UUID, db: AsyncSession = Depends(get_db), curr
     alert.resolved_by = current_user.id
     from datetime import datetime
     alert.resolved_at = datetime.utcnow()
-    await db.commit()
+    await uow.commit()
     return {"message": "Alert resolved"}

@@ -10,7 +10,8 @@ import aiofiles
 import io
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from app.dependencies import get_db, get_current_user
+from app.dependencies import get_uow, get_current_user
+from app.database import UnitOfWork
 from app.models.document import Document, DocumentType
 from app.models.plan import Plan
 from app.models.rectification import Rectification
@@ -31,7 +32,7 @@ async def list_documents(
     plan_id: Optional[UUID] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=9999),
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     query = select(Document).where(Document.is_active == True)
@@ -40,11 +41,11 @@ async def list_documents(
     if plan_id:
         query = query.where(Document.plan_id == plan_id)
 
-    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+    count_result = await uow.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar()
 
     query = query.order_by(Document.generate_date.desc()).offset((page - 1) * page_size).limit(page_size)
-    result = await db.execute(query)
+    result = await uow.execute(query)
     items = result.scalars().all()
 
     return PaginatedResponse(
@@ -53,8 +54,8 @@ async def list_documents(
 
 
 @router.get("/{document_id}")
-async def get_document(document_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Document).where(Document.id == document_id))
+async def get_document(document_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Document).where(Document.id == document_id))
     item = result.scalar_one_or_none()
     if not item:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -62,21 +63,21 @@ async def get_document(document_id: UUID, db: AsyncSession = Depends(get_db), cu
 
 
 @router.delete("/{document_id}")
-async def delete_document(document_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Document).where(Document.id == document_id))
+async def delete_document(document_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Document).where(Document.id == document_id))
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
     doc.is_active = False
-    await db.commit()
-    await write_audit_log(db, current_user.id, "delete", "document", document_id, {})
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "delete", "document", document_id, {})
     return {"message": "deleted"}
 
 
 @router.get("/{document_id}/download")
-async def download_document(document_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Document).where(Document.id == document_id, Document.is_active == True))
+async def download_document(document_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Document).where(Document.id == document_id, Document.is_active == True))
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -92,9 +93,9 @@ async def download_document(document_id: UUID, db: AsyncSession = Depends(get_db
 
 
 @router.get("/{document_id}/preview")
-async def preview_document(document_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def preview_document(document_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
     """Preview document - returns file as blob."""
-    result = await db.execute(select(Document).where(Document.id == document_id, Document.is_active == True))
+    result = await uow.execute(select(Document).where(Document.id == document_id, Document.is_active == True))
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -115,11 +116,11 @@ async def preview_document(document_id: UUID, db: AsyncSession = Depends(get_db)
 @router.post("/generate")
 async def generate_document(
     request: GenerateDocumentRequest,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Generate a document from plan (巡察公告, 成立通知, 部署会通知, 反馈意见)."""
-    plan_result = await db.execute(select(Plan).where(Plan.id == request.plan_id, Plan.is_active == True))
+    plan_result = await uow.execute(select(Plan).where(Plan.id == request.plan_id, Plan.is_active == True))
     plan = plan_result.scalar_one_or_none()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
@@ -172,10 +173,10 @@ async def generate_document(
         file_url=f"/documents/{file_name}",
         plan_id=request.plan_id,
     )
-    db.add(doc)
-    await db.commit()
-    await db.refresh(doc)
-    await write_audit_log(db, current_user.id, "generate", "document", doc.id, {"type": doc_type, "plan_id": str(request.plan_id)})
+    uow.add(doc)
+    await uow.commit()
+    await uow.refresh(doc)
+    await write_audit_log(uow.session, current_user.id, "generate", "document", doc.id, {"type": doc_type, "plan_id": str(request.plan_id)})
 
     return doc
 
@@ -183,11 +184,11 @@ async def generate_document(
 @router.post("/generate-rectification-notice")
 async def generate_rectification_notice(
     request: GenerateRectificationNoticeRequest,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Generate rectification notice document."""
-    rect_result = await db.execute(select(Rectification).where(Rectification.id == request.rectification_id, Rectification.is_active == True))
+    rect_result = await uow.execute(select(Rectification).where(Rectification.id == request.rectification_id, Rectification.is_active == True))
     rect = rect_result.scalar_one_or_none()
     if not rect:
         raise HTTPException(status_code=404, detail="Rectification not found")
@@ -243,9 +244,9 @@ async def generate_rectification_notice(
         file_url=f"/documents/{file_name}",
         rectification_id=request.rectification_id,
     )
-    db.add(doc)
-    await db.commit()
-    await db.refresh(doc)
-    await write_audit_log(db, current_user.id, "generate", "rectification_notice", doc.id, {"rectification_id": str(request.rectification_id)})
+    uow.add(doc)
+    await uow.commit()
+    await uow.refresh(doc)
+    await write_audit_log(uow.session, current_user.id, "generate", "rectification_notice", doc.id, {"rectification_id": str(request.rectification_id)})
 
     return doc

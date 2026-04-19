@@ -4,7 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Dict, Any
 from uuid import UUID
-from app.dependencies import get_db, get_current_user
+from app.dependencies import get_uow, get_current_user
+from app.database import UnitOfWork
 from app.models.user import User
 from app.models.system_config import SystemConfig
 
@@ -21,11 +22,11 @@ def parse_value(value: str) -> Any:
 
 @router.get("/", response_model=List[Dict[str, Any]])
 async def list_system_configs(
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """列出所有系统配置（key-value形式返回）"""
-    result = await db.execute(select(SystemConfig).order_by(SystemConfig.key))
+    result = await uow.execute(select(SystemConfig).order_by(SystemConfig.key))
     configs = result.scalars().all()
     return [
         {
@@ -40,11 +41,11 @@ async def list_system_configs(
 @router.get("/{key}", response_model=Dict[str, Any])
 async def get_system_config(
     key: str,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """获取单个系统配置"""
-    result = await db.execute(select(SystemConfig).where(SystemConfig.key == key))
+    result = await uow.execute(select(SystemConfig).where(SystemConfig.key == key))
     config = result.scalar_one_or_none()
     if not config:
         raise HTTPException(status_code=404, detail=f"配置项 '{key}' 不存在")
@@ -59,7 +60,7 @@ async def get_system_config(
 async def update_system_config(
     key: str,
     payload: Dict[str, Any],
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """更新单个系统配置"""
@@ -67,7 +68,7 @@ async def update_system_config(
     if value is None:
         raise HTTPException(status_code=400, detail="缺少 value 字段")
 
-    result = await db.execute(select(SystemConfig).where(SystemConfig.key == key))
+    result = await uow.execute(select(SystemConfig).where(SystemConfig.key == key))
     config = result.scalar_one_or_none()
     if not config:
         raise HTTPException(status_code=404, detail=f"配置项 '{key}' 不存在")
@@ -78,8 +79,8 @@ async def update_system_config(
     else:
         config.value = str(value)
 
-    await db.commit()
-    await db.refresh(config)
+    await uow.commit()
+    await uow.refresh(config)
     return {
         "key": config.key,
         "value": parse_value(config.value),

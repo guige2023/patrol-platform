@@ -7,7 +7,8 @@ from uuid import UUID
 import io
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from app.dependencies import get_db, get_current_user
+from app.dependencies import get_uow, get_current_user
+from app.database import UnitOfWork
 from app.models.draft import Draft, DraftAttachment
 from app.models.user import User
 from app.models.inspection_group import InspectionGroup
@@ -27,7 +28,7 @@ async def list_drafts(
     status: Optional[str] = None,
     group_id: Optional[UUID] = None,
     unit_id: Optional[UUID] = None,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     query = select(Draft).where(Draft.is_active == True)
@@ -40,11 +41,11 @@ async def list_drafts(
     if unit_id:
         query = query.where(Draft.unit_id == unit_id)
     
-    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+    count_result = await uow.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar()
     
     query = query.order_by(Draft.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
-    result = await db.execute(query)
+    result = await uow.execute(query)
     items = result.scalars().all()
     
     return PaginatedResponse(
@@ -71,7 +72,7 @@ SEVERITY_LABELS = {
 async def export_drafts(
     status: Optional[str] = None,
     category: Optional[str] = None,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Export all drafts as .xlsx."""
@@ -81,7 +82,7 @@ async def export_drafts(
     if category:
         query = query.where(Draft.category == category)
     query = query.order_by(Draft.created_at.desc()).limit(10000)
-    result = await db.execute(query)
+    result = await uow.execute(query)
     drafts = result.scalars().all()
 
     wb = openpyxl.Workbook()
@@ -141,22 +142,22 @@ async def export_drafts(
 
 
 @router.get("/{draft_id}", response_model=DraftResponse)
-async def get_draft(draft_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Draft).where(Draft.id == draft_id))
+async def get_draft(draft_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Draft).where(Draft.id == draft_id))
     draft = result.scalar_one_or_none()
     if not draft:
         raise HTTPException(status_code=404, detail="Draft not found")
 
     group_name = None
     if draft.group_id:
-        grp_result = await db.execute(select(InspectionGroup).where(InspectionGroup.id == draft.group_id))
+        grp_result = await uow.execute(select(InspectionGroup).where(InspectionGroup.id == draft.group_id))
         grp = grp_result.scalar_one_or_none()
         if grp:
             group_name = grp.name
 
     unit_name = None
     if draft.unit_id:
-        unit_result = await db.execute(select(Unit).where(Unit.id == draft.unit_id))
+        unit_result = await uow.execute(select(Unit).where(Unit.id == draft.unit_id))
         unit = unit_result.scalar_one_or_none()
         if unit:
             unit_name = unit.name
@@ -169,32 +170,32 @@ async def get_draft(draft_id: UUID, db: AsyncSession = Depends(get_db), current_
 
 
 @router.post("/", response_model=DraftResponse, status_code=201)
-async def create_draft(draft_data: DraftCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def create_draft(draft_data: DraftCreate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
     draft = Draft(**draft_data.model_dump(), created_by=current_user.id)
-    db.add(draft)
-    await db.commit()
-    await db.refresh(draft)
-    await write_audit_log(db, current_user.id, "create", "draft", draft.id, {"title": draft.title})
+    uow.add(draft)
+    await uow.commit()
+    await uow.refresh(draft)
+    await write_audit_log(uow.session, current_user.id, "create", "draft", draft.id, {"title": draft.title})
     return draft
 
 
 @router.put("/{draft_id}", response_model=DraftResponse)
-async def update_draft(draft_id: UUID, draft_data: DraftUpdate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Draft).where(Draft.id == draft_id))
+async def update_draft(draft_id: UUID, draft_data: DraftUpdate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Draft).where(Draft.id == draft_id))
     draft = result.scalar_one_or_none()
     if not draft:
         raise HTTPException(status_code=404, detail="Draft not found")
     for key, value in draft_data.model_dump(exclude_unset=True).items():
         setattr(draft, key, value)
-    await db.commit()
-    await db.refresh(draft)
-    await write_audit_log(db, current_user.id, "update", "draft", draft.id, {"title": draft.title})
+    await uow.commit()
+    await uow.refresh(draft)
+    await write_audit_log(uow.session, current_user.id, "update", "draft", draft.id, {"title": draft.title})
     return draft
 
 
 @router.post("/{draft_id}/submit")
-async def submit_draft_action(draft_id: UUID, request: DraftSubmitRequest, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Draft).where(Draft.id == draft_id))
+async def submit_draft_action(draft_id: UUID, request: DraftSubmitRequest, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Draft).where(Draft.id == draft_id))
     draft = result.scalar_one_or_none()
     if not draft:
         raise HTTPException(status_code=404, detail="Draft not found")
@@ -225,33 +226,33 @@ async def submit_draft_action(draft_id: UUID, request: DraftSubmitRequest, db: A
     elif action == "reject":
         draft.status = "rejected"
     
-    await db.commit()
-    await write_audit_log(db, current_user.id, f"draft_{action}", "draft", draft_id, {})
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, f"draft_{action}", "draft", draft_id, {})
     return {"message": f"Draft {action} success", "status": draft.status}
 
 
 @router.delete("/{draft_id}")
-async def delete_draft(draft_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Draft).where(Draft.id == draft_id))
+async def delete_draft(draft_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Draft).where(Draft.id == draft_id))
     draft = result.scalar_one_or_none()
     if not draft:
         raise HTTPException(status_code=404, detail="Draft not found")
     draft.is_active = False
-    await db.commit()
-    await write_audit_log(db, current_user.id, "delete", "draft", draft_id, {})
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "delete", "draft", draft_id, {})
     return {"message": "Draft deleted"}
 
 
 @router.post("/batch-delete")
 async def batch_delete_drafts(
     ids: List[UUID],
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Soft-delete multiple drafts at once."""
     if not ids:
         raise HTTPException(status_code=400, detail="No IDs provided")
-    result = await db.execute(
+    result = await uow.execute(
         select(Draft).where(Draft.id.in_(ids), Draft.is_active == True)
     )
     drafts = result.scalars().all()
@@ -259,7 +260,7 @@ async def batch_delete_drafts(
         raise HTTPException(status_code=404, detail="No drafts found")
     for d in drafts:
         d.is_active = False
-    await db.commit()
+    await uow.commit()
     for d in drafts:
-        await write_audit_log(db, current_user.id, "delete", "draft", d.id, {"title": d.title})
+        await write_audit_log(uow.session, current_user.id, "delete", "draft", d.id, {"title": d.title})
     return {"message": f"{len(drafts)} drafts deleted"}

@@ -2,7 +2,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.database import get_db
+from app.database import get_db, get_uow, UnitOfWork
 from app.core.security import verify_token
 from app.models.user import User
 import logging
@@ -34,4 +34,4 @@ async def get_current_user(
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
-DBSession = Annotated[AsyncSession, Depends(get_db)]
+UOW = Annotated[UnitOfWork, Depends(get_uow)]

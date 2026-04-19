@@ -216,7 +216,7 @@ const PlanCreateWizard: React.FC = () => {
         };
         await createPlan(planData);
         message.success('计划创建成功');
-        navigate('/plan/plans');
+        navigate('/plans');
       } catch (e: any) {
         message.error(e?.response?.data?.detail || '创建失败');
       } finally {
@@ -467,7 +467,7 @@ const PlanCreateWizard: React.FC = () => {
       <PageHeader
         title="新建巡察计划"
         breadcrumbs={[
-          { name: '巡察计划', path: '/plan/plans' },
+          { name: '巡察计划', path: '/plans' },
           { name: '新建计划' },
         ]}
       />

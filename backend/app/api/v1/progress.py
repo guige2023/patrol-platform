@@ -7,7 +7,8 @@ from typing import Optional
 from uuid import UUID
 from datetime import datetime
 from urllib.parse import quote
-from app.dependencies import get_db, get_current_user
+from app.dependencies import get_uow, get_current_user
+from app.database import UnitOfWork
 from app.models.progress import Progress
 from app.models.plan import Plan
 from app.models.inspection_group import InspectionGroup
@@ -28,7 +29,7 @@ async def list_progress(
     group_id: Optional[UUID] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=9999),
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     query = select(Progress).where(Progress.is_active == True)
@@ -37,11 +38,11 @@ async def list_progress(
     if group_id:
         query = query.where(Progress.group_id == group_id)
 
-    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+    count_result = await uow.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar()
 
     query = query.order_by(Progress.report_date.desc()).offset((page - 1) * page_size).limit(page_size)
-    result = await db.execute(query)
+    result = await uow.execute(query)
     items = result.scalars().all()
 
     return PaginatedResponse(
@@ -52,7 +53,7 @@ async def list_progress(
 @router.get("/group-overview", response_model=list[GroupOverview])
 async def get_group_overview(
     plan_id: Optional[UUID] = None,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Get overview of progress by group for dashboard cards."""
@@ -71,7 +72,7 @@ async def get_group_overview(
         query = query.where(Progress.plan_id == plan_id)
 
     query = query.group_by(Progress.group_id, Progress.plan_id)
-    result = await db.execute(query)
+    result = await uow.execute(query)
     rows = result.all()
 
     overviews = []
@@ -79,15 +80,15 @@ async def get_group_overview(
         group_name = None
         plan_name = None
         if row.group_id:
-            g_result = await db.execute(select(InspectionGroup.name).where(InspectionGroup.id == row.group_id))
+            g_result = await uow.execute(select(InspectionGroup.name).where(InspectionGroup.id == row.group_id))
             g = g_result.scalar_one_or_none()
             if g:
                 group_name = g
 
         if plan_id:
-            p_result = await db.execute(select(Plan.name).where(Plan.id == plan_id))
+            p_result = await uow.execute(select(Plan.name).where(Plan.id == plan_id))
         elif row._mapping.get("plan_id"):
-            p_result = await db.execute(select(Plan.name).where(Plan.id == row._mapping.get("plan_id")))
+            p_result = await uow.execute(select(Plan.name).where(Plan.id == row._mapping.get("plan_id")))
         else:
             p_result = None
 
@@ -172,7 +173,7 @@ async def download_progress_template(
 async def export_progress(
     plan_id: Optional[UUID] = None,
     group_id: Optional[UUID] = None,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Export progress data as .xlsx."""
@@ -182,7 +183,7 @@ async def export_progress(
     if group_id:
         query = query.where(Progress.group_id == group_id)
     query = query.order_by(Progress.report_date.desc()).limit(10000)
-    result = await db.execute(query)
+    result = await uow.execute(query)
     items = result.scalars().all()
 
     wb = openpyxl.Workbook()
@@ -209,7 +210,7 @@ async def export_progress(
     for p in items:
         group_name = ""
         if p.group_id:
-            g_result = await db.execute(select(InspectionGroup.name).where(InspectionGroup.id == p.group_id))
+            g_result = await uow.execute(select(InspectionGroup.name).where(InspectionGroup.id == p.group_id))
             g = g_result.scalar_one_or_none()
             if g:
                 group_name = g
@@ -248,8 +249,8 @@ async def export_progress(
 
 
 @router.get("/{progress_id}", response_model=ProgressResponse)
-async def get_progress(progress_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Progress).where(Progress.id == progress_id, Progress.is_active == True))
+async def get_progress(progress_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Progress).where(Progress.id == progress_id, Progress.is_active == True))
     item = result.scalar_one_or_none()
     if not item:
         raise HTTPException(status_code=404, detail="Progress not found")
@@ -257,18 +258,18 @@ async def get_progress(progress_id: UUID, db: AsyncSession = Depends(get_db), cu
 
 
 @router.post("/", response_model=ProgressResponse, status_code=201)
-async def create_progress(progress_data: ProgressCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def create_progress(progress_data: ProgressCreate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
     progress = Progress(**progress_data.model_dump(), created_by=current_user.id)
-    db.add(progress)
-    await db.commit()
-    await db.refresh(progress)
-    await write_audit_log(db, current_user.id, "create", "progress", progress.id, {"week_number": progress.week_number})
+    uow.add(progress)
+    await uow.commit()
+    await uow.refresh(progress)
+    await write_audit_log(uow.session, current_user.id, "create", "progress", progress.id, {"week_number": progress.week_number})
     return progress
 
 
 @router.put("/{progress_id}", response_model=ProgressResponse)
-async def update_progress(progress_id: UUID, progress_data: ProgressUpdate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Progress).where(Progress.id == progress_id))
+async def update_progress(progress_id: UUID, progress_data: ProgressUpdate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Progress).where(Progress.id == progress_id))
     progress = result.scalar_one_or_none()
     if not progress:
         raise HTTPException(status_code=404, detail="Progress not found")
@@ -277,22 +278,22 @@ async def update_progress(progress_id: UUID, progress_data: ProgressUpdate, db: 
     for key, value in data.items():
         setattr(progress, key, value)
 
-    await db.commit()
-    await db.refresh(progress)
-    await write_audit_log(db, current_user.id, "update", "progress", progress.id, data)
+    await uow.commit()
+    await uow.refresh(progress)
+    await write_audit_log(uow.session, current_user.id, "update", "progress", progress.id, data)
     return progress
 
 
 @router.delete("/{progress_id}")
-async def delete_progress(progress_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Progress).where(Progress.id == progress_id))
+async def delete_progress(progress_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Progress).where(Progress.id == progress_id))
     progress = result.scalar_one_or_none()
     if not progress:
         raise HTTPException(status_code=404, detail="Progress not found")
 
     progress.is_active = False
-    await db.commit()
-    await write_audit_log(db, current_user.id, "delete", "progress", progress_id, {})
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "delete", "progress", progress_id, {})
     return {"message": "deleted"}
 
 
@@ -300,11 +301,11 @@ async def delete_progress(progress_id: UUID, db: AsyncSession = Depends(get_db),
 async def import_progress(
     plan_id: UUID,
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Import progress from Excel file."""
-    plan_result = await db.execute(select(Plan).where(Plan.id == plan_id, Plan.is_active == True))
+    plan_result = await uow.execute(select(Plan).where(Plan.id == plan_id, Plan.is_active == True))
     plan = plan_result.scalar_one_or_none()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
@@ -354,12 +355,12 @@ async def import_progress(
                 notes=notes,
                 created_by=current_user.id,
             )
-            db.add(progress)
+            uow.add(progress)
             imported += 1
         except Exception as e:
             errors.append(f"Row {row_num}: {str(e)}")
 
-    await db.commit()
-    await write_audit_log(db, current_user.id, "import", "progress", plan_id, {"imported": imported})
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "import", "progress", plan_id, {"imported": imported})
 
     return {"imported": imported, "errors": errors}

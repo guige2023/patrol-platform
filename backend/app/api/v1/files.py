@@ -4,7 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID, uuid4
 from pathlib import Path
 import aiofiles
-from app.dependencies import get_db, get_current_user
+from app.dependencies import get_uow, get_current_user
+from app.database import UnitOfWork
 from app.models.user import User
 from app.core.audit import write_audit_log
 
@@ -19,7 +20,7 @@ async def upload_file(
     file: UploadFile = File(...),
     entity_type: str = None,
     entity_id: UUID = None,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     file_id = uuid4()
@@ -40,17 +41,17 @@ async def upload_file(
         mime_type=file.content_type,
         uploaded_by=current_user.id,
     )
-    db.add(attachment)
-    await db.commit()
-    await db.refresh(attachment)
+    uow.add(attachment)
+    await uow.commit()
+    await uow.refresh(attachment)
     
     return {"id": attachment.id, "file_name": file.filename}
 
 
 @router.get("/{file_id}")
-async def get_file_info(file_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def get_file_info(file_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
     from app.models.attachment import Attachment
-    result = await db.execute(select(Attachment).where(Attachment.id == file_id))
+    result = await uow.execute(select(Attachment).where(Attachment.id == file_id))
     f = result.scalar_one_or_none()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
@@ -58,9 +59,9 @@ async def get_file_info(file_id: UUID, db: AsyncSession = Depends(get_db), curre
 
 
 @router.get("/{file_id}/download")
-async def download_file(file_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def download_file(file_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
     from app.models.attachment import Attachment
-    result = await db.execute(select(Attachment).where(Attachment.id == file_id))
+    result = await uow.execute(select(Attachment).where(Attachment.id == file_id))
     f = result.scalar_one_or_none()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")

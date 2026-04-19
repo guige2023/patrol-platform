@@ -5,7 +5,8 @@ from sqlalchemy import select, func
 from typing import List, Optional
 from uuid import UUID
 import io, codecs
-from app.dependencies import get_db, get_current_user
+from app.dependencies import get_uow, get_current_user
+from app.database import UnitOfWork
 from app.models.cadre import Cadre
 from app.models.unit import Unit
 from app.models.user import User
@@ -29,7 +30,7 @@ async def list_cadres(
     unit_id: Optional[UUID] = None,
     tags: Optional[str] = None,
     is_available: Optional[bool] = None,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     query = select(Cadre).where(Cadre.is_active == True).options(selectinload(Cadre.unit))
@@ -40,11 +41,11 @@ async def list_cadres(
     if is_available is not None:
         query = query.where(Cadre.is_available == is_available)
     
-    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+    count_result = await uow.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar()
     
     query = query.order_by(Cadre.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
-    result = await db.execute(query)
+    result = await uow.execute(query)
     items = result.scalars().all()
 
     # 填充 unit_name（Cadre.unit 通过 selectinload 预加载）
@@ -64,7 +65,7 @@ async def export_cadres(
     name: Optional[str] = None,
     unit_id: Optional[UUID] = None,
     is_available: Optional[bool] = None,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Export cadres as .xlsx (max 10000 rows)."""
@@ -76,7 +77,7 @@ async def export_cadres(
     if is_available is not None:
         query = query.where(Cadre.is_available == is_available)
     query = query.order_by(Cadre.created_at.desc()).limit(10000)
-    result = await db.execute(query)
+    result = await uow.execute(query)
     cadres = result.scalars().all()
 
     wb = openpyxl.Workbook()
@@ -214,8 +215,8 @@ async def download_cadre_template(
 
 
 @router.get("/{cadre_id}")
-async def get_cadre(cadre_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Cadre).where(Cadre.id == cadre_id))
+async def get_cadre(cadre_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Cadre).where(Cadre.id == cadre_id))
     cadre = result.scalar_one_or_none()
     if not cadre:
         raise HTTPException(status_code=404, detail="Cadre not found")
@@ -224,21 +225,21 @@ async def get_cadre(cadre_id: UUID, db: AsyncSession = Depends(get_db), current_
 
 
 @router.post("/", response_model=CadreResponse, status_code=201)
-async def create_cadre(cadre_data: CadreCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def create_cadre(cadre_data: CadreCreate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
     data = cadre_data.model_dump()
     if data.get("id_card_encrypted"):
         data["id_card_encrypted"] = encrypt_field(data["id_card_encrypted"])
     cadre = Cadre(**data)
-    db.add(cadre)
-    await db.commit()
-    await db.refresh(cadre)
-    await write_audit_log(db, current_user.id, "create", "cadre", cadre.id, {"name": cadre.name})
+    uow.add(cadre)
+    await uow.commit()
+    await uow.refresh(cadre)
+    await write_audit_log(uow.session, current_user.id, "create", "cadre", cadre.id, {"name": cadre.name})
     return cadre
 
 
 @router.put("/{cadre_id}", response_model=CadreResponse)
-async def update_cadre(cadre_id: UUID, cadre_data: CadreUpdate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Cadre).where(Cadre.id == cadre_id))
+async def update_cadre(cadre_id: UUID, cadre_data: CadreUpdate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Cadre).where(Cadre.id == cadre_id))
     cadre = result.scalar_one_or_none()
     if not cadre:
         raise HTTPException(status_code=404, detail="Cadre not found")
@@ -247,34 +248,34 @@ async def update_cadre(cadre_id: UUID, cadre_data: CadreUpdate, db: AsyncSession
         data["id_card_encrypted"] = encrypt_field(data["id_card_encrypted"])
     for key, value in data.items():
         setattr(cadre, key, value)
-    await db.commit()
-    await db.refresh(cadre)
-    await write_audit_log(db, current_user.id, "update", "cadre", cadre.id, {"name": cadre.name})
+    await uow.commit()
+    await uow.refresh(cadre)
+    await write_audit_log(uow.session, current_user.id, "update", "cadre", cadre.id, {"name": cadre.name})
     return cadre
 
 
 @router.delete("/{cadre_id}")
-async def delete_cadre(cadre_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Cadre).where(Cadre.id == cadre_id))
+async def delete_cadre(cadre_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Cadre).where(Cadre.id == cadre_id))
     cadre = result.scalar_one_or_none()
     if not cadre:
         raise HTTPException(status_code=404, detail="Cadre not found")
     cadre.is_active = False
-    await db.commit()
-    await write_audit_log(db, current_user.id, "delete", "cadre", cadre.id, {"name": cadre.name})
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "delete", "cadre", cadre.id, {"name": cadre.name})
     return {"message": "Cadre deleted"}
 
 
 @router.post("/batch-delete")
 async def batch_delete_cadres(
     ids: List[UUID] = Body(...),
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Soft-delete multiple cadres at once."""
     if not ids:
         raise HTTPException(status_code=400, detail="No IDs provided")
-    result = await db.execute(
+    result = await uow.execute(
         select(Cadre).where(Cadre.id.in_(ids), Cadre.is_active == True)
     )
     cadres = result.scalars().all()
@@ -282,15 +283,15 @@ async def batch_delete_cadres(
         raise HTTPException(status_code=404, detail="No cadres found")
     for c in cadres:
         c.is_active = False
-    await db.commit()
+    await uow.commit()
     for c in cadres:
-        await write_audit_log(db, current_user.id, "delete", "cadre", c.id, {"name": c.name})
+        await write_audit_log(uow.session, current_user.id, "delete", "cadre", c.id, {"name": c.name})
     return {"message": f"{len(cadres)} cadres deleted"}
 
 
 @router.get("/{cadre_id}/id-card/masked")
-async def get_masked_id_card(cadre_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Cadre).where(Cadre.id == cadre_id))
+async def get_masked_id_card(cadre_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Cadre).where(Cadre.id == cadre_id))
     cadre = result.scalar_one_or_none()
     if not cadre or not cadre.id_card_encrypted:
         raise HTTPException(status_code=404, detail="Cadre or ID card not found")
@@ -301,7 +302,7 @@ async def get_masked_id_card(cadre_id: UUID, db: AsyncSession = Depends(get_db),
 @router.post("/import")
 async def import_cadres(
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -361,7 +362,7 @@ async def import_cadres(
 
     # 加载字段选项配置，构建校验规则
     from app.models.field_option import FieldOption
-    field_opts_result = await db.execute(select(FieldOption))
+    field_opts_result = await uow.execute(select(FieldOption))
     all_field_opts = field_opts_result.scalars().all()
     # field_key → set of valid labels
     field_option_map: dict[str, set[str]] = {}
@@ -385,7 +386,7 @@ async def import_cadres(
                 continue
 
             # 按姓名查重
-            exist = await db.execute(select(Cadre).where(Cadre.name == str(name).strip()))
+            exist = await uow.execute(select(Cadre).where(Cadre.name == str(name).strip()))
             if exist.scalar_one_or_none():
                 skipped += 1
                 continue
@@ -427,15 +428,15 @@ async def import_cadres(
                 continue
 
             cadre = Cadre(**{k: v for k, v in data.items() if v is not None})
-            db.add(cadre)
-            await db.flush()
+            uow.add(cadre)
+            await uow.flush()
             if first_id is None:
                 first_id = cadre.id
             created += 1
         except Exception as e:
             errors.append(f"第{row_idx}行: {str(e)}")
 
-    await db.commit()
+    await uow.commit()
     # 只要有校验错误就返回详细提示（不抛异常，由前端弹窗展示）
     validation_errors = [e for e in errors if any(k in e for k in ["不在系统允许的范围内", "不在可选值范围内"])]
     if validation_errors:
@@ -453,7 +454,7 @@ async def import_cadres(
         raise HTTPException(status_code=400, detail=f"导入失败: {'; '.join(errors[:5])}")
 
     if first_id is not None:
-        await write_audit_log(db, current_user.id, "import", "cadre", first_id, {
+        await write_audit_log(uow.session, current_user.id, "import", "cadre", first_id, {
             "created": created, "skipped": skipped
         })
     return {
@@ -474,11 +475,11 @@ async def import_cadres(
 @router.get("/{cadre_id}/groups")
 async def get_cadre_groups(
     cadre_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Get all inspection groups that contain this cadre (via GroupMember)."""
-    result = await db.execute(
+    result = await uow.execute(
         select(GroupMember)
         .where(GroupMember.cadre_id == cadre_id)
         .options(selectinload(GroupMember.group).selectinload(InspectionGroup.plan))
@@ -547,12 +548,12 @@ def _json_cell(row, col_map, key):
 @router.get("/{cadre_id}/report")
 async def get_cadre_report(
     cadre_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Generate personal inspection report for a cadre."""
     # Get cadre
-    result = await db.execute(select(Cadre).where(Cadre.id == cadre_id, Cadre.is_active == True))
+    result = await uow.execute(select(Cadre).where(Cadre.id == cadre_id, Cadre.is_active == True))
     cadre = result.scalar_one_or_none()
     if not cadre:
         raise HTTPException(status_code=404, detail="Cadre not found")
@@ -560,11 +561,11 @@ async def get_cadre_report(
     # Get unit name
     unit_name = None
     if cadre.unit_id:
-        unit_result = await db.execute(select(Unit.name).where(Unit.id == cadre.unit_id))
+        unit_result = await uow.execute(select(Unit.name).where(Unit.id == cadre.unit_id))
         unit_name = unit_result.scalar_one_or_none()
 
     # Get all group memberships
-    result = await db.execute(
+    result = await uow.execute(
         select(GroupMember)
         .where(GroupMember.cadre_id == cadre_id)
         .options(

@@ -3,6 +3,7 @@ import { Table, Button, Space, Tag, message, Popconfirm, Input, Select, Collapse
 import { FilterOutlined } from '@ant-design/icons';
 import type { Key } from 'antd/es/table/interface';
 import { PlusOutlined } from '@ant-design/icons';
+import { useParams, useNavigate } from 'react-router-dom';
 import PageHeader from '@/components/common/PageHeader';
 import { getPlans, submitPlan, approvePlan, publishPlan, deletePlan, exportPlans, exportSelectedPlans, downloadPlanTemplate, updatePlanStatus } from '@/api/plans';
 import { getUsers } from '@/api/admin';
@@ -41,6 +42,8 @@ const statusLabels: Record<string, string> = {
 };
 
 const PlanList: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<Plan[]>([]);
   const [total, setTotal] = useState(0);
@@ -78,6 +81,15 @@ const PlanList: React.FC = () => {
       setPrincipalOptions(users.map((u: any) => ({ label: u.full_name || u.username, value: u.id })));
     }).catch(() => {});
   }, []);
+
+  // Auto-open plan detail when navigated via /plans/:id (e.g., from warning notifications)
+  useEffect(() => {
+    if (id) {
+      setEditingId(id);
+      setDetailMode('view');
+      setDetailModalOpen(true);
+    }
+  }, [id]);
 
   const handleKeywordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setKeyword(e.target.value);
@@ -235,8 +247,17 @@ const PlanList: React.FC = () => {
         open={detailModalOpen}
         planId={editingId}
         mode={detailMode}
-        onClose={() => setDetailModalOpen(false)}
-        onSuccess={() => { setDetailModalOpen(false); fetchData(); }}
+        onClose={() => {
+          setDetailModalOpen(false);
+          setEditingId(null);
+          if (id) navigate('/plans', { replace: true });
+        }}
+        onSuccess={() => {
+          setDetailModalOpen(false);
+          setEditingId(null);
+          fetchData();
+          if (id) navigate('/plans', { replace: true });
+        }}
       />
       <CreatePlanModal
         open={createModalOpen}

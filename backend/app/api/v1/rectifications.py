@@ -9,7 +9,8 @@ from datetime import datetime
 import io
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from app.dependencies import get_db, get_current_user
+from app.dependencies import get_uow, get_current_user
+from app.database import UnitOfWork
 from app.models.rectification import Rectification
 from app.models.user import User
 from app.models.unit import Unit
@@ -44,7 +45,7 @@ ALERT_LABELS = {
 async def export_rectifications(
     status: Optional[str] = None,
     alert_level: Optional[str] = None,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Export all rectifications as .xlsx."""
@@ -58,7 +59,7 @@ async def export_rectifications(
     if alert_level:
         query = query.where(Rectification.alert_level == alert_level)
     query = query.order_by(Rectification.created_at.desc()).limit(10000)
-    result = await db.execute(query)
+    result = await uow.execute(query)
     rects = result.scalars().all()
 
     wb = openpyxl.Workbook()
@@ -159,7 +160,7 @@ async def download_rectification_template(current_user: User = Depends(get_curre
 @router.get("/export")
 async def export_rectifications_by_year(
     year: Optional[int] = None,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Export rectifications as .xlsx (optionally filtered by year)."""
@@ -167,7 +168,7 @@ async def export_rectifications_by_year(
     if year:
         query = query.where(func.extract("year", Rectification.created_at) == year)
     query = query.order_by(Rectification.created_at.desc()).limit(10000)
-    result = await db.execute(query)
+    result = await uow.execute(query)
     rects = result.scalars().all()
 
     wb = openpyxl.Workbook()
@@ -225,7 +226,7 @@ async def list_rectifications(
     status: Optional[str] = None,
     unit_id: Optional[UUID] = None,
     alert_level: Optional[str] = None,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     query = select(Rectification).where(Rectification.is_active == True)
@@ -238,11 +239,11 @@ async def list_rectifications(
     if alert_level:
         query = query.where(Rectification.alert_level == alert_level)
 
-    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+    count_result = await uow.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar()
 
     query = query.order_by(Rectification.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
-    result = await db.execute(query)
+    result = await uow.execute(query)
     items = result.scalars().all()
 
     return PaginatedResponse(
@@ -253,7 +254,7 @@ async def list_rectifications(
 @router.post("/import")
 async def import_rectifications(
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Import rectifications from .xlsx file."""
@@ -287,13 +288,13 @@ async def import_rectifications(
                     alert_level=row.get("预警级别(green/yellow/red)", "green"),
                     created_by=current_user.id,
                 )
-                db.add(rect)
-                await db.flush()  # Flush to check for FK errors
+                uow.add(rect)
+                await uow.flush()  # Flush to check for FK errors
                 imported += 1
             except Exception as e:
                 errors.append(f"Row {i}: {str(e)}")
 
-        await db.commit()
+        await uow.commit()
         return {"message": f"Imported {imported} rectifications", "errors": errors[:20]}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Import failed: {str(e)}")
@@ -306,13 +307,13 @@ async def import_rectifications(
 @router.post("/batch-delete")
 async def batch_delete_rectifications(
     ids: List[UUID],
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Soft-delete multiple rectifications at once."""
     if not ids:
         raise HTTPException(status_code=400, detail="No IDs provided")
-    result = await db.execute(
+    result = await uow.execute(
         select(Rectification).where(Rectification.id.in_(ids), Rectification.is_active == True)
     )
     rects = result.scalars().all()
@@ -320,16 +321,16 @@ async def batch_delete_rectifications(
         raise HTTPException(status_code=404, detail="No rectifications found")
     for r in rects:
         r.is_active = False
-    await db.commit()
+    await uow.commit()
     for r in rects:
-        await write_audit_log(db, current_user.id, "delete", "rectification", r.id, {})
+        await write_audit_log(uow.session, current_user.id, "delete", "rectification", r.id, {})
     return {"message": f"{len(rects)} rectifications deleted"}
 
 
 @router.post("/batch-status")
 async def batch_update_rectification_status(
     request: dict,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Update status for multiple rectifications at once."""
@@ -342,7 +343,7 @@ async def batch_update_rectification_status(
     valid_statuses = {"dispatched", "signed", "progressing", "completed", "submitted", "verified", "rejected"}
     if status not in valid_statuses:
         raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
-    result = await db.execute(
+    result = await uow.execute(
         select(Rectification).where(Rectification.id.in_(ids), Rectification.is_active == True)
     )
     rects = result.scalars().all()
@@ -351,9 +352,9 @@ async def batch_update_rectification_status(
     old_statuses = {r.id: r.status for r in rects}
     for r in rects:
         r.status = status
-    await db.commit()
+    await uow.commit()
     for r in rects:
-        await write_audit_log(db, current_user.id, "update", "rectification", r.id,
+        await write_audit_log(uow.session, current_user.id, "update", "rectification", r.id,
                               {"old_status": old_statuses[r.id], "new_status": status})
     return {"message": f"{len(rects)} rectifications updated to '{status}'"}
 
@@ -363,18 +364,18 @@ async def batch_update_rectification_status(
 # ============================================================
 
 @router.post("/", response_model=RectificationResponse, status_code=201)
-async def create_rectification(rect_data: RectificationCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def create_rectification(rect_data: RectificationCreate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
     rect = Rectification(**rect_data.model_dump(), created_by=current_user.id)
-    db.add(rect)
-    await db.commit()
-    await db.refresh(rect)
-    await write_audit_log(db, current_user.id, "create", "rectification", rect.id, {"title": rect.title})
+    uow.add(rect)
+    await uow.commit()
+    await uow.refresh(rect)
+    await write_audit_log(uow.session, current_user.id, "create", "rectification", rect.id, {"title": rect.title})
     return rect
 
 
 @router.get("/{rect_id}")
-async def get_rectification(rect_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Rectification).where(Rectification.id == rect_id))
+async def get_rectification(rect_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Rectification).where(Rectification.id == rect_id))
     rect = result.scalar_one_or_none()
     if not rect:
         raise HTTPException(status_code=404, detail="Rectification not found")
@@ -382,22 +383,22 @@ async def get_rectification(rect_id: UUID, db: AsyncSession = Depends(get_db), c
 
 
 @router.put("/{rect_id}", response_model=RectificationResponse)
-async def update_rectification(rect_id: UUID, rect_data: RectificationUpdate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Rectification).where(Rectification.id == rect_id))
+async def update_rectification(rect_id: UUID, rect_data: RectificationUpdate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Rectification).where(Rectification.id == rect_id))
     rect = result.scalar_one_or_none()
     if not rect:
         raise HTTPException(status_code=404, detail="Rectification not found")
     for key, value in rect_data.model_dump(exclude_unset=True).items():
         setattr(rect, key, value)
-    await db.commit()
-    await db.refresh(rect)
-    await write_audit_log(db, current_user.id, "update", "rectification", rect_id, {})
+    await uow.commit()
+    await uow.refresh(rect)
+    await write_audit_log(uow.session, current_user.id, "update", "rectification", rect_id, {})
     return rect
 
 
 @router.patch("/{rect_id}/progress")
-async def update_progress(rect_id: UUID, progress: int, details: Optional[List[dict]] = None, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Rectification).where(Rectification.id == rect_id))
+async def update_progress(rect_id: UUID, progress: int, details: Optional[List[dict]] = None, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Rectification).where(Rectification.id == rect_id))
     rect = result.scalar_one_or_none()
     if not rect:
         raise HTTPException(status_code=404, detail="Rectification not found")
@@ -407,43 +408,43 @@ async def update_progress(rect_id: UUID, progress: int, details: Optional[List[d
     if rect.progress >= 100:
         rect.status = "completed"
         rect.completion_date = datetime.utcnow()
-    await db.commit()
-    await write_audit_log(db, current_user.id, "update_progress", "rectification", rect_id, {"progress": progress})
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "update_progress", "rectification", rect_id, {"progress": progress})
     return {"message": "Progress updated"}
 
 
 @router.post("/{rect_id}/sign")
-async def sign_rectification(rect_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Rectification).where(Rectification.id == rect_id))
+async def sign_rectification(rect_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Rectification).where(Rectification.id == rect_id))
     rect = result.scalar_one_or_none()
     if not rect:
         raise HTTPException(status_code=404, detail="Rectification not found")
     rect.status = "progressing"
     rect.sign_date = datetime.utcnow()
     rect.sign_by = current_user.id
-    await db.commit()
-    await write_audit_log(db, current_user.id, "sign", "rectification", rect_id, {})
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "sign", "rectification", rect_id, {})
     return {"message": "Rectification signed"}
 
 
 @router.post("/{rect_id}/submit")
-async def submit_rectification(rect_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def submit_rectification(rect_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
     """Submit a completed rectification for admin approval."""
-    result = await db.execute(select(Rectification).where(Rectification.id == rect_id))
+    result = await uow.execute(select(Rectification).where(Rectification.id == rect_id))
     rect = result.scalar_one_or_none()
     if not rect:
         raise HTTPException(status_code=404, detail="Rectification not found")
     if rect.status != "completed":
         raise HTTPException(status_code=400, detail="Only completed rectifications can be submitted")
     rect.status = "submitted"
-    await db.commit()
-    await write_audit_log(db, current_user.id, "submit", "rectification", rect_id, {})
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "submit", "rectification", rect_id, {})
     return {"message": "Rectification submitted for approval"}
 
 
 @router.post("/{rect_id}/verify")
-async def verify_rectification(rect_id: UUID, comment: Optional[str] = None, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    result = await db.execute(select(Rectification).where(Rectification.id == rect_id))
+async def verify_rectification(rect_id: UUID, comment: Optional[str] = None, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+    result = await uow.execute(select(Rectification).where(Rectification.id == rect_id))
     rect = result.scalar_one_or_none()
     if not rect:
         raise HTTPException(status_code=404, detail="Rectification not found")
@@ -451,8 +452,8 @@ async def verify_rectification(rect_id: UUID, comment: Optional[str] = None, db:
     rect.verified_by = current_user.id
     rect.verified_at = datetime.utcnow()
     rect.verification_comment = comment
-    await db.commit()
-    await write_audit_log(db, current_user.id, "verify", "rectification", rect_id, {})
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "verify", "rectification", rect_id, {})
     return {"message": "Rectification verified"}
 
 
@@ -460,11 +461,11 @@ async def verify_rectification(rect_id: UUID, comment: Optional[str] = None, db:
 async def confirm_rectification(
     rect_id: UUID,
     body: dict,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Confirm a rectification as completed or rejected."""
-    result = await db.execute(select(Rectification).where(Rectification.id == rect_id))
+    result = await uow.execute(select(Rectification).where(Rectification.id == rect_id))
     rect = result.scalar_one_or_none()
     if not rect:
         raise HTTPException(status_code=404, detail="Rectification not found")
@@ -474,8 +475,8 @@ async def confirm_rectification(
     rect.confirm_notes = notes
     rect.confirmed_at = datetime.utcnow()
     rect.confirmed_by = current_user.id
-    await db.commit()
-    await write_audit_log(db, current_user.id, "confirm", "rectification", rect_id,
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "confirm", "rectification", rect_id,
                           {"is_completed": is_completed, "notes": notes})
     return {"message": "Rectification confirmed"}
 
@@ -483,11 +484,11 @@ async def confirm_rectification(
 @router.get("/{rect_id}/export-pdf")
 async def export_rectification_pdf(
     rect_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Export a single rectification as .xlsx (PDF requires reportlab)."""
-    result = await db.execute(
+    result = await uow.execute(
         select(Rectification)
         .options(selectinload(Rectification.unit))
         .where(Rectification.id == rect_id)
@@ -532,11 +533,11 @@ async def export_rectification_pdf(
 async def reimport_rectification(
     rect_id: UUID,
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Reimport/update a rectification from .xlsx file."""
-    result = await db.execute(select(Rectification).where(Rectification.id == rect_id))
+    result = await uow.execute(select(Rectification).where(Rectification.id == rect_id))
     rect = result.scalar_one_or_none()
     if not rect:
         raise HTTPException(status_code=404, detail="Rectification not found")
@@ -558,21 +559,21 @@ async def reimport_rectification(
                 rect.rectification_requirement = data["整改要求"]
             break
 
-        await db.commit()
-        await write_audit_log(db, current_user.id, "reimport", "rectification", rect_id, {})
+        await uow.commit()
+        await write_audit_log(uow.session, current_user.id, "reimport", "rectification", rect_id, {})
         return {"message": "Rectification reimported successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Reimport failed: {str(e)}")
 
 
 @router.delete("/{rect_id}")
-async def delete_rectification(rect_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def delete_rectification(rect_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
     """Soft-delete a rectification by setting is_active=False."""
-    result = await db.execute(select(Rectification).where(Rectification.id == rect_id))
+    result = await uow.execute(select(Rectification).where(Rectification.id == rect_id))
     rect = result.scalar_one_or_none()
     if not rect:
         raise HTTPException(status_code=404, detail="Rectification not found")
     rect.is_active = False
-    await db.commit()
-    await write_audit_log(db, current_user.id, "delete", "rectification", rect_id, {})
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "delete", "rectification", rect_id, {})
     return {"message": "Rectification deleted"}

@@ -10,7 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional
 from urllib.parse import quote
-from app.dependencies import get_db, get_current_user
+from app.dependencies import get_uow, get_current_user
+from app.database import UnitOfWork
 from app.models.user import User
 from app.models.knowledge import Knowledge
 from app.utils.watermark import apply_watermark
@@ -36,12 +37,12 @@ def content_disposition(filename: str, disposition: str = "inline") -> str:
 async def upload_attachment(
     knowledge_id: uuid.UUID,
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """上传文件到知识库"""
     # 检查知识库是否存在
-    result = await db.execute(select(Knowledge).where(Knowledge.id == knowledge_id))
+    result = await uow.execute(select(Knowledge).where(Knowledge.id == knowledge_id))
     knowledge = result.scalar_one_or_none()
     if not knowledge:
         raise HTTPException(status_code=404, detail="知识库条目不存在")
@@ -61,7 +62,7 @@ async def upload_attachment(
         await f.write(content)
 
     # 更新附件列表
-    attachments = knowledge.attachments or []
+    attachments = (knowledge.attachments or [])[:]  # 创建副本避免原地修改检测问题
     attachment_info = {
         "filename": filename,
         "url": attachment_url(str(knowledge_id), safe_filename),
@@ -70,7 +71,8 @@ async def upload_attachment(
     }
     attachments.append(attachment_info)
     knowledge.attachments = attachments
-    await db.commit()
+    await uow.flush()   # 确保 SQLAlchemy 检测到变更
+    await uow.commit()
 
     return attachment_info
 
@@ -78,11 +80,11 @@ async def upload_attachment(
 @router.get("/{knowledge_id}/attachments", response_model=List[dict])
 async def list_attachments(
     knowledge_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """获取附件列表"""
-    result = await db.execute(select(Knowledge).where(Knowledge.id == knowledge_id))
+    result = await uow.execute(select(Knowledge).where(Knowledge.id == knowledge_id))
     knowledge = result.scalar_one_or_none()
     if not knowledge:
         raise HTTPException(status_code=404, detail="知识库条目不存在")
@@ -93,16 +95,16 @@ async def list_attachments(
 async def delete_attachment(
     knowledge_id: uuid.UUID,
     filename: str,
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """删除附件"""
-    result = await db.execute(select(Knowledge).where(Knowledge.id == knowledge_id))
+    result = await uow.execute(select(Knowledge).where(Knowledge.id == knowledge_id))
     knowledge = result.scalar_one_or_none()
     if not knowledge:
         raise HTTPException(status_code=404, detail="知识库条目不存在")
 
-    attachments = knowledge.attachments or []
+    attachments = (knowledge.attachments or [])[:]
     # Find the attachment by original filename (first match)
     idx = None
     for i, att in enumerate(attachments):
@@ -121,7 +123,8 @@ async def delete_attachment(
 
     attachments.pop(idx)
     knowledge.attachments = attachments if attachments else None
-    await db.commit()
+    await uow.flush()   # 确保 SQLAlchemy 检测到变更
+    await uow.commit()
     return {"message": "附件已删除"}
 
 
@@ -130,12 +133,12 @@ async def preview_attachment(
     knowledge_id: uuid.UUID,
     filename: str,
     watermark: bool = Query(False, description="是否添加水印"),
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """预览附件（支持水印）"""
     print(f"[PREVIEW] knowledge_id={knowledge_id}, filename={repr(filename)}")
-    result = await db.execute(select(Knowledge).where(Knowledge.id == knowledge_id))
+    result = await uow.execute(select(Knowledge).where(Knowledge.id == knowledge_id))
     knowledge = result.scalar_one_or_none()
     if not knowledge:
         raise HTTPException(status_code=404, detail="知识库条目不存在")
@@ -187,11 +190,11 @@ async def download_attachment(
     knowledge_id: uuid.UUID,
     filename: str,
     watermark: bool = Query(False, description="是否添加水印"),
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """下载附件（支持水印）"""
-    result = await db.execute(select(Knowledge).where(Knowledge.id == knowledge_id))
+    result = await uow.execute(select(Knowledge).where(Knowledge.id == knowledge_id))
     knowledge = result.scalar_one_or_none()
     if not knowledge:
         raise HTTPException(status_code=404, detail="知识库条目不存在")
