@@ -469,7 +469,6 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
       onCancel={onClose}
       footer={footer}
       width={800}
-      destroyOnHidden
     >
       <Steps current={currentStep} items={steps} style={{ marginBottom: 24 }} />
       {loading && currentStep === 0 ? (

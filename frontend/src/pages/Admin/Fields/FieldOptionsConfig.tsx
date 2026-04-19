@@ -139,7 +139,7 @@ const FieldOptionsConfig: React.FC = () => {
         onCancel={() => setModalOpen(false)}
         footer={null}
         width={600}
-        destroyOnHidden
+  
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item

@@ -71,7 +71,6 @@ const GroupMemberModal: React.FC<GroupMemberModalProps> = ({
       onCancel={handleCancel}
       footer={null}
       width={480}
-      destroyOnHidden
     >
       <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
         <Form.Item

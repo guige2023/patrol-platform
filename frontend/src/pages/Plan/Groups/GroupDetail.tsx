@@ -299,7 +299,6 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
           </Space>
         </div>
       }
-      destroyOnHidden
       width={700}
     >
       <Form form={form} layout="vertical" disabled={initialLoading || isView}>
@@ -437,8 +436,7 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
       {/* Replace/Add Member Modal */}
       <Modal
         title={replaceModal?.memberId ? '更换成员' : '添加成员'}
-        destroyOnHidden
-        open={!!replaceModal}
+          open={!!replaceModal}
         onCancel={() => setReplaceModal(null)}
         footer={null}
         width={400}

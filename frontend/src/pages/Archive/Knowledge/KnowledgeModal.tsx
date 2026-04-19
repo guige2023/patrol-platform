@@ -254,7 +254,6 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
       okText={viewMode ? '编辑' : '保存'}
       confirmLoading={loading}
       width={600}
-      destroyOnHidden
     >
       {viewMode ? renderViewMode() : (
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>

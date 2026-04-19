@@ -75,7 +75,6 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
   }, [mode]);
 
   const isView = internalMode === 'view';
-  const isEdit = internalMode === 'edit';
 
   useEffect(() => {
     if (open && mode === 'create') {

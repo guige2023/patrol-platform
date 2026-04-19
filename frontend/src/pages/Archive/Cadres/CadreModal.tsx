@@ -208,7 +208,6 @@ const CadreModal: React.FC<CadreModalProps> = ({ open, cadreId, onClose, onSucce
       onCancel={handleCancel}
       footer={null}
       width={700}
-      destroyOnHidden
     >
       {cadreId && (
         <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'flex-end' }}>

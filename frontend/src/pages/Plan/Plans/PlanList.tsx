@@ -4,7 +4,7 @@ import { FilterOutlined } from '@ant-design/icons';
 import type { Key } from 'antd/es/table/interface';
 import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
-import { getPlans, submitPlan, approvePlan, publishPlan, deletePlan, exportPlans, exportSelectedPlans, downloadPlanTemplate, updatePlanStatus, getPlanYears } from '@/api/plans';
+import { getPlans, submitPlan, approvePlan, publishPlan, deletePlan, exportPlans, exportSelectedPlans, downloadPlanTemplate, updatePlanStatus } from '@/api/plans';
 import { getUsers } from '@/api/admin';
 import PlanDetail from './PlanDetail';
 import CreatePlanModal from './CreatePlanModal';

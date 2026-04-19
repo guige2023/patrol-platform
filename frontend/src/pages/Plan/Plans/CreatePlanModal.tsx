@@ -427,7 +427,6 @@ const CreatePlanModal: React.FC<CreatePlanModalProps> = ({ open, onClose, onSucc
       onCancel={onClose}
       footer={footer}
       width={800}
-      destroyOnHidden
     >
       <Steps current={currentStep} items={steps} style={{ marginBottom: 24 }} />
       {loading && currentStep === 0 ? (

@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import auth, units, cadres, knowledge, plans, groups, drafts, clues, rectifications, alerts, dashboard, admin, files, notifications, search, system_configs, field_options, progress, documents, backup, warnings
+from app.api.v1 import auth, units, cadres, knowledge, knowledge_files, plans, groups, drafts, clues, rectifications, alerts, dashboard, admin, files, notifications, search, system_configs, field_options, progress, documents, backup, warnings
 
 router = APIRouter()
 
@@ -7,6 +7,7 @@ router.include_router(auth.router, prefix="/auth", tags=["认证"])
 router.include_router(units.router, prefix="/units", tags=["单位档案"])
 router.include_router(cadres.router, prefix="/cadres", tags=["干部人才库"])
 router.include_router(knowledge.router, prefix="/knowledge", tags=["知识库"])
+router.include_router(knowledge_files.router, prefix="/knowledge", tags=["知识库文件"])
 router.include_router(plans.router, prefix="/plans", tags=["巡察计划"])
 router.include_router(groups.router, prefix="/groups", tags=["巡察组"])
 router.include_router(drafts.router, prefix="/drafts", tags=["底稿"])
