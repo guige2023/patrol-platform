@@ -60,7 +60,7 @@ const UnitList: React.FC = () => {
   useEffect(() => {
     getUnits({ page: 1, page_size: 9999 }).then((res: any) => {
       const map: Record<string, string> = {};
-      res.items.forEach((u: Unit) => { if (u.id && u.name) map[u.id] = u.name; });
+      res.items?.forEach((u: Unit) => { if (u.id && u.name) map[u.id] = u.name; });
       setParentNameMap(map);
     }).catch(() => {});
   }, []);
@@ -69,8 +69,8 @@ const UnitList: React.FC = () => {
     setLoading(true);
     try {
       const res = await getUnits({ page, page_size: pageSize, ...searchParams });
-      setData(res.items);
-      setTotal(res.total);
+      setData(res.items || []);
+      setTotal(res.total || 0);
     } catch (e: any) {
       message.error(getErrorMessage(e) || '加载失败');
     } finally {

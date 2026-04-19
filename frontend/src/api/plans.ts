@@ -1,4 +1,7 @@
 import api from './client';
+
+export const getPlanYears = () =>
+  api.get('/plans/years').then((res: any) => res.data?.data ?? []);
 import { message } from 'antd';
 
 export const getPlans = (params?: { page?: number; page_size?: number; name?: string; year?: number; status?: string; principal_id?: string }) =>

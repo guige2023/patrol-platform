@@ -76,6 +76,7 @@ SEVERITY_LABELS = {
 async def export_clues(
     status: Optional[str] = None,
     source: Optional[str] = None,
+    category: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -85,6 +86,8 @@ async def export_clues(
         query = query.where(Clue.status == status)
     if source:
         query = query.where(Clue.source == source)
+    if category:
+        query = query.where(Clue.category == category)
     query = query.order_by(Clue.created_at.desc()).limit(10000)
     result = await db.execute(query)
     clues = result.scalars().all()

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { getFieldOptions, FieldOption } from '@/api/fieldOptions';
 
 interface FieldOptionsContextValue {
@@ -19,6 +19,8 @@ export const FieldOptionsProvider: React.FC<{ children: ReactNode }> = ({ childr
   const [options, setOptions] = useState<FieldOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [tokenVersion, setTokenVersion] = useState(0);
+  const refreshingRef = useRef(false);
+  const cooldownRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Listen for token changes (triggered by login)
   useEffect(() => {
@@ -29,13 +31,12 @@ export const FieldOptionsProvider: React.FC<{ children: ReactNode }> = ({ childr
       }
     };
 
-    // Listen for storage changes (covers other tabs)
     window.addEventListener('storage', checkToken);
-    // Also poll periodically for same-tab changes
-    const interval = setInterval(checkToken, 500);
+    const interval = setInterval(checkToken, 2000);
     return () => {
       window.removeEventListener('storage', checkToken);
       clearInterval(interval);
+      if (cooldownRef.current) clearTimeout(cooldownRef.current);
     };
   }, []);
 
@@ -45,6 +46,9 @@ export const FieldOptionsProvider: React.FC<{ children: ReactNode }> = ({ childr
       setLoading(false);
       return;
     }
+    // Deduplicate concurrent refresh calls
+    if (refreshingRef.current) return;
+    refreshingRef.current = true;
     setLoading(true);
     try {
       const data = await getFieldOptions();
@@ -52,7 +56,13 @@ export const FieldOptionsProvider: React.FC<{ children: ReactNode }> = ({ childr
     } catch (e) {
       console.error('Failed to load field options:', e);
     } finally {
+      refreshingRef.current = false;
       setLoading(false);
+      // Debounce next poll: don't re-fetch within 10s
+      if (cooldownRef.current) clearTimeout(cooldownRef.current);
+      cooldownRef.current = setTimeout(() => {
+        if (localStorage.getItem('token')) refresh();
+      }, 10000);
     }
   }, []);
 

@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional
+from urllib.parse import quote
 from app.dependencies import get_db, get_current_user
 from app.models.user import User
 from app.models.knowledge import Knowledge
@@ -21,6 +22,14 @@ UPLOAD_BASE = "backend/uploads/knowledge"
 
 def attachment_url(knowledge_id: str, filename: str) -> str:
     return f"/uploads/knowledge/{knowledge_id}/{filename}"
+
+
+def content_disposition(filename: str, disposition: str = "inline") -> str:
+    """生成支持非ASCII文件名的Content-Disposition头 (RFC 5987)"""
+    # 用ASCII文件名作为fallback，用percent-encodedUTF-8作为filename*
+    safe_ascii = "".join(c if ord(c) < 128 else "_" for c in filename)
+    encoded = quote(filename, safe="")
+    return f'{disposition}; filename="{safe_ascii}"; filename*=utf-8\'\'{encoded}'
 
 
 @router.post("/{knowledge_id}/attachments", response_model=dict)
@@ -125,6 +134,7 @@ async def preview_attachment(
     current_user: User = Depends(get_current_user),
 ):
     """预览附件（支持水印）"""
+    print(f"[PREVIEW] knowledge_id={knowledge_id}, filename={repr(filename)}")
     result = await db.execute(select(Knowledge).where(Knowledge.id == knowledge_id))
     knowledge = result.scalar_one_or_none()
     if not knowledge:
@@ -167,7 +177,7 @@ async def preview_attachment(
     return StreamingResponse(
         io.BytesIO(file_bytes),
         media_type=media_type,
-        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+        headers={"Content-Disposition": content_disposition(filename, "inline")},
     )
 
 
@@ -228,5 +238,5 @@ async def download_attachment(
     return StreamingResponse(
         io.BytesIO(file_bytes),
         media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": content_disposition(filename, "attachment")},
     )

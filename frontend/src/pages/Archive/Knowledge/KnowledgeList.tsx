@@ -31,8 +31,8 @@ const KnowledgeList: React.FC = () => {
     setLoading(true);
     try {
       const res = await getKnowledgeList({ page, page_size: pageSize, ...searchParams });
-      setData(res.items);
-      setTotal(res.total);
+      setData(res.items ?? []);
+      setTotal(res.total ?? 0);
     } finally {
       setLoading(false);
     }

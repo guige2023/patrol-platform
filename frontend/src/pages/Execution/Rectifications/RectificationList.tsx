@@ -62,8 +62,8 @@ const RectificationList: React.FC = () => {
     setLoading(true);
     try {
       const res = await getRectifications({ page, page_size: pageSize });
-      setData(res.items);
-      setTotal(res.total);
+      setData(res?.items ?? []);
+      setTotal(res?.total ?? 0);
     } finally {
       setLoading(false);
     }

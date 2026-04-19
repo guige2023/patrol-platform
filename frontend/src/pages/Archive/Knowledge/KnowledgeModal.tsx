@@ -93,7 +93,7 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
     if (!knowledgeId) return;
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`/api/v1/knowledge/${knowledgeId}/attachments/${att.filename}/download?watermark=true`, {
+      const res = await fetch(`/api/knowledge/${knowledgeId}/attachments/${encodeURIComponent(att.filename)}/download?watermark=true`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('download failed');
@@ -113,7 +113,7 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
     if (!knowledgeId) return;
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`/api/v1/knowledge/${knowledgeId}/attachments/${att.filename}?watermark=true`, {
+      const res = await fetch(`/api/knowledge/${knowledgeId}/attachments/${encodeURIComponent(att.filename)}?watermark=true`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('preview failed');

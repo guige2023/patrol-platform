@@ -13,8 +13,8 @@ const AuditLog: React.FC = () => {
     setLoading(true);
     try {
       const res = await getAuditLogs({ page, page_size: 50 });
-      setData(res.items || []);
-      setTotal(res.total || 0);
+      setData(res?.items ?? []);
+      setTotal(res?.total ?? 0);
     } finally {
       setLoading(false);
     }

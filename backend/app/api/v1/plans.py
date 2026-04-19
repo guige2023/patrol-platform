@@ -98,6 +98,19 @@ async def list_plans(
     )
 
 
+@router.get("/years")
+async def get_plan_years(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return all distinct years that have plans."""
+    result = await db.execute(
+        select(Plan.year).where(Plan.is_active == True).distinct().order_by(Plan.year.desc())
+    )
+    years = [row[0] for row in result.all() if row[0]]
+    return {"data": years}
+
+
 STATUS_LABELS = {
     "draft": "草稿",
     "submitted": "已提交",

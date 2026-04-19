@@ -51,8 +51,8 @@ const CadreList: React.FC = () => {
     setLoading(true);
     try {
       const res = await getCadres({ page, page_size: pageSize, ...searchParams });
-      setData(res.items);
-      setTotal(res.total);
+      setData(res.items ?? []);
+      setTotal(res.total ?? 0);
     } catch (e: any) {
       message.error(getErrorMessage(e) || '加载失败');
     } finally {
@@ -98,9 +98,19 @@ const CadreList: React.FC = () => {
   const columns: ColumnsType<Cadre> = useMemo(() => [
     {
       title: '姓名', dataIndex: 'name', key: 'name',
-      render: (name: string, record: Cadre) => (
-        <a onClick={() => navigate(`/archive/cadres/${record.id}`)}>{name}</a>
-      ),
+      render: (name: string, record: Cadre) => {
+        const kw = searchParams.name as string | undefined;
+        if (!kw) return <a onClick={() => navigate(`/archive/cadres/${record.id}`)}>{name}</a>;
+        const regex = new RegExp(`(${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+        const parts = name.split(regex);
+        return (
+          <a onClick={() => navigate(`/archive/cadres/${record.id}`)}>
+            {parts.map((part, i) =>
+              regex.test(part) ? <mark key={i} style={{ background: '#fff3bf', padding: 0 }}>{part}</mark> : part
+            )}
+          </a>
+        );
+      },
     },
     { title: '性别', dataIndex: 'gender', key: 'gender', render: (v: string) => v || '-' },
     { title: '职务', dataIndex: 'position', key: 'position', render: (v: string) => v || '-' },

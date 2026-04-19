@@ -58,8 +58,8 @@ const ProgressPage: React.FC = () => {
         page_size: pageSize,
         plan_id: selectedPlanId,
       });
-      setData(res.items || []);
-      setTotal(res.total || 0);
+      setData(res?.items ?? []);
+      setTotal(res?.total ?? 0);
     } catch {
       message.error('加载进度数据失败');
     } finally {
@@ -70,7 +70,7 @@ const ProgressPage: React.FC = () => {
   const fetchPlanOptions = async () => {
     try {
       const res = await getPlans({ page_size: 100 });
-      const plans = res.items || [];
+      const plans = res?.items ?? [];
       setPlanOptions(plans.map((p: any) => ({ label: p.name, value: p.id })));
     } catch {
       // ignore
@@ -223,7 +223,7 @@ const ProgressPage: React.FC = () => {
             icon={<FileExcelOutlined />}
             onClick={() => {
               // Download template
-              window.open('/api/v1/progress/template', '_blank');
+              window.open('/api/progress/template', '_blank');
             }}
           >
             下载导入模板

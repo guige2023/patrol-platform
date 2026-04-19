@@ -83,8 +83,8 @@ const ClueList: React.FC = () => {
         start_date: dateRange?.[0] ? dateRange[0].format('YYYY-MM-DD') : undefined,
         end_date: dateRange?.[1] ? dateRange[1].format('YYYY-MM-DD') : undefined,
       });
-      setData(res.items);
-      setTotal(res.total);
+      setData(res.items ?? []);
+      setTotal(res.total ?? 0);
     } catch (e: any) {
       message.error(getErrorMessage(e) || '加载数据失败');
     } finally {
@@ -182,7 +182,7 @@ const ClueList: React.FC = () => {
       <div style={{ marginBottom: 16 }}>
         <Space style={{ marginBottom: 12 }}>
           <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>登记线索</Button>
-          <Button onClick={() => exportClues().catch(() => message.error('导出失败'))}>导出</Button>
+          <Button onClick={() => exportClues({ status: statusFilter, category: categoryFilter }).catch(() => message.error('导出失败'))}>导出</Button>
           <Input placeholder="搜索标题" style={{ width: 160 }} onChange={e => { setTitleKw(e.target.value); setPage(1); }} />
         </Space>
         <Collapse

@@ -54,7 +54,7 @@ const GroupList: React.FC = () => {
     setLoading(true);
     try {
       const res = await getGroups({ plan_id: filterPlanId, status: filterStatus });
-      const items = Array.isArray(res) ? res : (res.items || []);
+      const items = Array.isArray(res) ? res : (res?.items ?? []);
       setData(items);
     } finally {
       setLoading(false);

@@ -12,7 +12,7 @@ export const updateClue = (id: string, data: any) =>
 export const transferClue = (id: string, target: string, comment?: string) =>
   api.post(`/clues/${id}/transfer`, { target, comment });
 
-export const exportClues = (params?: { status?: string; source?: string }) => {
+export const exportClues = (params?: { status?: string; source?: string; category?: string }) => {
   return api.get('/clues/download', { params, responseType: 'blob' }).then(res => {
     const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = window.URL.createObjectURL(blob);

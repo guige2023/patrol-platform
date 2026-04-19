@@ -27,8 +27,8 @@ const DocumentList: React.FC = () => {
         page_size: pageSize,
         type: typeFilter,
       });
-      setData(res.items || []);
-      setTotal(res.total || 0);
+      setData(res.items ?? []);
+      setTotal(res.total ?? 0);
     } catch {
       message.error('加载失败');
     } finally {
@@ -58,7 +58,7 @@ const DocumentList: React.FC = () => {
   };
 
   const handlePrint = (doc: Document) => {
-    window.open(`/api/v1/documents/${doc.id}/print`, '_blank');
+    window.open(`/api/documents/${doc.id}/print`, '_blank');
   };
 
   const docTypeOptions = [
