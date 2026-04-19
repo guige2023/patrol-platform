@@ -9,9 +9,12 @@ from datetime import datetime
 # 水印透明度 0~255，越小越透明
 WATERMARK_OPACITY = 120
 
-# 水印字体大小（PDF pt，图片 px）
+# 水印字体大小（图片 px）
 # 注意：macOS中文字体渲染为细线条轮廓，需要足够大才能看清
 WATERMARK_FONT_SIZE = 28
+
+# PDF水印参数
+PDF_WATERMARK_SIZE = 28
 
 
 def _make_watermark_text(username: str, date_str: str) -> str:
@@ -28,12 +31,10 @@ def _load_font(size: int):
     """加载中文字体，优先使用黑体（粗体）"""
     from PIL import ImageFont
 
-    # 尝试多个字体路径，优先选择粗体
     font_paths = [
         "/System/Library/Fonts/STHeiti Medium.ttc",
         "/System/Library/Fonts/STHeiti Light.ttc",
         "/System/Library/Fonts/Hiragino Sans GB.ttc",
-        "/System/Library/Fonts/PingFang.ttc",
     ]
 
     for font_path in font_paths:
@@ -45,8 +46,41 @@ def _load_font(size: int):
     return ImageFont.load_default()
 
 
+def _render_watermark_png(text: str, font_size: int) -> bytes:
+    """用PIL渲染水印文字为PNG图片（支持中文），返回PNG字节"""
+    from PIL import Image, ImageDraw
+
+    font = _load_font(font_size)
+    color = _get_watermark_color()
+
+    # 先测量文字尺寸
+    dummy = Image.new('RGBA', (1, 1), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(dummy)
+    bbox = draw.textbbox((0, 0), text, font=font)
+    text_w = bbox[2] - bbox[0]
+    text_h = bbox[3] - bbox[1]
+
+    padding = 20
+    img_w = text_w + padding * 2
+    img_h = text_h + padding * 2
+
+    # 创建透明背景的RGBA图片
+    wm_img = Image.new('RGBA', (max(img_w, 1), max(img_h, 1)), (0, 0, 0, 0))
+    draw2 = ImageDraw.Draw(wm_img)
+
+    # 多次绘制以增强macOS中文字体可见性
+    text_color = (*color, WATERMARK_OPACITY)
+    for _ in range(3):
+        draw2.text((padding, padding), text, font=font, fill=text_color)
+
+    # 转PNG bytes
+    buf = io.BytesIO()
+    wm_img.save(buf, format='PNG')
+    return buf.getvalue()
+
+
 def watermark_pdf(pdf_bytes: bytes, username: str, date_str: str) -> bytes:
-    """对 PDF 添加水印"""
+    """对 PDF 添加水印：把中文水印渲染为PNG，插入到PDF每一页"""
     import fitz
 
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
@@ -54,20 +88,24 @@ def watermark_pdf(pdf_bytes: bytes, username: str, date_str: str) -> bytes:
         return pdf_bytes
 
     text = _make_watermark_text(username, date_str)
-    color = tuple(float(c) / 255.0 for c in _get_watermark_color())
+    wm_png = _render_watermark_png(text, PDF_WATERMARK_SIZE)
 
     for page_num in range(doc.page_count):
         page = doc[page_num]
-        w, h = page.rect.width, page.rect.height
-        for angle in [30, -30]:
-            shape = page.new_shape()
-            shape.insert_text(
-                (w * 0.1, h * 0.5),
-                text,
-                fontsize=WATERMARK_FONT_SIZE,
-                color=color,
-            )
-            shape.commit()
+        page_w = page.rect.width
+        page_h = page.rect.height
+
+        # 计算水印图片在页面上的居中位置
+        from PIL import Image
+        wm_img = Image.open(io.BytesIO(wm_png))
+        wm_w, wm_h = wm_img.size
+
+        x = (page_w - wm_w) / 2
+        y = (page_h - wm_h) / 2
+        rect = fitz.Rect(x, y, x + wm_w, y + wm_h)
+
+        # 插入水印图片（overlay=True表示叠加在原有内容之上）
+        page.insert_image(rect, stream=wm_png, overlay=True)
 
     out = io.BytesIO()
     doc.save(out, garbage=4, deflate=True)
