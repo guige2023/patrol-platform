@@ -6,8 +6,8 @@
 import io
 from datetime import datetime
 
-# 水印透明度 0~255，越小越透明
-WATERMARK_OPACITY = 35
+# 水印透明度 0~255，越小越透明。35=14%太淡文字几乎看不见，改用100=39%既清晰又不遮挡
+WATERMARK_OPACITY = 100
 
 # 水印字体大小（PDF pt，图片 px）
 WATERMARK_FONT_SIZE = 16
