@@ -21,7 +21,7 @@ app.add_middleware(
 )
 
 app.include_router(v1_router, prefix="/api/v1")
-app.include_router(knowledge_files.router, prefix="/api/v1")
+# knowledge_files.router is already included via v1_router in __init__.py (line 10)
 
 # 静态文件服务 - 知识库上传文件
 upload_dir = "backend/uploads"

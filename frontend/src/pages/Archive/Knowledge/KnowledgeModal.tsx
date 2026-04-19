@@ -92,11 +92,22 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
   const handleDownload = async (att: Attachment) => {
     if (!knowledgeId) return;
     const token = localStorage.getItem('token');
+    if (!token) {
+      message.error('未登录或登录已过期，请重新登录');
+      return;
+    }
     try {
       const res = await fetch(`/api/knowledge/${knowledgeId}/attachments/${encodeURIComponent(att.filename)}/download?watermark=true`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error('download failed');
+      if (!res.ok) {
+        let errMsg = '下载失败';
+        try {
+          const errData = await res.json();
+          errMsg = errData.detail || errData.message || errMsg;
+        } catch {}
+        throw new Error(errMsg);
+      }
       const blob = await res.blob();
       const blobUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -104,26 +115,37 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
       a.download = att.filename;
       a.click();
       window.URL.revokeObjectURL(blobUrl);
-    } catch {
-      message.error('下载失败');
+    } catch (e: any) {
+      message.error(e.message || '下载失败');
     }
   };
 
   const handlePreview = async (att: Attachment) => {
     if (!knowledgeId) return;
     const token = localStorage.getItem('token');
+    if (!token) {
+      message.error('未登录或登录已过期，请重新登录');
+      return;
+    }
     try {
       const res = await fetch(`/api/knowledge/${knowledgeId}/attachments/${encodeURIComponent(att.filename)}?watermark=true`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error('preview failed');
+      if (!res.ok) {
+        let errMsg = '预览失败';
+        try {
+          const errData = await res.json();
+          errMsg = errData.detail || errData.message || errMsg;
+        } catch {}
+        throw new Error(errMsg);
+      }
       const blob = await res.blob();
       const blobUrl = window.URL.createObjectURL(blob);
       setPreviewUrl(blobUrl);
       setPreviewFilename(att.filename);
       setPreviewOpen(true);
-    } catch {
-      message.error('预览失败');
+    } catch (e: any) {
+      message.error(e.message || '预览失败');
     }
   };
 

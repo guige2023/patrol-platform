@@ -36,8 +36,13 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
+    // Only remove token for auth-related 401 errors (invalid/expired token)
+    // Don't remove token for permission denied or other 401s to avoid cascade failures
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
+      const detail = error.response?.data?.detail;
+      if (typeof detail === 'string' && (detail === 'Invalid token' || detail.includes('token') || detail.includes('expired'))) {
+        localStorage.removeItem('token');
+      }
     }
     // FastAPI validation errors (422) have detail as an array of validation issues
     const rawDetail = error.response?.data?.detail;
