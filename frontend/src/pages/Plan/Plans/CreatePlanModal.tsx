@@ -212,7 +212,7 @@ const CreatePlanModal: React.FC<CreatePlanModalProps> = ({ open, onClose, onSucc
         payload.authorization_letter = previewData.authorization_letter;
       }
 
-      await createPlan(payload);
+      const result = await createPlan(payload);
       message.success('计划创建成功');
       onSuccess();
       onClose();
