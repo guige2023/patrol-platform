@@ -24,7 +24,7 @@ app.include_router(v1_router, prefix="/api/v1")
 # knowledge_files.router is already included via v1_router in __init__.py (line 10)
 
 # 静态文件服务 - 知识库上传文件
-upload_dir = "backend/uploads"
+upload_dir = os.path.join(os.path.dirname(__file__), "..", "backend", "uploads")
 os.makedirs(os.path.join(upload_dir, "knowledge"), exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
 

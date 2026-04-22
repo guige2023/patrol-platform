@@ -179,10 +179,13 @@ const CreatePlanModal: React.FC<CreatePlanModalProps> = ({ open, onClose, onSucc
     setSubmitting(true);
     try {
       const selectedUnits = allUnits.filter((u) => selectedUnitIds.includes(u.id));
-      const focusAreasValue = previewData.focus_areas || '';
-      const focusAreasList = focusAreasValue
-        ? focusAreasValue.split(/[，,\n]/).map((s: string) => s.trim()).filter(Boolean)
-        : [];
+      const focusAreasRaw = previewData.focus_areas;
+      // focus_areas can be string[] (from Select) or string (from TextArea), normalize to array
+      const focusAreasList = Array.isArray(focusAreasRaw)
+        ? focusAreasRaw
+        : typeof focusAreasRaw === 'string' && focusAreasRaw
+          ? focusAreasRaw.split(/[，,\n]/).map((s: string) => s.trim()).filter(Boolean)
+          : [];
 
       const payload: any = {
         name: previewData.name,
