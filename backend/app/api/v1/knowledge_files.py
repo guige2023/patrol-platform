@@ -16,7 +16,7 @@ from app.models.user import User
 from app.models.knowledge import Knowledge
 from app.utils.watermark import apply_watermark
 
-router = APIRouter(prefix="/knowledge", tags=["知识库文件"])
+router = APIRouter(tags=["知识库文件"])
 
 UPLOAD_BASE = "backend/uploads/knowledge"
 
