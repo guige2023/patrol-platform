@@ -119,10 +119,11 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
         getCadres({ page_size: 100 }),
       ]);
 
-      const publishedPlans = (plansRes.items || []).filter(
-        (p: any) => ['published', 'approved', 'submitted', 'in_progress'].includes(p.status)
+      // Include all non-completed plans (draft, approved, submitted, in_progress, published)
+      const activePlans = (plansRes.items || []).filter(
+        (p: any) => !['completed', 'cancelled'].includes(p.status)
       );
-      setPlans(publishedPlans);
+      setPlans(activePlans);
       setAllUnits(unitsRes.items || []);
 
       // Build cadres with unit_name
