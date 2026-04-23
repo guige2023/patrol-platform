@@ -128,7 +128,7 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
       return;
     }
     try {
-      const res = await fetch(`/api/knowledge/${knowledgeId}/attachments/${encodeURIComponent(att.filename)}?watermark=true`, {
+      const res = await fetch(`/api/knowledge/${knowledgeId}/attachments/${encodeURIComponent(att.filename)}/download?watermark=true`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {

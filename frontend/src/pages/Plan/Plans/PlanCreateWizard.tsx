@@ -70,14 +70,11 @@ const PlanCreateWizard: React.FC = () => {
   useEffect(() => {
     // Load available cadres when entering step 3
     if (currentStep === 2 && selectedUnits.length > 0) {
-      // Create a temporary plan to get available cadres
-      const tempPlanId = 'temp-' + Date.now();
-      getAvailableCadres(tempPlanId).then((data: any) => {
-        setEligibleCadres(data.eligible || []);
-        setExcludedCadres(data.excluded || []);
+      // Don't pass plan_id - API returns all cadres when no plan exists yet
+      getAvailableCadres().then((data: any) => {
+        setEligibleCadres(data || []);
       }).catch(() => {
         setEligibleCadres([]);
-        setExcludedCadres([]);
       });
     }
   }, [currentStep, selectedUnits]);

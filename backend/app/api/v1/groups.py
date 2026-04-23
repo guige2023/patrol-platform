@@ -225,20 +225,28 @@ async def create_group(
 
 @router.get("/available-cadres")
 async def get_available_cadres(
-    plan_id: UUID,
+    plan_id: Optional[UUID] = Query(None, description="Optional plan ID to filter out cadres already in groups for that plan"),
     uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
-    """Get cadres available for assignment to a group's plan."""
-    # Get cadres already in any group for this plan
-    subq = (
-        select(GroupMember.cadre_id)
-        .join(InspectionGroup, InspectionGroup.id == GroupMember.group_id)
-        .where(InspectionGroup.plan_id == plan_id)
-    )
-    result = await uow.execute(
-        select(Cadre).where(Cadre.id.not_in(subq)).order_by(Cadre.name)
-    )
+    """Get cadres available for assignment to a group's plan.
+    
+    If plan_id is provided, excludes cadres already assigned to groups for that plan.
+    If plan_id is not provided (for wizard before plan creation), returns all cadres.
+    """
+    if plan_id is None:
+        # No plan yet - return all cadres (for wizard before plan creation)
+        result = await uow.execute(select(Cadre).order_by(Cadre.name))
+    else:
+        # Get cadres already in any group for this plan
+        subq = (
+            select(GroupMember.cadre_id)
+            .join(InspectionGroup, InspectionGroup.id == GroupMember.group_id)
+            .where(InspectionGroup.plan_id == plan_id)
+        )
+        result = await uow.execute(
+            select(Cadre).where(Cadre.id.not_in(subq)).order_by(Cadre.name)
+        )
     cadres = result.scalars().all()
     return [
         {"id": str(c.id), "name": c.name, "position": c.position, "unit_id": str(c.unit_id) if c.unit_id else None}

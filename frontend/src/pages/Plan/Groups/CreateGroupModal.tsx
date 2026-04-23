@@ -273,13 +273,22 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
     const selectedPlan = plans.find((p) => p.id === formValues.plan_id);
     const targetUnitIds: string[] = selectedPlan?.target_units || [];
     // 建立 name -> id 的映射，处理 target_units 为单位名称的情况
+    // target_units 可能是 UUID，也可能是单位名称（旧数据/不完整名称）
     const unitNameToId: Record<string, string> = {};
     allUnits.forEach((u) => { unitNameToId[u.name] = u.id; });
-    // 归一化：如果是名称则转为 id
-    const normalizedTargetIds = targetUnitIds.map((idOrName) => {
-      if (allUnits.some((u) => u.id === idOrName)) return idOrName;
-      return unitNameToId[idOrName] || idOrName;
-    });
+    // 归一化：如果是 UUID 直接用，如果是名称，尝试精确匹配 or 前缀匹配
+    const normalizedTargetIds: string[] = [];
+    for (const idOrName of targetUnitIds) {
+      if (allUnits.some((u) => u.id === idOrName)) {
+        normalizedTargetIds.push(idOrName);
+      } else if (unitNameToId[idOrName]) {
+        normalizedTargetIds.push(unitNameToId[idOrName]);
+      } else {
+        // 前缀匹配：target_units 里存的是 '纪工委机关' 但实际名称是 '纪工委机关、巡察办'
+        const found = allUnits.find((u) => u.name.startsWith(idOrName));
+        if (found) normalizedTargetIds.push(found.id);
+      }
+    }
     const filteredUnits = normalizedTargetIds.length > 0
       ? allUnits.filter((u) => normalizedTargetIds.includes(u.id))
       : [];

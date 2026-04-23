@@ -41,8 +41,8 @@ export const exportGroups = (params?: { plan_id?: string; status?: string; ids?:
 export const batchDeleteGroups = (ids: string[]) =>
   api.post('/groups/batch-delete', ids);
 
-export const getAvailableCadres = (planId: string) =>
-  api.get(`/groups/available-cadres?plan_id=${planId}`).then(res => res.data);
+export const getAvailableCadres = (planId?: string) =>
+  api.get(`/groups/available-cadres${planId ? `?plan_id=${planId}` : ''}`).then(res => res.data);
 
 export const autoMatchGroup = (planId: string, data: { leader_id: string; deputy_leader_ids: string[]; excluded_cadre_ids?: { cadre_id: string; reason: string }[] }) =>
   api.post('/groups/auto-match', { plan_id: planId, ...data }).then(res => res.data);
