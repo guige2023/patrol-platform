@@ -268,11 +268,20 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
 
   const renderStep2 = () => {
     // 获取当前选中计划的 target_units，过滤单位列表
+    // target_units 可能是 UUID 数组，也可能是单位名称数组（遗留数据），两边都匹配
     const formValues = form.getFieldsValue();
     const selectedPlan = plans.find((p) => p.id === formValues.plan_id);
     const targetUnitIds: string[] = selectedPlan?.target_units || [];
-    const filteredUnits = targetUnitIds.length > 0
-      ? allUnits.filter((u) => targetUnitIds.includes(u.id))
+    // 建立 name -> id 的映射，处理 target_units 为单位名称的情况
+    const unitNameToId: Record<string, string> = {};
+    allUnits.forEach((u) => { unitNameToId[u.name] = u.id; });
+    // 归一化：如果是名称则转为 id
+    const normalizedTargetIds = targetUnitIds.map((idOrName) => {
+      if (allUnits.some((u) => u.id === idOrName)) return idOrName;
+      return unitNameToId[idOrName] || idOrName;
+    });
+    const filteredUnits = normalizedTargetIds.length > 0
+      ? allUnits.filter((u) => normalizedTargetIds.includes(u.id))
       : [];
 
     return (
