@@ -150,3 +150,18 @@
 
 - TypeScript 编译：无错误 ✅
 - Vite 生产构建：成功 ✅
+
+---
+
+## 2026-04-22 Bug 修复
+
+### 巡察计划创建 API
+- ✅ **p-create** CreatePlanModal.tsx：`target_units` 传对象数组改为ID字符串数组；`focus_areas` 统一数组/字符串格式解析
+
+### 知识库文件服务
+- ✅ **kb-files** 知识库附件路由注册 + Content-Type 修复，下载和预览正常
+
+### 巡察组单位选择
+- ✅ **g-unit-filter** CreateGroupModal.tsx：`target_units` 支持名称和UUID混合格式（遗留数据问题）
+  - 建立 unitNameToId 映射将单位名称归一化为UUID后再过滤
+  - 修复选择计划后单位列表为空、点击后消失的bug
