@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Tabs, Card, Form, InputNumber, Switch, Select, Button, message, Alert, Space } from 'antd';
+import { Tabs, Card, Form, InputNumber, Switch, Select, Button, message, Alert, Space, Input } from 'antd';
 import { SaveOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import { getSystemConfigs, updateSystemConfig } from '@/api/systemConfigs';
@@ -75,6 +75,17 @@ const SystemConfigPage: React.FC = () => {
       setSaving(false);
     }
   };
+
+  // 巡察周期配置 - 分类显示
+  const cycleConfigGovFields: FieldDef[] = [
+    { name: 'gov_cycle_start_date', label: '每轮全覆盖开始时间', type: 'number', min: 2000, max: 2100 },
+    { name: 'gov_cycle_years', label: '每轮全覆盖年份数', type: 'number', min: 1, max: 10 },
+  ];
+
+  const cycleConfigOtherFields: FieldDef[] = [
+    { name: 'other_cycle_start_date', label: '每轮全覆盖开始时间', type: 'number', min: 2000, max: 2100 },
+    { name: 'other_cycle_years', label: '每轮全覆盖年份数', type: 'number', min: 1, max: 10 },
+  ];
 
   const timeNodesFields: FieldDef[] = [
     { name: 'regular_inspection_days', label: '常规巡察天数', type: 'number', min: 1, max: 365 },
@@ -249,6 +260,30 @@ const SystemConfigPage: React.FC = () => {
           />
           <Form form={form} layout="vertical">
             {renderFormItems(warningRulesFields)}
+          </Form>
+        </Card>
+      ),
+    },
+    {
+      key: 'cycle_config',
+      label: '巡察周期配置',
+      children: (
+        <Card>
+          <Alert
+            message="提示：以下配置用于计算被巡察单位的全覆盖预警时间。管委会/政府部门和其他单位使用独立的巡察周期配置。"
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+          />
+          <Form form={form} layout="vertical">
+            <div style={{ marginBottom: 24, padding: '12px 16px', background: '#f5f5f5', borderRadius: 6 }}>
+              <div style={{ fontWeight: 500, marginBottom: 12, color: '#1890ff' }}>管委会/政府部门</div>
+              {renderFormItems(cycleConfigGovFields)}
+            </div>
+            <div style={{ marginBottom: 24, padding: '12px 16px', background: '#f5f5f5', borderRadius: 6 }}>
+              <div style={{ fontWeight: 500, marginBottom: 12, color: '#52c41a' }}>其他单位</div>
+              {renderFormItems(cycleConfigOtherFields)}
+            </div>
           </Form>
         </Card>
       ),

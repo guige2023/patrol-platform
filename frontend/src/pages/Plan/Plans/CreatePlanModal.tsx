@@ -13,9 +13,17 @@ const { Text } = Typography;
 interface Unit {
   id: string;
   name: string;
+  unit_type?: string;
   tags?: string[];
   last_inspection_year?: number | null;
 }
+
+// 判断单位是否为"管委会/政府部门"
+const isGovUnit = (unit: Unit): boolean => {
+  if (!unit.unit_type) return false;
+  const govTypes = ['government', 'government_agency', '党政机关', '政府部门', '党委工作机构', '党委', '政府', '管委会'];
+  return govTypes.includes(unit.unit_type);
+};
 
 interface CreatePlanModalProps {
   open: boolean;
@@ -96,16 +104,26 @@ const CreatePlanModal: React.FC<CreatePlanModalProps> = ({ open, onClose, onSucc
   };
 
   // Determine which units are "pending inspection" in current cycle
+  // 根据单位类型使用不同的巡察周期配置
   const currentYear = new Date().getFullYear();
-  const patrolCycleYears = parseInt(configs.patrol_cycle_years || '5', 10);
-  const cycleStartYear = currentYear - patrolCycleYears + 1;
+  const govCycleYears = parseInt(configs.gov_cycle_years || '3', 10);
+  const otherCycleYears = parseInt(configs.other_cycle_years || '3', 10);
+  const govCycleStartYear = currentYear - govCycleYears + 1;
+  const otherCycleStartYear = currentYear - otherCycleYears + 1;
 
-  const pendingUnits = allUnits.filter((u) => {
-    return !u.last_inspection_year || u.last_inspection_year < cycleStartYear;
-  });
-  const inspectedUnits = allUnits.filter((u) => {
-    return u.last_inspection_year && u.last_inspection_year >= cycleStartYear;
-  });
+  // 判断某个单位是否应该被标记为 pending
+  const isUnitPending = (u: Unit): boolean => {
+    if (isGovUnit(u)) {
+      // 管委会/政府部门使用政府周期配置
+      return !u.last_inspection_year || u.last_inspection_year < govCycleStartYear;
+    } else {
+      // 其他单位使用其他单位周期配置
+      return !u.last_inspection_year || u.last_inspection_year < otherCycleStartYear;
+    }
+  };
+
+  const pendingUnits = allUnits.filter(isUnitPending);
+  const inspectedUnits = allUnits.filter((u) => !isUnitPending(u));
 
   const filteredPendingUnits = pendingUnits.filter((u) =>
     !unitSearch || u.name.toLowerCase().includes(unitSearch.toLowerCase())
