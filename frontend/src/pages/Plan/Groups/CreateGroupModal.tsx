@@ -66,7 +66,7 @@ function matchCadres(selectedUnits: UnitOption[], allCadres: CadreOption[]): Cad
     if (unitIds.includes(c.unit_id || '')) return false;
     if (unitNames.some((n) => c.unit_name && c.unit_name.includes(n))) return false;
     // Exclude cadres tagged as "回避"
-    if (c.tags && c.tags.some((t) => t.includes('回避'))) return false;
+    if (Array.isArray(c.tags) && c.tags.some((t: string) => t.includes('回避'))) return false;
     // Match category
     if (c.category && targetCategories.some((cat) => c.category!.includes(cat) || cat.includes(c.category!))) {
       return true;
