@@ -86,7 +86,8 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
   const [allUnits, setAllUnits] = useState<UnitOption[]>([]);
   const [allCadres, setAllCadres] = useState<CadreOption[]>([]);
 
-  // Step 1 (plan id tracked in form)
+  // Step 1 - selected plan id stored in state (not just form) to survive re-renders
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
 
   // Step 2 - selected units
   const [selectedUnitIds, setSelectedUnitIds] = useState<string[]>([]);
@@ -101,6 +102,7 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
   useEffect(() => {
     if (open) {
       setCurrentStep(0);
+      setSelectedPlanId(null);
       setSelectedUnitIds([]);
       setMatchedCadres([]);
       setSelectedMemberIds([]);
@@ -144,7 +146,9 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
 
   const handleStep1Next = async () => {
     try {
-      await form.validateFields(['name', 'plan_id', 'leader_id']);
+      const values = await form.validateFields(['name', 'plan_id', 'leader_id']);
+      // 保存 plan_id 到 state，避免 form 重渲染时丢失
+      setSelectedPlanId(values.plan_id);
       // 清空步骤2的单位选择，避免旧数据残留
       setSelectedUnitIds([]);
       setMatchedCadres([]);
@@ -229,7 +233,7 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
           showSearch
           filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
           options={plans.map((p) => ({ value: p.id, label: p.name }))}
-          
+          onChange={(val) => setSelectedPlanId(val)}
           loading={loading}
         />
       </Form.Item>
@@ -269,8 +273,8 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
   const renderStep2 = () => {
     // 获取当前选中计划的 target_units，过滤单位列表
     // target_units 可能是 UUID 数组，也可能是单位名称数组（遗留数据），两边都匹配
-    const formValues = form.getFieldsValue();
-    const selectedPlan = plans.find((p) => p.id === formValues.plan_id);
+    // 使用 selectedPlanId state 而非 form.getFieldsValue()，因为 form 重渲染时可能丢失数据
+    const selectedPlan = plans.find((p) => p.id === selectedPlanId);
     const targetUnitIds: string[] = selectedPlan?.target_units || [];
     // 建立 name -> id 的映射，处理 target_units 为单位名称的情况
     // target_units 可能是 UUID，也可能是单位名称（旧数据/不完整名称）
