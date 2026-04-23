@@ -103,7 +103,70 @@
 
 ---
 
-## 2026-04-18 功能补全
+## 2026-04-23 巡察组匹配规则配置化 + 巡察周期分类配置
+
+### 1. 巡察组匹配规则重构为可配置化
+
+**需求背景：** 之前的匹配规则硬编码在代码中，无法灵活调整。
+
+**实现内容：**
+- ✅ 单位档案新增 `business_tags` 业务标签字段（Select tags 模式，可多选）
+- ✅ 系统配置新增 `tag_match_rules` 配置项（JSON格式标签匹配规则）
+- ✅ 系统配置新增 `default_cadre_categories` 默认干部类别配置
+- ✅ 系统配置新增 `match_by_tags` 开关
+- ✅ 创建巡察组时 `matchCadres` 函数从系统配置读取规则，不再硬编码
+
+**标签匹配规则格式：**
+```json
+{
+  "财务": ["财务干部"],
+  "审计": ["审计干部"],
+  "纪检监察": ["纪检监察干部"],
+  "党建": ["综合干部"],
+  "组织": ["综合干部"]
+}
+```
+
+**修改文件：**
+- backend/app/models/unit.py: 添加 business_tags 字段
+- backend/app/schemas/unit.py: 添加 business_tags 字段
+- backend/app/api/v1/units.py: 返回 business_tags
+- frontend/pages/Archive/Units/UnitDetail.tsx: 添加业务标签输入
+- frontend/pages/Admin/Configs/SystemConfigPage.tsx: 添加 json 类型支持和新配置项
+- frontend/pages/Plan/Groups/CreateGroupModal.tsx: matchCadres 从配置读取规则
+
+### 2. 巡察周期配置按单位类型分离
+
+**需求背景：** 管委会/政府部门和其他单位的巡察周期可能不同，需要独立配置。
+
+**实现内容：**
+- ✅ 系统配置新增"巡察周期配置"标签页
+- ✅ 管委会/政府部门：独立配置 `gov_cycle_start_date` 和 `gov_cycle_years`
+- ✅ 其他单位：独立配置 `other_cycle_start_date` 和 `other_cycle_years`
+- ✅ 创建巡察计划时，根据单位类型使用对应配置计算 pending 状态
+
+**管委会/政府部门判断依据（unit_type 字段）：**
+```typescript
+['government', 'government_agency', '党政机关', '政府部门', '党委工作机构', '党委', '政府', '管委会']
+```
+
+**修改文件：**
+- frontend/pages/Admin/Configs/SystemConfigPage.tsx: 新增 cycleConfigGovFields/cycleConfigOtherFields 和对应的 tab
+- frontend/pages/Plan/Plans/CreatePlanModal.tsx: 根据 isGovUnit 判断使用哪个周期配置
+
+### 3. Bug修复
+
+- ✅ SystemConfigPage.tsx: 修复 Input 未导入导致的 "Input is not defined" 错误
+
+### 验证结果
+
+- TypeScript 编译：无错误 ✅
+- Vite 生产构建：成功 ✅
+- Git 提交并推送：origin main + code-done ✅
+
+---
+
+## 2026-04-22 Bug 修复
 
 ### 新增页面
 
