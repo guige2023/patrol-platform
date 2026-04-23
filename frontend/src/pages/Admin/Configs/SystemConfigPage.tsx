@@ -8,7 +8,7 @@ interface ConfigValue {
   [key: string]: string;
 }
 
-type FieldType = 'number' | 'switch' | 'select';
+type FieldType = 'number' | 'switch' | 'select' | 'json';
 
 interface FieldDef {
   name: string;
@@ -48,8 +48,22 @@ const SystemConfigPage: React.FC = () => {
     const values = form.getFieldsValue();
     setSaving(true);
     try {
+      // Get all field definitions for type checking
+      const allFields = [...timeNodesFields, ...matchRulesFields, ...warningRulesFields];
+      const fieldTypeMap: Record<string, string> = {};
+      allFields.forEach(f => { fieldTypeMap[f.name] = f.type; });
+
       // Save each config
       const savePromises = Object.entries(values).map(([key, value]) => {
+        if (fieldTypeMap[key] === 'json' && typeof value === 'string') {
+          // JSON fields: try to parse and store as JSON string, or keep as-is
+          try {
+            JSON.parse(value); // validate JSON
+          } catch {
+            // Not valid JSON, keep as-is so user can fix it
+          }
+          return updateSystemConfig(key, value ?? '');
+        }
         return updateSystemConfig(key, String(value ?? ''));
       });
       await Promise.all(savePromises);
@@ -103,6 +117,14 @@ const SystemConfigPage: React.FC = () => {
     { name: 'exclude_parent_unit', label: '禁止上级单位人员同组', type: 'switch' },
     { name: 'exclude_child_unit', label: '禁止下级单位人员同组', type: 'switch' },
     { name: 'match_by_tags', label: '按标签匹配', type: 'switch' },
+    { name: 'tag_match_rules', label: '标签匹配规则（JSON）', type: 'json' },
+    { name: 'default_cadre_categories', label: '默认干部类别', type: 'select', options: [
+      { label: '组员库', value: '组员库' },
+      { label: '组长库', value: '组长库' },
+      { label: '纪委', value: '纪委' },
+      { label: '综合干部', value: '综合干部' },
+      { label: '后备干部', value: '后备干部' },
+    ]},
     { name: 'max_group_members', label: '巡察组最大人数', type: 'number', min: 3, max: 20 },
     { name: 'min_group_members', label: '巡察组最小人数', type: 'number', min: 3, max: 10 },
   ];
@@ -142,6 +164,22 @@ const SystemConfigPage: React.FC = () => {
             <Select
               style={{ width: 200 }}
               options={field.options}
+            />
+          </Form.Item>
+        );
+      }
+      if (field.type === 'json') {
+        return (
+          <Form.Item
+            key={field.name}
+            name={field.name}
+            label={field.label}
+            style={{ marginBottom: 16 }}
+          >
+            <Input.TextArea
+              rows={4}
+              placeholder='如：{"财务": ["财务干部"], "审计": ["审计干部"]}'
+              style={{ width: 400, fontFamily: 'monospace' }}
             />
           </Form.Item>
         );

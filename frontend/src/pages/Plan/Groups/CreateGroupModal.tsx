@@ -8,6 +8,7 @@ import { getPlans } from '@/api/plans';
 import { getUnits } from '@/api/units';
 import { getCadres } from '@/api/cadres';
 import { createGroup } from '@/api/groups';
+import { getSystemConfigs } from '@/api/systemConfigs';
 import { getErrorMessage } from '@/utils/error';
 
 const { Text } = Typography;
@@ -29,6 +30,7 @@ interface UnitOption {
   id: string;
   name: string;
   tags?: string[];
+  business_tags?: string[];
   last_inspection_year?: number | null;
 }
 
@@ -42,24 +44,51 @@ interface CadreOption {
   unit_name?: string;
 }
 
-function matchCadres(selectedUnits: UnitOption[], allCadres: CadreOption[]): CadreOption[] {
-  // Collect all tags from selected units
-  const unitTags: string[] = [];
+interface MatchRulesConfig {
+  match_by_tags?: boolean;
+  tag_match_rules?: Record<string, string[]>;
+  default_cadre_categories?: string[];
+  exclude_same_unit?: boolean;
+  exclude_parent_unit?: boolean;
+  exclude_child_unit?: boolean;
+}
+
+function matchCadres(
+  selectedUnits: UnitOption[],
+  allCadres: CadreOption[],
+  config: MatchRulesConfig
+): CadreOption[] {
+  const { match_by_tags, tag_match_rules = {}, default_cadre_categories = ['组员库'] } = config;
+
+  // Collect business_tags from selected units (NOT party tags)
+  const unitBusinessTags: string[] = [];
   const unitNames: string[] = selectedUnits.map((u) => u.name);
   const unitIds: string[] = selectedUnits.map((u) => u.id);
   selectedUnits.forEach((u) => {
-    if (Array.isArray(u.tags)) unitTags.push(...u.tags);
+    if (Array.isArray(u.business_tags)) unitBusinessTags.push(...u.business_tags);
   });
 
-  // Determine target categories
+  // Determine target categories based on config
   const targetCategories: string[] = [];
-  const tagStr = unitTags.join('');
-  if (tagStr.includes('财务')) targetCategories.push('财务干部');
-  if (tagStr.includes('审计')) targetCategories.push('审计干部');
-  if (tagStr.includes('纪检监察')) targetCategories.push('纪检监察干部');
-  if (targetCategories.length === 0) {
-    targetCategories.push('综合干部', '后备干部');
+
+  if (match_by_tags && Object.keys(tag_match_rules).length > 0) {
+    // 使用配置的标签匹配规则
+    for (const tag of unitBusinessTags) {
+      if (tag_match_rules[tag]) {
+        targetCategories.push(...tag_match_rules[tag]);
+      }
+    }
+    // 如果没有匹配到任何标签，使用默认类别
+    if (targetCategories.length === 0) {
+      targetCategories.push(...default_cadre_categories);
+    }
+  } else {
+    // 不使用标签匹配，使用默认类别
+    targetCategories.push(...default_cadre_categories);
   }
+
+  // Remove duplicates
+  const uniqueCategories = [...new Set(targetCategories)];
 
   return allCadres.filter((c) => {
     // Exclude cadres from the inspected units themselves
@@ -67,8 +96,9 @@ function matchCadres(selectedUnits: UnitOption[], allCadres: CadreOption[]): Cad
     if (unitNames.some((n) => c.unit_name && c.unit_name.includes(n))) return false;
     // Exclude cadres tagged as "回避"
     if (Array.isArray(c.tags) && c.tags.some((t: string) => t.includes('回避'))) return false;
-    // Match category
-    if (c.category && targetCategories.some((cat) => c.category!.includes(cat) || cat.includes(c.category!))) {
+    // Match category - if uniqueCategories is empty, match all
+    if (uniqueCategories.length === 0) return true;
+    if (c.category && uniqueCategories.some((cat) => c.category!.includes(cat) || cat.includes(c.category!))) {
       return true;
     }
     return false;
@@ -85,6 +115,16 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
   const [plans, setPlans] = useState<PlanOption[]>([]);
   const [allUnits, setAllUnits] = useState<UnitOption[]>([]);
   const [allCadres, setAllCadres] = useState<CadreOption[]>([]);
+
+  // 巡察组匹配规则配置（从系统配置读取）
+  const [matchRulesConfig, setMatchRulesConfig] = useState<{
+    match_by_tags?: boolean;
+    tag_match_rules?: Record<string, string[]>;
+    default_cadre_categories?: string[];
+    exclude_same_unit?: boolean;
+    exclude_parent_unit?: boolean;
+    exclude_child_unit?: boolean;
+  }>({});
 
   // Step 1 - selected plan id stored in state (not just form) to survive re-renders
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
@@ -115,10 +155,11 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
   const loadData = async () => {
     setLoading(true);
     try {
-      const [plansRes, unitsRes, cadresRes] = await Promise.all([
+      const [plansRes, unitsRes, cadresRes, configsRes] = await Promise.all([
         getPlans({ page_size: 100 }),
         getUnits({ page_size: 100 }),
         getCadres({ page_size: 100 }),
+        getSystemConfigs(),
       ]);
 
       // Include all non-completed plans (draft, approved, submitted, in_progress, published)
@@ -137,6 +178,42 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
         unit_name: c.unit_id ? unitMap[c.unit_id] : undefined,
       }));
       setAllCadres(cadres);
+
+      // 解析系统配置中的匹配规则
+      const configMap: Record<string, any> = {};
+      if (Array.isArray(configsRes)) {
+        configsRes.forEach((item: any) => { configMap[item.key] = item.value; });
+      }
+      // 解析 tag_match_rules JSON
+      let tagMatchRules: Record<string, string[]> = {};
+      if (configMap.tag_match_rules) {
+        try {
+          if (typeof configMap.tag_match_rules === 'string') {
+            tagMatchRules = JSON.parse(configMap.tag_match_rules);
+          } else {
+            tagMatchRules = configMap.tag_match_rules;
+          }
+        } catch { /* ignore parse errors */ }
+      }
+      // 解析 default_cadre_categories
+      let defaultCategories: string[] = ['组员库'];
+      if (configMap.default_cadre_categories) {
+        try {
+          if (typeof configMap.default_cadre_categories === 'string') {
+            defaultCategories = JSON.parse(configMap.default_cadre_categories);
+          } else if (Array.isArray(configMap.default_cadre_categories)) {
+            defaultCategories = configMap.default_cadre_categories;
+          }
+        } catch { /* ignore parse errors */ }
+      }
+      setMatchRulesConfig({
+        match_by_tags: configMap.match_by_tags === true || configMap.match_by_tags === 'true',
+        tag_match_rules: tagMatchRules,
+        default_cadre_categories: defaultCategories,
+        exclude_same_unit: configMap.exclude_same_unit === true || configMap.exclude_same_unit === 'true',
+        exclude_parent_unit: configMap.exclude_parent_unit === true || configMap.exclude_parent_unit === 'true',
+        exclude_child_unit: configMap.exclude_child_unit === true || configMap.exclude_child_unit === 'true',
+      });
     } catch (e) {
       console.error('Failed to load data', e);
     } finally {
@@ -164,9 +241,9 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
       message.warning('请至少选择一个被巡察单位');
       return;
     }
-    // Match cadres for step 3
+    // Match cadres for step 3 using config rules
     const selUnits = allUnits.filter((u) => selectedUnitIds.includes(u.id));
-    const matched = matchCadres(selUnits, allCadres);
+    const matched = matchCadres(selUnits, allCadres, matchRulesConfig);
     setMatchedCadres(matched);
     setSelectedMemberIds(matched.map((c) => c.id));
     setCurrentStep(2);

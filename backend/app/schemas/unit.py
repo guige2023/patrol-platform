@@ -12,6 +12,7 @@ class UnitBase(BaseModel):
     level: Optional[str] = None
     sort_order: Optional[int] = 0
     tags: Optional[dict] = {}
+    business_tags: Optional[List[str]] = []
     profile: Optional[str] = None
     leadership: Optional[dict] = None
     contact: Optional[dict] = None
@@ -31,6 +32,7 @@ class UnitUpdate(BaseModel):
     level: Optional[str] = None
     sort_order: Optional[int] = None
     tags: Optional[dict] = None
+    business_tags: Optional[List[str]] = None
     profile: Optional[str] = None
     leadership: Optional[dict] = None
     contact: Optional[dict] = None

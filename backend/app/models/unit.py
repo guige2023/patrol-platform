@@ -18,6 +18,7 @@ class Unit(Base):
     level = Column(String(20), nullable=True)  # 一级单位、二级单位
     sort_order = Column(Integer, default=0)
     tags = Column(JSON, default=dict)
+    business_tags = Column(JSON, default=list)  # 业务标签，如 ["财务", "审计", "纪检监察"]
     profile = Column(Text)  # 单位简介
     leadership = Column(JSON)  # {"secretary": "...", "head": "..."}
     contact = Column(JSON)  # {"phone": "...", "address": "..."}

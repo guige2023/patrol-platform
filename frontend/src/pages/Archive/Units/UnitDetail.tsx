@@ -17,6 +17,7 @@ interface Unit {
   level?: string;
   sort_order?: number;
   tags?: Record<string, string>;
+  business_tags?: string[];
   profile?: string;
   leadership?: Record<string, string>;
   contact?: Record<string, string>;
@@ -198,6 +199,16 @@ const UnitDetail: React.FC = () => {
           )}
           <Form.Item name="profile" label="单位简介">
             <Input.TextArea rows={2} placeholder="请输入单位简介" />
+          </Form.Item>
+
+          <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 8, color: '#262626' }}>业务标签</div>
+          <Form.Item name="business_tags" label="业务标签" style={{ marginBottom: 12 }}>
+            <Select
+              mode="tags"
+              placeholder="输入业务标签后按回车添加，如：财务、审计、纪检监察等"
+              style={{ width: '100%' }}
+              tokenSeparators={[',', '，']}
+            />
           </Form.Item>
 
           <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 8, color: '#262626' }}>党组织情况</div>
