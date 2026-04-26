@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Table, Button, Space, Tag, Progress, message, Popconfirm, Select } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Tag, Progress, message, Popconfirm, Select, Input } from 'antd';
+import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import type { Key } from 'antd/es/table/interface';
 import PageHeader from '@/components/common/PageHeader';
 import { getRectifications, signRectification, verifyRectification, exportRectifications, deleteRectification, submitRectification, batchDeleteRectifications, batchUpdateRectificationStatus } from '@/api/rectifications';
@@ -57,11 +57,12 @@ const RectificationList: React.FC = () => {
   const [editMode, setEditMode] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([]);
   const [batchStatusVal, setBatchStatusVal] = useState<string | undefined>();
+  const [searchText, setSearchText] = useState<string>('');
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await getRectifications({ page, page_size: pageSize });
+      const res = await getRectifications({ page, page_size: pageSize, title: searchText });
       setData(res?.items ?? []);
       setTotal(res?.total ?? 0);
     } finally {
@@ -69,7 +70,7 @@ const RectificationList: React.FC = () => {
     }
   };
 
-  useEffect(() => { fetchData(); }, [page, pageSize]);
+  useEffect(() => { fetchData(); }, [page, pageSize, searchText]);
 
   const handleSign = async (id: string) => {
     try {
@@ -177,6 +178,13 @@ const RectificationList: React.FC = () => {
     <div>
       <PageHeader title="整改督办" breadcrumbs={[{ name: '执纪执行' }, { name: '整改督办' }]} />
       <div style={{ marginBottom: 16 }}>
+        <Input.Search
+          placeholder="搜索整改标题"
+          onSearch={(value) => { setSearchText(value); setPage(1); }}
+          style={{ width: 200, marginRight: 8 }}
+          allowClear
+          enterButton={<Button icon={<SearchOutlined />}>搜索</Button>}
+        />
         <Button type="primary" icon={<PlusOutlined />} onClick={() => { setRectificationId(null); setEditMode(false); setModalOpen(true); }} style={{ marginRight: 8 }}>派发整改</Button>
         <Button onClick={() => exportRectifications().catch(() => message.error('导出失败'))} style={{ marginRight: 8 }}>导出</Button>
         {selectedRowKeys.length > 0 && (

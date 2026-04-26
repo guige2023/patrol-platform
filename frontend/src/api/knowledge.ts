@@ -1,7 +1,8 @@
 import api from './client';
+import { message } from 'antd';
 
 export const getKnowledgeList = (params?: { page?: number; page_size?: number; title?: string; category?: string }) =>
-  api.get('/knowledge/', { params }).then(res => res.data);
+  api.get('/knowledge/', { params }).then(res => (res.data as any)?.data ?? res.data);
 
 // Backend returns {data: {knowledge_fields}, message: "..."} for single-object GET.
 // The response interceptor does NOT unwrap it (no items/total). Unwrap manually.
@@ -23,10 +24,10 @@ export const publishKnowledge = (id: string) =>
   api.post(`/knowledge/${id}/publish`);
 
 export const getKnowledgeCategories = () =>
-  api.get('/knowledge/categories').then(res => res.data);
+  api.get('/knowledge/knowledge-categories').then(res => res.data);
 
 export const exportKnowledge = (params?: { category?: string }) => {
-  return api.get('/knowledge/download', { params, responseType: 'blob' }).then(res => {
+  return api.get('/knowledge/knowledge-export', { params, responseType: 'blob' }).then(res => {
     const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -34,5 +35,8 @@ export const exportKnowledge = (params?: { category?: string }) => {
     a.download = 'knowledge.xlsx';
     a.click();
     window.URL.revokeObjectURL(url);
+  }).catch((e) => {
+    message.error('导出失败: ' + (e.message || '未知错误'));
+    throw e;
   });
 };

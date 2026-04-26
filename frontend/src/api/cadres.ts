@@ -1,7 +1,7 @@
 import api from './client';
 
 export const getCadres = (params?: { page?: number; page_size?: number; name?: string; unit_id?: string }) =>
-  api.get('/cadres/', { params }).then(res => res.data);
+  api.get('/cadres/', { params }).then(res => (res.data as any)?.data ?? res.data);
 
 // Backend returns {data: {cadre_fields}, message: "..."} for single-object GET.
 // The response interceptor does NOT unwrap it (no items/total). Unwrap manually.

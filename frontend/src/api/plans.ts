@@ -5,7 +5,7 @@ export const getPlanYears = () =>
 import { message } from 'antd';
 
 export const getPlans = (params?: { page?: number; page_size?: number; name?: string; year?: number; status?: string; principal_id?: string }) =>
-  api.get('/plans/', { params }).then(res => res.data);
+  api.get('/plans/', { params }).then(res => (res.data as any)?.data ?? res.data);
 
 // Backend returns {data: {plan_fields}, message: "..."} for single-object GET.
 // The response interceptor does NOT unwrap it (no items/total). Unwrap manually.

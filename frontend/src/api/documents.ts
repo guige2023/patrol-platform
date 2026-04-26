@@ -14,8 +14,8 @@ export interface Document {
   created_at: string;
 }
 
-export const getDocuments = (params?: { type?: string; plan_id?: string; page?: number; page_size?: number }) =>
-  api.get('/documents/', { params }).then(res => res.data);
+export const getDocuments = (params?: { type?: string; plan_id?: string; page?: number; page_size?: number; search?: string }) =>
+  api.get('/documents/', { params }).then(res => (res.data as any)?.data ?? res.data);
 
 // Backend returns {data: {doc_fields}, message: "..."} — manual unwrap needed.
 export const getDocument = (id: string) =>

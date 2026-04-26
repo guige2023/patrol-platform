@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from typing import Optional
 from uuid import UUID
 from datetime import datetime
@@ -30,6 +30,7 @@ DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
 async def list_documents(
     type: Optional[str] = None,
     plan_id: Optional[UUID] = None,
+    search: Optional[str] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=9999),
     uow: UnitOfWork = Depends(get_uow),
@@ -40,6 +41,13 @@ async def list_documents(
         query = query.where(Document.type == type)
     if plan_id:
         query = query.where(Document.plan_id == plan_id)
+    if search:
+        query = query.where(
+            or_(
+                Document.title.ilike(f"%{search}%"),
+                Document.doc_number.ilike(f"%{search}%")
+            )
+        )
 
     count_result = await uow.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar()

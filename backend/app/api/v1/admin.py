@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_, cast, String
 from uuid import UUID
 import io
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from app.dependencies import get_uow, get_current_user
+from app.dependencies import get_uow, get_current_user, check_permission
 from app.database import UnitOfWork
 from app.models.user import User, Role, Permission
 from app.models.unit import Unit
@@ -21,7 +21,11 @@ router = APIRouter()
 
 
 @router.get("/users")
-async def list_users(uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def list_users(
+    uow: UnitOfWork = Depends(get_uow), 
+    current_user: User = Depends(get_current_user),
+):
+    await check_permission(current_user, "user:read")
     result = await uow.execute(select(User).order_by(User.created_at.desc()))
     users = result.scalars().all()
     return [
@@ -36,6 +40,7 @@ async def create_user(
     uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
+    await check_permission(current_user, "user:write")
     existing = await uow.execute(select(User).where(User.username == user_data.username))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Username already exists")
@@ -62,6 +67,7 @@ async def update_user(
     uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
+    await check_permission(current_user, "user:write")
     result = await uow.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
@@ -82,6 +88,7 @@ async def delete_user(
     uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
+    await check_permission(current_user, "user:write")
     result = await uow.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
@@ -92,26 +99,75 @@ async def delete_user(
     return {"message": "User deleted"}
 
 
+# 中英文映射
+ACTION_LABELS = {
+    "create": "创建", "update": "更新", "delete": "删除",
+    "submit": "提交", "approve": "审批", "publish": "发布",
+    "transfer": "移交", "sign": "签收", "verify": "核实",
+    "confirm": "确认", "draft_submit": "底稿提交", "draft_approve": "底稿审批",
+    "draft_reject": "底稿退回", "draft_publish": "底稿发布",
+    "update_progress": "更新进度", "reimport": "重新导入",
+    "generate": "生成", "upload": "上传", "download": "下载",
+}
+
+ENTITY_TYPE_LABELS = {
+    "user": "用户", "role": "角色", "unit": "单位", "cadre": "干部",
+    "plan": "巡察计划", "group": "巡察组", "draft": "底稿",
+    "clue": "线索", "rectification": "整改", "knowledge": "知识库",
+    "document": "文档", "progress": "进度", "notification": "通知",
+    "alert": "告警", "attachment": "附件",
+}
+
+
 @router.get("/audit-logs")
 async def list_audit_logs(
     page: int = 1,
     page_size: int = 50,
     entity_type: str = None,
+    search: str = None,
     uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
-    query = select(AuditLog)
+    await check_permission(current_user, "audit:read")
+    # JOIN with users to get full_name
+    query = (
+        select(AuditLog, User.full_name)
+        .outerjoin(User, AuditLog.user_id == User.id)
+        .order_by(AuditLog.created_at.desc())
+    )
     if entity_type:
         query = query.where(AuditLog.entity_type == entity_type)
-    count_result = await uow.execute(select(func.count()).select_from(query.subquery()))
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.where(
+            or_(
+                User.full_name.ilike(search_pattern),
+                AuditLog.entity_id.cast(String).ilike(search_pattern)
+            )
+        )
+    count_result = await uow.execute(select(func.count()).select_from(AuditLog))
     total = count_result.scalar()
-    query = query.order_by(AuditLog.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
+    query = query.offset((page - 1) * page_size).limit(page_size)
     result = await uow.execute(query)
-    logs = result.scalars().all()
-    return {"items": [
-        {"id": l.id, "user_id": l.user_id, "action": l.action, "entity_type": l.entity_type, "entity_id": l.entity_id, "created_at": l.created_at}
-        for l in logs
-    ], "total": total}
+    rows = result.all()
+    return {
+        "items": [
+            {
+                "id": l[0].id,
+                "user_id": str(l[0].user_id) if l[0].user_id else None,
+                "username": l[1] or "未知用户",
+                "action": l[0].action,
+                "action_label": ACTION_LABELS.get(l[0].action, l[0].action),
+                "entity_type": l[0].entity_type,
+                "entity_type_label": ENTITY_TYPE_LABELS.get(l[0].entity_type, l[0].entity_type),
+                "entity_id": str(l[0].entity_id),
+                "changes": l[0].detail or {},
+                "created_at": l[0].created_at,
+            }
+            for l in rows
+        ],
+        "total": total,
+    }
 
 
 @router.get("/audit-logs/download")
@@ -179,19 +235,35 @@ async def export_audit_logs(
 
 
 @router.get("/modules")
-async def list_modules(uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def list_modules(
+    uow: UnitOfWork = Depends(get_uow), 
+    current_user: User = Depends(get_current_user),
+):
+    await check_permission(current_user, "module:read")
     result = await uow.execute(select(ModuleConfig))
     modules = result.scalars().all()
     return modules
 
 
 @router.put("/modules/{module_id}")
-async def update_module(module_id: UUID, is_enabled: bool, config: dict = None, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def update_module(
+    module_id: UUID, 
+    data: dict = None, 
+    uow: UnitOfWork = Depends(get_uow), 
+    current_user: User = Depends(get_current_user),
+):
+    """Update module config. Accepts body with is_enabled and optional config."""
+    await check_permission(current_user, "module:write")
     result = await uow.execute(select(ModuleConfig).where(ModuleConfig.id == module_id))
     module = result.scalar_one_or_none()
     if not module:
         raise HTTPException(status_code=404, detail="Module not found")
-    module.is_enabled = is_enabled
+    if data is None:
+        raise HTTPException(status_code=400, detail="Request body required")
+    is_enabled = data.get("is_enabled")
+    config = data.get("config")
+    if is_enabled is not None:
+        module.is_enabled = is_enabled
     if config is not None:
         module.config = config
     await uow.commit()
@@ -201,8 +273,12 @@ async def update_module(module_id: UUID, is_enabled: bool, config: dict = None, 
 # ─── Roles ────────────────────────────────────────────────────────────────────
 
 @router.get("/roles")
-async def list_roles(uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def list_roles(
+    uow: UnitOfWork = Depends(get_uow), 
+    current_user: User = Depends(get_current_user),
+):
     """List all roles."""
+    await check_permission(current_user, "role:read")
     result = await uow.execute(select(Role).order_by(Role.created_at.desc()))
     roles = result.scalars().all()
     return [
@@ -226,6 +302,7 @@ async def create_role(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new role."""
+    await check_permission(current_user, "role:write")
     name = data.get("name")
     code = data.get("code")
     if not name or not code:
@@ -255,6 +332,7 @@ async def update_role(
     current_user: User = Depends(get_current_user),
 ):
     """Update a role."""
+    await check_permission(current_user, "role:write")
     result = await uow.execute(select(Role).where(Role.id == role_id))
     role = result.scalar_one_or_none()
     if not role:
@@ -279,6 +357,7 @@ async def delete_role(
     current_user: User = Depends(get_current_user),
 ):
     """Soft-delete a role."""
+    await check_permission(current_user, "role:write")
     result = await uow.execute(select(Role).where(Role.id == role_id))
     role = result.scalar_one_or_none()
     if not role:
@@ -290,8 +369,12 @@ async def delete_role(
 
 
 @router.get("/permissions")
-async def list_permissions(uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def list_permissions(
+    uow: UnitOfWork = Depends(get_uow), 
+    current_user: User = Depends(get_current_user),
+):
     """List all available permissions."""
+    await check_permission(current_user, "role:read")
     result = await uow.execute(select(Permission).order_by(Permission.code))
     perms = result.scalars().all()
     return [

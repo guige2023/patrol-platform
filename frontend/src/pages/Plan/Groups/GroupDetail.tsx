@@ -255,6 +255,7 @@ const GroupDetail: React.FC<GroupDetailProps> = ({ open, editingId, mode, onCanc
 
   const memberColumns = [
     { title: '姓名', dataIndex: 'cadre_name', key: 'cadre_name' },
+    { title: '职务', dataIndex: 'position', key: 'position', render: (p: string) => p || '-' },
     { title: '角色', dataIndex: 'role', key: 'role', render: (r: string) => <Tag color={roleColors[r] || 'default'}>{r}</Tag> },
     { title: '操作', key: 'action', render: (_: any, record: any) => (
       <Space size="small">

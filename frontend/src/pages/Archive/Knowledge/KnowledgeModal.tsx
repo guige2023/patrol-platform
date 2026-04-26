@@ -44,6 +44,7 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
   const [uploading, setUploading] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string>('');
+  const [previewType, setPreviewType] = useState<'image' | 'pdf' | 'other'>('other');
   const [previewFilename, setPreviewFilename] = useState<string>('');
 
   const { getOptions } = useFieldOptions();
@@ -90,14 +91,17 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
   };
 
   const handleDownload = async (att: Attachment) => {
-    if (!knowledgeId) return;
+    if (!knowledgeId) {
+      message.error('无法获取知识库ID');
+      return;
+    }
     const token = localStorage.getItem('token');
     if (!token) {
       message.error('未登录或登录已过期，请重新登录');
       return;
     }
     try {
-      const res = await fetch(`/api/knowledge/${knowledgeId}/attachments/${encodeURIComponent(att.filename)}/download?watermark=true`, {
+      const res = await fetch(`/api/v1/knowledge/${knowledgeId}/attachments/${encodeURIComponent(att.filename)}/download?watermark=true`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
@@ -113,7 +117,9 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
       const a = document.createElement('a');
       a.href = blobUrl;
       a.download = att.filename;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       window.URL.revokeObjectURL(blobUrl);
     } catch (e: any) {
       message.error(e.message || '下载失败');
@@ -121,14 +127,33 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
   };
 
   const handlePreview = async (att: Attachment) => {
-    if (!knowledgeId) return;
+    if (!knowledgeId) {
+      message.error('无法获取知识库ID');
+      return;
+    }
     const token = localStorage.getItem('token');
     if (!token) {
       message.error('未登录或登录已过期，请重新登录');
       return;
     }
+    // 检测文件类型（后端会处理 Office 文件转换为 PDF）
+    const ext = att.filename.split('.').pop()?.toLowerCase() || '';
+    const isImage = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext);
+    // Office 文件 (doc/docx/xls/xlsx/ppt/pptx) 后端会转为 PDF 返回
+    const isOffice = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp'].includes(ext);
+    const isPdf = ext === 'pdf' || isOffice;
+    const previewType: 'image' | 'pdf' | 'other' = isImage ? 'image' : isPdf ? 'pdf' : 'other';
+    setPreviewType(previewType);
+
+    // 不支持的格式直接下载
+    if (previewType === 'other') {
+      handleDownload(att);
+      message.warning('该文件格式不支持预览，已为您下载');
+      return;
+    }
+
     try {
-      const res = await fetch(`/api/knowledge/${knowledgeId}/attachments/${encodeURIComponent(att.filename)}?watermark=true`, {
+      const res = await fetch(`/api/v1/knowledge/${knowledgeId}/attachments/${encodeURIComponent(att.filename)}?watermark=true`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
@@ -140,10 +165,17 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
         throw new Error(errMsg);
       }
       const blob = await res.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      setPreviewUrl(blobUrl);
-      setPreviewFilename(att.filename);
-      setPreviewOpen(true);
+      // 使用data URL而不是blob URL，让iframe可以直接渲染PDF
+      const reader = new FileReader();
+      reader.onload = () => {
+        setPreviewUrl(reader.result as string);
+        setPreviewFilename(att.filename);
+        setPreviewOpen(true);
+      };
+      reader.onerror = () => {
+        throw new Error('读取文件失败');
+      };
+      reader.readAsDataURL(blob);
     } catch (e: any) {
       message.error(e.message || '预览失败');
     }
@@ -317,9 +349,16 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
       }}
       footer={null}
       width={800}
-      bodyStyle={{ height: '70vh', padding: 0 }}
+      styles={{ body: { height: '60vh', padding: 0, overflow: 'hidden' } }}
     >
-      {previewUrl && (
+      {previewUrl && previewType === 'image' && (
+        <img
+          src={previewUrl}
+          alt={previewFilename}
+          style={{ maxWidth: '100%', maxHeight: '100%', display: 'block', margin: '0 auto' }}
+        />
+      )}
+      {previewUrl && previewType === 'pdf' && (
         <iframe
           src={previewUrl}
           style={{ width: '100%', height: '100%', border: 'none' }}

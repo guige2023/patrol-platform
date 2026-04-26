@@ -50,7 +50,7 @@ const PlanCreateWizard: React.FC = () => {
   
   // Step 3: Group matching
   const [eligibleCadres, setEligibleCadres] = useState<Cadre[]>([]);
-  const [excludedCadres, setExcludedCadres] = useState<{ cadre_id: string; name: string; position: string; reason: string }[]>([]);
+  const [excludedCadres, _setExcludedCadres] = useState<{ cadre_id: string; name: string; position: string; reason: string }[]>([]);
   const [selectedLeader, setSelectedLeader] = useState<string | undefined>();
   const [selectedDeputyLeaders, setSelectedDeputyLeaders] = useState<string[]>([]);
   const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);

@@ -1,7 +1,7 @@
 import api from './client';
 
-export const getGroups = (params?: { plan_id?: string; status?: string }) =>
-  api.get('/groups/', { params }).then(res => res.data);
+export const getGroups = (params?: { plan_id?: string; status?: string; search?: string }) =>
+  api.get('/groups/', { params }).then(res => (res.data as any)?.data ?? res.data);
 // Backend returns {data: {group_fields}, message: "..."} — manual unwrap needed.
 export const getGroup = (id: string) =>
   api.get(`/groups/${id}`).then(res => (res.data as any).data);

@@ -21,15 +21,6 @@ async def init_db():
         # 创建默认管理员（幂等）
         existing_admin = await db.execute(select(User).where(User.username == "admin"))
         if not existing_admin.scalar_one_or_none():
-            admin = User(
-                username="admin",
-                email="admin@patrol.local",
-                hashed_password=AuthService.get_password_hash("admin123"),
-                full_name="系统管理员",
-                is_active=True,
-            )
-            db.add(admin)
-
             # 创建默认角色
             admin_role = Role(
                 name="超级管理员",
@@ -38,7 +29,18 @@ async def init_db():
                 permissions=["*"],
             )
             db.add(admin_role)
-            admin.roles.append(admin_role)
+            await db.flush()
+
+            # 创建管理员用户
+            admin = User(
+                username="admin",
+                email="admin@patrol.local",
+                hashed_password=AuthService.get_password_hash("admin123"),
+                full_name="系统管理员",
+                is_active=True,
+                role="super_admin",
+            )
+            db.add(admin)
 
         # 创建默认单位（幂等）
         existing_unit = await db.execute(select(Unit).where(Unit.org_code == "ROOT"))
@@ -47,7 +49,7 @@ async def init_db():
                 name="巡察工作领导小组",
                 org_code="ROOT",
                 unit_type="organization",
-                level=0,
+                level="0",
             )
             db.add(root_unit)
 

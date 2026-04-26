@@ -133,6 +133,7 @@ const DraftList: React.FC = () => {
       render: (_, record) => (
         <Space>
           <Button type="link" size="small" onClick={() => openEditModal(record.id)}>查看</Button>
+          <Button type="link" size="small" onClick={() => openEditModal(record.id)}>编辑</Button>
           {record.status === 'draft' && <Button type="link" size="small" onClick={() => handleSubmit(record.id)}>提交</Button>}
           <Button type="link" size="small" danger onClick={() => handleDelete(record.id)}>删除</Button>
         </Space>

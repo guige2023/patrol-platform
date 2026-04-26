@@ -1,7 +1,7 @@
 import api from './client';
 
 export const getDrafts = (params?: { page?: number; page_size?: number; status?: string }) =>
-  api.get('/drafts/', { params }).then(res => res.data);
+  api.get('/drafts/', { params }).then(res => (res.data as any)?.data ?? res.data);
 
 export const getDraft = (id: string) =>
   api.get(`/drafts/${id}`).then(res => res.data);

@@ -9,7 +9,7 @@ export interface BackupRecord {
 }
 
 export const getBackups = () =>
-  api.get('/backup/').then(res => res.data);
+  api.get('/backup/').then(res => (res.data as any).backups ?? []);
 
 export const createBackup = () =>
   api.post('/backup/').then(res => res.data);
@@ -33,7 +33,7 @@ export const downloadBackup = (id: string) => {
 };
 
 export const getBackupSettings = () =>
-  api.get('/backup/settings/').then(res => res.data);
+  api.get('/backup/settings').then(res => res.data);
 
 export const updateBackupSettings = (enabled: boolean, cron?: string) =>
-  api.put('/backup/settings/', { auto_backup_enabled: enabled, cron_expression: cron }).then(res => res.data);
+  api.put('/backup/settings', { auto_backup_enabled: enabled, cron_expression: cron }).then(res => res.data);

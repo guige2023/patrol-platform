@@ -32,7 +32,7 @@ class GUIDTypeDecorator(TypeDecorator):
         return value
 
 
-engine = create_async_engine(settings.DATABASE_URL, echo=False, pool_pre_ping=True)
+engine = create_async_engine(settings.DATABASE_URL, echo=False, pool_pre_ping=True, pool_size=20, max_overflow=30)
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,

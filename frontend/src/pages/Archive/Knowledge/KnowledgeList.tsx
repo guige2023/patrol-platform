@@ -105,6 +105,7 @@ const categoryLabels: Record<string, string> = {
       render: (_, record) => (
         <Space>
           <Button type="link" size="small" onClick={() => { setModalKnowledgeId(record.id); setModalOpen(true); }}>查看</Button>
+          <Button type="link" size="small" onClick={() => { setModalKnowledgeId(record.id); setModalOpen(true); }}>编辑</Button>
           {!record.is_published && (
             <Button type="link" size="small" onClick={() => handlePublish(record.id)}>发布</Button>
           )}

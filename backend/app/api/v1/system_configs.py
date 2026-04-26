@@ -28,6 +28,8 @@ async def list_system_configs(
     """列出所有系统配置（key-value形式返回）"""
     result = await uow.execute(select(SystemConfig).order_by(SystemConfig.key))
     configs = result.scalars().all()
+    if not configs:
+        return []
     return [
         {
             "key": c.key,
@@ -35,6 +37,7 @@ async def list_system_configs(
             "description": c.description,
         }
         for c in configs
+        if c is not None
     ]
 
 

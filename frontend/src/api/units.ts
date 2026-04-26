@@ -1,7 +1,7 @@
 import api from './client';
 
 export const getUnits = (params?: { page?: number; page_size?: number; name?: string }) =>
-  api.get('/units/', { params }).then(res => res.data);
+  api.get('/units/', { params }).then(res => (res.data as any)?.data ?? res.data);
 
 export const getUnitTree = () =>
   api.get('/units/tree').then(res => res.data);

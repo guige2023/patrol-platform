@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Tag, message } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Tag, message, Input } from 'antd';
+import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import RoleModal from './RoleModal';
 import { getRoles, deleteRole } from '@/api/admin';
@@ -42,20 +42,37 @@ const PERMISSION_LABELS: Record<string, string> = {
 const RoleList: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<Role[]>([]);
+  const [filteredData, setFilteredData] = useState<Role[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
+  const [searchText, setSearchText] = useState('');
 
   const fetchData = async () => {
     setLoading(true);
     try {
       const res = await getRoles();
-      setData(Array.isArray(res) ? res : res.data || []);
+      const roles = Array.isArray(res) ? res : res.data || [];
+      setData(roles);
+      setFilteredData(roles);
     } catch (e: any) {
       message.error(getErrorMessage(e) || '加载失败');
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (searchText) {
+      const filtered = data.filter(r =>
+        r.name?.toLowerCase().includes(searchText.toLowerCase()) ||
+        r.code?.toLowerCase().includes(searchText.toLowerCase()) ||
+        r.description?.toLowerCase().includes(searchText.toLowerCase())
+      );
+      setFilteredData(filtered);
+    } else {
+      setFilteredData(data);
+    }
+  }, [searchText, data]);
 
   useEffect(() => { fetchData(); }, []);
 
@@ -114,6 +131,13 @@ const RoleList: React.FC = () => {
     <div>
       <PageHeader title="角色管理" breadcrumbs={[{ name: '系统管理' }, { name: '角色管理' }]} />
       <div style={{ marginBottom: 16 }}>
+        <Input.Search
+          placeholder="搜索角色名称/编码/描述"
+          onSearch={(value) => setSearchText(value)}
+          style={{ width: 200, marginRight: 8 }}
+          allowClear
+          enterButton={<Button icon={<SearchOutlined />}>搜索</Button>}
+        />
         <Button
           type="primary"
           icon={<PlusOutlined />}
@@ -124,7 +148,7 @@ const RoleList: React.FC = () => {
       </div>
       <Table
         columns={columns}
-        dataSource={data}
+        dataSource={filteredData}
         rowKey="id"
         loading={loading}
         pagination={false}

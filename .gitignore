@@ -15,3 +15,4 @@ fix_drafts.py
 patrol.db
 .hermes/plans/prd_patrol_platform.md
 backend/patrol.db
+**/*.db

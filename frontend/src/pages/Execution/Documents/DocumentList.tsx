@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Tag, Card, Select, DatePicker, message, Modal } from 'antd';
-import { EyeOutlined, DownloadOutlined, PrinterOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Tag, Card, Select, DatePicker, message, Modal, Input } from 'antd';
+import { EyeOutlined, DownloadOutlined, PrinterOutlined, FileExcelOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import PageHeader from '@/components/common/PageHeader';
 import { getDocuments, downloadDocument, previewDocument } from '@/api/documents';
@@ -18,6 +18,7 @@ const DocumentList: React.FC = () => {
   const [typeFilter, setTypeFilter] = useState<string | undefined>(undefined);
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [searchText, setSearchText] = useState('');
 
   const fetchData = async () => {
     setLoading(true);
@@ -26,6 +27,7 @@ const DocumentList: React.FC = () => {
         page,
         page_size: pageSize,
         type: typeFilter,
+        search: searchText,
       });
       setData(res.items ?? []);
       setTotal(res.total ?? 0);
@@ -36,7 +38,12 @@ const DocumentList: React.FC = () => {
     }
   };
 
-  useEffect(() => { fetchData(); }, [page, pageSize, typeFilter, dateRange]);
+  useEffect(() => { fetchData(); }, [page, pageSize, typeFilter, dateRange, searchText]);
+
+  const handleSearch = (value: string) => {
+    setSearchText(value);
+    setPage(1);
+  };
 
   const handleDownload = async (doc: Document) => {
     try {
@@ -115,18 +122,32 @@ const DocumentList: React.FC = () => {
 
       <Card style={{ marginBottom: 16 }}>
         <Space wrap>
+          <Input.Search
+            placeholder="搜索标题/文号"
+            onSearch={handleSearch}
+            style={{ width: 200 }}
+            allowClear
+          />
           <span>文档类型：</span>
           <Select
             value={typeFilter}
-            onChange={setTypeFilter}
+            onChange={(v) => { setTypeFilter(v); setPage(1); }}
             options={docTypeOptions}
             style={{ width: 150 }}
             allowClear
           />
           <span>日期范围：</span>
           <RangePicker
-            onChange={(dates) => setDateRange(dates as [dayjs.Dayjs, dayjs.Dayjs] | null)}
+            onChange={(dates) => { setDateRange(dates as [dayjs.Dayjs, dayjs.Dayjs] | null); setPage(1); }}
           />
+          <Button
+            icon={<FileExcelOutlined />}
+            onClick={() => {
+              window.open('/api/documents/export', '_blank');
+            }}
+          >
+            导出
+          </Button>
         </Space>
       </Card>
 

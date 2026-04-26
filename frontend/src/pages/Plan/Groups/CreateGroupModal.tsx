@@ -129,6 +129,11 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
   // Step 1 - selected plan id stored in state (not just form) to survive re-renders
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
 
+  // Step 1 - group name, leader/vice-leader stored in state to avoid form timing issues
+  const [selectedGroupName, setSelectedGroupName] = useState<string>('');
+  const [selectedLeaderId, setSelectedLeaderId] = useState<string | null>(null);
+  const [selectedViceLeaderIds, setSelectedViceLeaderIds] = useState<string[]>([]);
+
   // Step 2 - selected units
   const [selectedUnitIds, setSelectedUnitIds] = useState<string[]>([]);
 
@@ -143,6 +148,9 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
     if (open) {
       setCurrentStep(0);
       setSelectedPlanId(null);
+      setSelectedGroupName('');
+      setSelectedLeaderId(null);
+      setSelectedViceLeaderIds([]);
       setSelectedUnitIds([]);
       setMatchedCadres([]);
       setSelectedMemberIds([]);
@@ -150,6 +158,7 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
       form.resetFields();
       loadData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const loadData = async () => {
@@ -216,6 +225,7 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
       });
     } catch (e) {
       console.error('Failed to load data', e);
+      message.error('加载数据失败，请关闭弹窗后重试');
     } finally {
       setLoading(false);
     }
@@ -223,9 +233,12 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
 
   const handleStep1Next = async () => {
     try {
-      const values = await form.validateFields(['name', 'plan_id', 'leader_id']);
-      // 保存 plan_id 到 state，避免 form 重渲染时丢失
+      // validateFields 不带参数，返回所有字段的完整值（包含 vice_leader_ids）
+      const values = await form.validateFields();
+      setSelectedGroupName(values.name || '');
       setSelectedPlanId(values.plan_id);
+      setSelectedLeaderId(values.leader_id);
+      setSelectedViceLeaderIds(values.vice_leader_ids || []);
       // 清空步骤2的单位选择，避免旧数据残留
       setSelectedUnitIds([]);
       setMatchedCadres([]);
@@ -245,29 +258,31 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
     const selUnits = allUnits.filter((u) => selectedUnitIds.includes(u.id));
     const matched = matchCadres(selUnits, allCadres, matchRulesConfig);
     setMatchedCadres(matched);
-    setSelectedMemberIds(matched.map((c) => c.id));
+    setSelectedMemberIds([]);  // 不自动选中，让用户手动勾选
     setCurrentStep(2);
   };
 
   const handleStep3Next = () => {
-    // Build preview data
-    const formValues = form.getFieldsValue();
-    const selectedPlan = plans.find((p) => p.id === formValues.plan_id);
+    // Build preview data entirely from React state (form values stored in state at step 1)
+    const selectedPlan = plans.find((p) => p.id === selectedPlanId);
     const selectedUnits = allUnits.filter((u) => selectedUnitIds.includes(u.id));
-    const leader = allCadres.find((c) => c.id === formValues.leader_id);
-    const viceLeaders = (formValues.vice_leader_ids || [])
+    const leader = allCadres.find((c) => c.id === selectedLeaderId);
+    const viceLeaders = selectedViceLeaderIds
       .map((id: string) => allCadres.find((c) => c.id === id))
       .filter(Boolean);
-    const members = allCadres.filter((c) => selectedMemberIds.includes(c.id));
+    const members = allCadres.filter((c) =>
+      selectedMemberIds.includes(c.id) &&
+      c.id !== selectedLeaderId &&
+      !selectedViceLeaderIds.includes(c.id)
+    );
 
     setPreviewData({
-      name: formValues.name,
+      formValues: { name: selectedGroupName },
       plan: selectedPlan,
       leader,
       viceLeaders,
       selectedUnits,
       members,
-      formValues,
     });
     setCurrentStep(3);
   };
@@ -275,15 +290,14 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
   const handleConfirmCreate = async () => {
     setSubmitting(true);
     try {
-      const formValues = form.getFieldsValue();
       const payload: any = {
-        name: formValues.name,
-        plan_id: formValues.plan_id,
+        name: selectedGroupName,  // 使用 state 中的 selectedGroupName
+        plan_id: selectedPlanId,
         unit_ids: selectedUnitIds,
-        leader_id: formValues.leader_id,
-        vice_leader_ids: formValues.vice_leader_ids || [],
+        leader_id: selectedLeaderId,
+        vice_leader_ids: selectedViceLeaderIds,
         member_ids: selectedMemberIds.filter(
-          (id) => id !== formValues.leader_id && !(formValues.vice_leader_ids || []).includes(id)
+          (id) => id !== selectedLeaderId && !selectedViceLeaderIds.includes(id)
         ),
       };
       await createGroup(payload);
@@ -315,7 +329,10 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
         />
       </Form.Item>
       <Form.Item name="name" label="巡察组名称" rules={[{ required: true, message: '请输入巡察组名称' }]}>
-        <Input placeholder="如：第一巡察组" />
+        <Input
+          placeholder="如：第一巡察组"
+          onChange={(e) => setSelectedGroupName(e.target.value)}
+        />
       </Form.Item>
       <Row gutter={16}>
         <Col span={12}>
@@ -326,6 +343,7 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
               filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
               options={cadreOptions}
               loading={loading}
+              onChange={(val) => setSelectedLeaderId(val)}
             />
           </Form.Item>
         </Col>
@@ -340,6 +358,7 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
               allowClear
               loading={loading}
               maxCount={5}
+              onChange={(val) => setSelectedViceLeaderIds(val || [])}
             />
           </Form.Item>
         </Col>
@@ -503,32 +522,34 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
   };
 
   const renderStep4 = () => {
-    if (!previewData) return null;
-    const formVals = form.getFieldsValue();
-    const members = allCadres.filter((c) =>
-      selectedMemberIds.includes(c.id) &&
-      c.id !== formVals.leader_id &&
-      !(formVals.vice_leader_ids || []).includes(c.id)
-    );
+    // renderStep4 直接使用 handleStep3Next 预计算好的 previewData，
+    // 而不再用 plans.find() / allCadres.find() 重新查（避免 loadData 未返回时数组为空导致查找失败）
+    if (!previewData) {
+      return <div style={{ padding: 20, color: '#999' }}>请先完成前几步填写</div>;
+    }
+    const { formValues, plan, leader, viceLeaders, selectedUnits, members } = previewData;
 
     return (
       <Descriptions column={1} bordered size="small" style={{ marginTop: 8 }}>
-        <Descriptions.Item label="关联计划">{previewData.plan?.name || '-'}</Descriptions.Item>
-        <Descriptions.Item label="巡察组名称">{previewData.name}</Descriptions.Item>
-        <Descriptions.Item label="组长">{previewData.leader?.name || '-'}</Descriptions.Item>
+        <Descriptions.Item label="关联计划">{plan?.name || '-'}</Descriptions.Item>
+        <Descriptions.Item label="巡察组名称">{formValues?.name || '-'}</Descriptions.Item>
+        <Descriptions.Item label="组长">{leader?.name || '-'}</Descriptions.Item>
         <Descriptions.Item label="副组长">
-          {previewData.viceLeaders?.length > 0
-            ? previewData.viceLeaders.map((v: any) => v.name).join('、')
+          {viceLeaders && viceLeaders.length > 0
+            ? viceLeaders.map((v: any) => v.name).join('、')
             : '（无）'}
         </Descriptions.Item>
         <Descriptions.Item label="被巡察单位">
-          {previewData.selectedUnits.map((u: UnitOption) => <Tag key={u.id}>{u.name}</Tag>)}
+          {selectedUnits && selectedUnits.length > 0
+            ? selectedUnits.map((u: UnitOption) => <Tag key={u.id}>{u.name}</Tag>)
+            : '（无）'}
         </Descriptions.Item>
-        <Descriptions.Item label="成员（{members.length}人）">
-          {members.map((c) => (
-            <Tag key={c.id}>{c.name}{c.category ? ` · ${c.category}` : ''}</Tag>
-          ))}
-          {members.length === 0 && '（无普通成员）'}
+        <Descriptions.Item label="成员">
+          {members && members.length > 0
+            ? members.map((c: any) => (
+                <Tag key={c.id}>{c.name}{c.category ? ` · ${c.category}` : ''}</Tag>
+              ))
+            : '（无普通成员）'}
         </Descriptions.Item>
       </Descriptions>
     );

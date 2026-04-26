@@ -87,12 +87,13 @@ async def list_backups(current_user: User = Depends(get_current_user)):
 
     for fname in sorted(BACKUPS_DIR.iterdir()):
         if fname.suffix == ".zip":
+            stat = fname.stat()
             meta_file = fname.with_suffix(".meta.json")
             if meta_file.exists():
                 with open(meta_file, "r", encoding="utf-8") as f:
                     meta = json.load(f)
+                meta["size"] = stat.st_size  # Add size from actual file
             else:
-                stat = fname.stat()
                 meta = {
                     "filename": fname.name,
                     "timestamp": datetime.fromtimestamp(stat.st_mtime).isoformat(),

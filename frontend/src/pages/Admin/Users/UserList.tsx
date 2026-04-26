@@ -1,26 +1,46 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Space, Modal, Form, Input, Select, Switch, message } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
-import { getUsers, createUser, updateUser } from '@/api/admin';
+import { getUsers, createUser, updateUser, getRoles } from '@/api/admin';
 import { getErrorMessage } from '@/utils/error';
 
 const UserList: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any[]>([]);
+  const [filteredData, setFilteredData] = useState<any[]>([]);
+  const [roles, setRoles] = useState<any[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [form] = Form.useForm();
+  const [searchText, setSearchText] = useState('');
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await getUsers();
-      setData(Array.isArray(res) ? res : res.data || []);
+      const [usersRes, rolesRes] = await Promise.all([getUsers(), getRoles()]);
+      const usersList = Array.isArray(usersRes) ? usersRes : usersRes.data || [];
+      setData(usersList);
+      setFilteredData(usersList);
+      const rolesList = Array.isArray(rolesRes) ? rolesRes : rolesRes.data || [];
+      setRoles(rolesList.filter((r: any) => r.is_active));
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (searchText) {
+      const filtered = data.filter(u =>
+        u.username?.toLowerCase().includes(searchText.toLowerCase()) ||
+        u.full_name?.toLowerCase().includes(searchText.toLowerCase()) ||
+        u.email?.toLowerCase().includes(searchText.toLowerCase())
+      );
+      setFilteredData(filtered);
+    } else {
+      setFilteredData(data);
+    }
+  }, [searchText, data]);
 
   useEffect(() => { fetchData(); }, []);
 
@@ -69,9 +89,16 @@ const UserList: React.FC = () => {
     <div>
       <PageHeader title="用户管理" breadcrumbs={[{ name: '系统管理' }, { name: '用户管理' }]} />
       <div style={{ marginBottom: 16 }}>
+        <Input.Search
+          placeholder="搜索用户名/姓名/邮箱"
+          onSearch={(value) => setSearchText(value)}
+          style={{ width: 200, marginRight: 8 }}
+          allowClear
+          enterButton={<Button icon={<SearchOutlined />}>搜索</Button>}
+        />
         <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalVisible(true)}>新建用户</Button>
       </div>
-      <Table columns={columns} dataSource={data} rowKey="id" loading={loading} pagination={false} />
+      <Table columns={columns} dataSource={filteredData} rowKey="id" loading={loading} pagination={false} />
       <Modal title={editingUser ? '编辑用户' : '新建用户'} open={modalVisible} onCancel={handleModalClose} footer={null}>
         <Form form={form} layout="vertical" onFinish={handleCreate}>
           <Form.Item name="username" label="用户名" rules={[{ required: true }]}>
@@ -90,10 +117,9 @@ const UserList: React.FC = () => {
           </Form.Item>
           <Form.Item name="role" label="角色">
             <Select placeholder="请选择角色" allowClear>
-              <Select.Option value="管理员">管理员</Select.Option>
-              <Select.Option value="操作员">操作员</Select.Option>
-              <Select.Option value="数据员">数据员</Select.Option>
-              <Select.Option value="审核员">审核员</Select.Option>
+              {roles.map((r: any) => (
+                <Select.Option key={r.id} value={r.name}>{r.name}</Select.Option>
+              ))}
             </Select>
           </Form.Item>
           <Form.Item name="is_active" label="状态" valuePropName="checked" initialValue={true}>

@@ -77,7 +77,7 @@ async def get_overview(uow: UnitOfWork = Depends(get_uow), current_user: User = 
 @router.get("/stats")
 async def get_stats(uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
     """Alias for overview - return same data structure."""
-    return await get_overview(db, current_user)
+    return await get_overview(uow, current_user)
 
 
 @router.get("/issues")

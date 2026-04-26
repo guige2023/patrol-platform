@@ -28,6 +28,7 @@ router = APIRouter()
 async def list_groups(
     plan_id: Optional[UUID] = None,
     status: Optional[str] = None,
+    search: Optional[str] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=9999),
     uow: UnitOfWork = Depends(get_uow),
@@ -38,6 +39,8 @@ async def list_groups(
         query = query.where(InspectionGroup.plan_id == plan_id)
     if status:
         query = query.where(InspectionGroup.status == status)
+    if search:
+        query = query.where(InspectionGroup.name.ilike(f"%{search}%"))
 
     count_result = await uow.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar()
@@ -351,7 +354,7 @@ async def get_group(group_id: UUID, uow: UnitOfWork = Depends(get_uow), current_
             "authorization_date": group.authorization_date,
             "leader_cadre_name": next((m.cadre.name for m in group.members if m.is_leader and m.cadre), None),
             "members": [
-                {"id": m.id, "cadre_id": m.cadre_id, "cadre_name": m.cadre.name if m.cadre else None, "role": m.role, "is_leader": m.is_leader}
+                {"id": m.id, "cadre_id": m.cadre_id, "cadre_name": m.cadre.name if m.cadre else None, "position": m.cadre.position if m.cadre else None, "role": m.role, "is_leader": m.is_leader}
                 for m in group.members
             ],
             "created_at": group.created_at,

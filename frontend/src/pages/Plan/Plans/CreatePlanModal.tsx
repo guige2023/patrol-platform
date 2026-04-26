@@ -71,6 +71,7 @@ const CreatePlanModal: React.FC<CreatePlanModalProps> = ({ open, onClose, onSucc
       form.resetFields();
       loadInitialData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const loadInitialData = async () => {
@@ -82,7 +83,7 @@ const CreatePlanModal: React.FC<CreatePlanModalProps> = ({ open, onClose, onSucc
         getPlans({ year: new Date().getFullYear(), page_size: 100 }),
       ]);
 
-      const cfgMap: Record<string, string> = {};
+      const cfgMap: Record<string, any> = {};
       if (Array.isArray(configsRes)) {
         configsRes.forEach((c: any) => { cfgMap[c.key] = c.value; });
       } else if (configsRes && typeof configsRes === 'object') {
@@ -98,6 +99,7 @@ const CreatePlanModal: React.FC<CreatePlanModalProps> = ({ open, onClose, onSucc
       setRound(publishedThisYear + 1);
     } catch (e) {
       console.error('Failed to load initial data', e);
+      message.error('加载数据失败，请关闭弹窗后重试');
     } finally {
       setLoading(false);
     }
@@ -106,8 +108,11 @@ const CreatePlanModal: React.FC<CreatePlanModalProps> = ({ open, onClose, onSucc
   // Determine which units are "pending inspection" in current cycle
   // 根据单位类型使用不同的巡察周期配置
   const currentYear = new Date().getFullYear();
-  const govCycleYears = parseInt(configs.gov_cycle_years || '3', 10);
-  const otherCycleYears = parseInt(configs.other_cycle_years || '3', 10);
+  // Use fallback defaults of 3 years when configs are missing (NaN check)
+  const govCycleYearsRaw = configs.gov_cycle_years ?? '3';
+  const otherCycleYearsRaw = configs.other_cycle_years ?? '3';
+  const govCycleYears = parseInt(String(govCycleYearsRaw), 10) || 3;
+  const otherCycleYears = parseInt(String(otherCycleYearsRaw), 10) || 3;
   const govCycleStartYear = currentYear - govCycleYears + 1;
   const otherCycleStartYear = currentYear - otherCycleYears + 1;
 
@@ -140,10 +145,15 @@ const CreatePlanModal: React.FC<CreatePlanModalProps> = ({ open, onClose, onSucc
     // Pre-fill step 2 form
     const districtName = configs.district_name || '';
     const planName = `${districtName}党工委${currentYear}年度第${round}轮巡察计划`;
-    const durationDays = parseInt(configs.patrol_duration_days || '30', 10);
+    const durationDaysRaw = configs.patrol_duration_days ?? '30';
+    const durationDays = parseInt(String(durationDaysRaw), 10) || 30;
     const defaultStart = dayjs();
     const defaultEnd = addWorkdays(defaultStart, durationDays);
-    const keyAreas = configs.key_areas || '';
+    // key_areas from config is an array; convert to comma-separated string for TextArea
+    const keyAreasRaw = configs.key_areas;
+    const keyAreas = Array.isArray(keyAreasRaw)
+      ? keyAreasRaw.join('、')
+      : (typeof keyAreasRaw === 'string' ? keyAreasRaw : '');
 
     form.setFieldsValue({
       name: planName,
@@ -179,7 +189,8 @@ const CreatePlanModal: React.FC<CreatePlanModalProps> = ({ open, onClose, onSucc
 
   const handleStartDateChange = (date: Dayjs | null) => {
     if (date) {
-      const durationDays = parseInt(configs.patrol_duration_days || '30', 10);
+      const durationDaysRaw = configs.patrol_duration_days ?? '30';
+      const durationDays = parseInt(String(durationDaysRaw), 10) || 30;
       const computedEnd = addWorkdays(date, durationDays);
       form.setFieldValue('planned_end_date', computedEnd);
     }
@@ -230,7 +241,7 @@ const CreatePlanModal: React.FC<CreatePlanModalProps> = ({ open, onClose, onSucc
         payload.authorization_letter = previewData.authorization_letter;
       }
 
-      const result = await createPlan(payload);
+      await createPlan(payload);
       message.success('计划创建成功');
       onSuccess();
       onClose();
@@ -260,7 +271,7 @@ const CreatePlanModal: React.FC<CreatePlanModalProps> = ({ open, onClose, onSucc
           allowClear
         />
         <Text type="secondary" style={{ marginLeft: 12 }}>
-          当前周期（{cycleStartYear}年起，{patrolCycleYears}年轮次）：共 {pendingUnits.length} 个单位待巡察
+          当前周期（{govCycleStartYear}年起，{govCycleYears}年轮次）：共 {pendingUnits.length} 个单位待巡察
         </Text>
       </div>
 

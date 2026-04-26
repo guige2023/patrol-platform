@@ -15,6 +15,7 @@ from app.models.user import User
 from app.schemas.knowledge import KnowledgeCreate, KnowledgeUpdate, KnowledgeResponse
 from app.schemas.common import PaginatedResponse, PageResult
 from app.core.audit import write_audit_log
+from app.services.search_service import SearchService
 
 router = APIRouter()
 
@@ -50,7 +51,7 @@ async def list_knowledge(
     )
 
 
-@router.get("/categories")
+@router.get("/knowledge-categories")
 async def list_categories(uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
     result = await uow.execute(
         select(Knowledge.category, func.count(Knowledge.id).label("count"))
@@ -67,7 +68,7 @@ CATEGORY_LABELS = {
 }
 
 
-@router.get("/download")
+@router.get("/knowledge-export")
 async def export_knowledge(
     category: Optional[str] = None,
     uow: UnitOfWork = Depends(get_uow),
@@ -148,6 +149,20 @@ async def create_knowledge(knowledge_data: KnowledgeCreate, uow: UnitOfWork = De
     await uow.commit()
     await uow.refresh(knowledge)
     await write_audit_log(uow.session, current_user.id, "create", "knowledge", knowledge.id, {"title": knowledge.title})
+
+    # 索引到搜索服务
+    try:
+        SearchService.index_knowledge({
+            "id": knowledge.id,
+            "title": knowledge.title or "",
+            "content": knowledge.content or "",
+            "category": knowledge.category or "",
+            "version": knowledge.version or "",
+            "is_active": True,
+        })
+    except Exception as e:
+        print(f"[KNOWLEDGE] Failed to index: {e}")
+
     return knowledge
 
 
@@ -157,19 +172,33 @@ async def update_knowledge(knowledge_id: UUID, knowledge_data: KnowledgeUpdate, 
     knowledge = result.scalar_one_or_none()
     if not knowledge:
         raise HTTPException(status_code=404, detail="Knowledge not found")
-    
+
     data = knowledge_data.model_dump(exclude_unset=True)
     if "version" in data and data["version"] != knowledge.version:
         version_history = knowledge.version_history or []
         version_history.append({"version": knowledge.version, "date": str(knowledge.updated_at), "change": "Updated"})
         data["version_history"] = version_history
-    
+
     for key, value in data.items():
         setattr(knowledge, key, value)
-    
+
     await uow.commit()
     await uow.refresh(knowledge)
     await write_audit_log(uow.session, current_user.id, "update", "knowledge", knowledge.id, {"title": knowledge.title})
+
+    # 更新搜索索引
+    try:
+        SearchService.index_knowledge({
+            "id": knowledge.id,
+            "title": knowledge.title or "",
+            "content": knowledge.content or "",
+            "category": knowledge.category or "",
+            "version": knowledge.version or "",
+            "is_active": knowledge.is_active,
+        })
+    except Exception as e:
+        print(f"[KNOWLEDGE] Failed to update index: {e}")
+
     return knowledge
 
 
@@ -181,7 +210,14 @@ async def delete_knowledge(knowledge_id: UUID, uow: UnitOfWork = Depends(get_uow
         raise HTTPException(status_code=404, detail="Knowledge not found")
     knowledge.is_active = False
     await uow.commit()
-    await write_audit_log(uow.session, current_user.id, "delete", "knowledge", knowledge.id, {"title": knowledge.title})
+    await write_audit_log(uow.session, current_user.id, "delete", "knowledge", knowledge_id, {"title": knowledge.title})
+
+    # 从搜索索引中删除
+    try:
+        SearchService.delete_knowledge(str(knowledge_id))
+    except Exception as e:
+        print(f"[KNOWLEDGE] Failed to delete from index: {e}")
+
     return {"message": "Knowledge deleted"}
 
 

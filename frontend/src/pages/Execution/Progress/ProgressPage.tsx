@@ -184,6 +184,14 @@ const ProgressPage: React.FC = () => {
           >
             导入进度
           </Button>
+          <Button
+            icon={<FileExcelOutlined />}
+            onClick={() => {
+              window.open('/api/v1/progress/export', '_blank');
+            }}
+          >
+            导出
+          </Button>
         </Space>
       </Card>
 

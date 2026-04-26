@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Table, Button, Space, Tag, Select, message, Popconfirm, Card, Statistic, Row, Col } from 'antd';
-import { PlusOutlined, UsergroupAddOutlined, CheckCircleOutlined, PlayCircleOutlined, FileDoneOutlined, EditOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Tag, Select, message, Popconfirm, Card, Statistic, Row, Col, Input } from 'antd';
+import { PlusOutlined, UsergroupAddOutlined, CheckCircleOutlined, PlayCircleOutlined, FileDoneOutlined, EditOutlined, SearchOutlined } from '@ant-design/icons';
 import type { Key } from 'antd/es/table/interface';
 import PageHeader from '@/components/common/PageHeader';
 import { getGroups, deleteGroup, exportGroups, batchDeleteGroups } from '@/api/groups';
@@ -47,13 +47,14 @@ const GroupList: React.FC = () => {
   // 筛选
   const [filterPlanId, setFilterPlanId] = useState<string | undefined>();
   const [filterStatus, setFilterStatus] = useState<string | undefined>();
+  const [searchText, setSearchText] = useState<string>('');
   const [planOptions, setPlanOptions] = useState<{label: string; value: string}[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await getGroups({ plan_id: filterPlanId, status: filterStatus });
+      const res = await getGroups({ plan_id: filterPlanId, status: filterStatus, search: searchText });
       const items = Array.isArray(res) ? res : (res?.items ?? []);
       setData(items);
     } finally {
@@ -83,7 +84,7 @@ const GroupList: React.FC = () => {
     } catch {}
   };
 
-  useEffect(() => { fetchData(); }, [filterPlanId, filterStatus]);
+  useEffect(() => { fetchData(); }, [filterPlanId, filterStatus, searchText]);
   useEffect(() => { fetchData(); loadPlanOptions(); }, []);
 
   const openCreateModal = () => {
@@ -146,7 +147,7 @@ const GroupList: React.FC = () => {
   };
 
   const columns: ColumnsType<Group> = [
-    { title: '巡察组名称', dataIndex: 'name', key: 'name' },
+    { title: '巡察组名称', dataIndex: 'name', key: 'name', render: (n: string) => n || '-' },
     { title: '成员数量', dataIndex: 'member_count', key: 'member_count' },
     {
       title: '状态',
@@ -206,6 +207,13 @@ const GroupList: React.FC = () => {
       </Row>
 
       <div style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        <Input.Search
+          placeholder="搜索巡察组名称"
+          onSearch={(value) => { setSearchText(value); }}
+          style={{ width: 200 }}
+          allowClear
+          enterButton={<Button icon={<SearchOutlined />}>搜索</Button>}
+        />
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal} style={{ marginRight: 8 }}>新建巡察组</Button>
         <Button onClick={() => exportGroups({ plan_id: filterPlanId, status: filterStatus }).catch(() => message.error('导出失败'))} style={{ marginRight: 8 }}>导出全部</Button>
         {selectedRowKeys.length > 0 ? (

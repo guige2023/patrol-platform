@@ -138,36 +138,19 @@ export default function Dashboard() {
   const currentRoundProgress = issues?.current_round_progress || []
   
   // 未巡察单位警告
-  const uninspectedUnits = issues?.uninspected_units || [
-    { id: '1', name: 'XX单位', last_inspected_year: 2022 },
-    { id: '2', name: 'YY单位', last_inspected_year: 2021 },
-  ]
+  const uninspectedUnits = issues?.uninspected_units || []
 
   // 年度覆盖率
   const yearlyCoverage = issues?.yearly_coverage || []
 
   // 今日预警
-  const todayWarnings = warnings.length > 0 ? warnings : [
-    { id: '1', title: '3个整改任务即将到期', description: '请及时跟进', type: 'warning' },
-    { id: '2', title: '2个单位长期未巡察', description: '建议纳入下一轮计划', type: 'danger' },
-  ]
+  const todayWarnings = warnings
 
   // 模拟进度数据（用于备用）
-  const progressData = issues?.plan_progress || [
-    { name: '2024年第一轮巡察', progress: 85, status: '进行中' },
-    { name: '专项监督检查', progress: 100, status: '已完成' },
-    { name: '整改落实督查', progress: 60, status: '进行中' },
-    { name: '第二轮巡察准备', progress: 30, status: '准备中' },
-  ]
+  const progressData = issues?.plan_progress || []
 
   // 最新动态（时间线）
-  const recentActivities = issues?.recent_activities || [
-    { id: 1, type: 'plan', title: '2024年第一轮巡察进入实施阶段', time: '2小时前' },
-    { id: 2, type: 'draft', title: '底稿「财务管理制度审查」已提交', time: '5小时前' },
-    { id: 3, type: 'rectification', title: '「公车管理不规范」问题已整改', time: '昨天' },
-    { id: 4, type: 'clue', title: '新增线索：群众举报某单位违规发放福利', time: '2天前' },
-    { id: 5, type: 'plan', title: '2024年巡察工作计划已下达', time: '3天前' },
-  ]
+  const recentActivities = issues?.recent_activities || []
 
   const getActivityIcon = (type: string) => {
     switch (type) {
@@ -178,33 +161,6 @@ export default function Dashboard() {
       default: return <ClockCircleOutlined style={{ color: '#999' }} />
     }
   }
-
-  // 底稿分类数据
-  const _draftStats = issues?.drafts_by_category || [
-    { category: '制度建设类', count: 12 },
-    { category: '财务管理类', count: 8 },
-    { category: '人事管理类', count: 5 },
-    { category: '业务规范类', count: 15 },
-  ]
-  void _draftStats; // suppress unused warning
-
-  // 线索来源数据
-  const _clueStats = issues?.clues_by_source || [
-    { source: '群众举报', count: 15 },
-    { source: '审计移交', count: 8 },
-    { source: '巡视发现', count: 5 },
-    { source: '自查发现', count: 3 },
-  ]
-  void _clueStats;
-
-  // 整改预警数据
-  const _alertStats: { level: string; count: number; type: string }[] = (issues?.rectifications_by_alert_level || [
-    { level: '超期未整改', count: 2, type: 'danger' },
-    { level: '即将超期', count: 3, type: 'warning' },
-    { level: '整改中', count: 8, type: 'normal' },
-    { level: '已催办', count: 1, type: 'warning' },
-  ]).map(item => ({ ...item, type: item.type || 'normal' }))
-  void _alertStats;
 
   const getProgressColor = (percentage: number) => {
     if (percentage >= 100) return '#52c41a'
@@ -463,7 +419,7 @@ export default function Dashboard() {
             }
           >
             <div style={{ padding: '8px 0' }}>
-              {progressData.map((item, index) => (
+              {progressData.length > 0 ? progressData.map((item, index) => (
                 <div key={index} style={{ marginBottom: 20 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                     <span style={{ fontWeight: 500, color: '#333' }}>{item.name}</span>
@@ -478,7 +434,9 @@ export default function Dashboard() {
                     size="small"
                   />
                 </div>
-              ))}
+              )) : (
+                <Alert message="暂无巡察进度数据" type="info" showIcon />
+              )}
             </div>
           </Card>
         </Col>
@@ -494,6 +452,7 @@ export default function Dashboard() {
               </span>
             }
           >
+            {recentActivities.length > 0 ? (
             <Timeline 
               items={recentActivities.map((activity) => ({
                 dot: getActivityIcon(activity.type),
@@ -505,6 +464,9 @@ export default function Dashboard() {
                 ),
               }))}
             />
+            ) : (
+              <Alert message="暂无最新动态" type="info" showIcon />
+            )}
           </Card>
         </Col>
       </Row>

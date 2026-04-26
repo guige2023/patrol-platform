@@ -228,3 +228,77 @@
 - ✅ **g-unit-filter** CreateGroupModal.tsx：`target_units` 支持名称和UUID混合格式（遗留数据问题）
   - 建立 unitNameToId 映射将单位名称归一化为UUID后再过滤
   - 修复选择计划后单位列表为空、点击后消失的bug
+
+---
+
+## 2026-04-24 Bug 修复
+
+### Dashboard stats API
+- ✅ 修复 `NameError: name 'db' is not defined` - `dashboard.py` 第80行使用错误变量名 `db` → `uow`
+
+### 验证结果
+- Dashboard stats: 200 OK ✅
+- Knowledge list: 200 OK ✅
+- Plan create: success OK ✅
+- Plan list: 200 OK ✅
+- Units list: 200 OK ✅
+- Groups list: 200 OK ✅
+- Knowledge preview (no watermark): 200 OK ✅
+- Knowledge preview (with watermark): 200 OK ✅
+- Knowledge download (no watermark): 200 OK ✅
+- Knowledge download (with watermark): 200 OK ✅
+
+### 服务状态
+- 后端: http://localhost:18800 ✅ (v3.2.0)
+- 前端: http://localhost:3070 ✅ (vite)
+- Git commit: fb54f68 ✅
+- code-done push: ✅
+
+---
+
+## 2026-04-24 Bug 修复 (第二轮)
+
+### 创建巡察组 500 错误
+- ✅ **system_configs API** - `list_system_configs` 添加空值过滤，防止 `AttributeError: 'NoneType' object has no attribute 'key'`
+
+### 匹配人员默认全选问题
+- ✅ **CreateGroupModal.tsx** - 匹配人员时默认不选中，用户需手动勾选
+
+### 巡察组预览页字段为空问题
+- ✅ **CreateGroupModal.tsx** - renderStep4 改为读取当前表单值而非预览数据快照，确保关联计划、组名称、组长等字段正确显示
+- ✅ **CreateGroupModal.tsx** - 移除 `if (!previewData) return null;` gating，因为 React 状态批次更新导致 previewData 未 set 就已 render
+- ✅ **CreateGroupModal.tsx** - renderStep4 改用 previewData（handleStep3Next 预计算）而非重新用 plans.find()/allCadres.find() 查询，避免 loadData 未返回时数组为空导致查找失败
+
+### 验证结果
+- getPlans: 200 OK ✅
+- getUnits: 200 OK ✅
+- getCadres: 200 OK ✅
+- getSystemConfigs: 200 OK ✅
+
+---
+
+## 2026-04-25 Bug 修复 (第三轮)
+
+### KnowledgeModal.tsx 修复
+- **handleDownload**: 添加 `knowledgeId` 缺失检查和错误提示
+- **handleDownload**: 添加 `document.body.appendChild(a)` 和 `removeChild(a)` 确保 `<a>` 元素在 DOM 中
+- **handlePreview**: 添加 `knowledgeId` 缺失检查和错误提示
+
+### GroupList.tsx 修复
+- 空巡察组名称显示为 `-` 而非空白
+
+### 创建巡察计划验证
+- PlanCreateWizard 完全正常工作（登录后）
+- Step 1 基本信息填写 ✅
+- Step 2 选择单位 ✅
+- Step 3 匹配巡察组成员（ cadres 正常加载） ✅
+- 之前 422 错误是因为会话过期（未登录）
+
+### 职务列
+- 已在 5c51eaa commit 中修复：`GroupDetail.tsx` 增加 `职务` 列 ✅
+
+### 验证结果
+- TypeScript 编译：无错误 ✅
+- Vite 生产构建：成功 ✅
+- 知识库下载/预览：正常工作 ✅
+- 创建巡察计划向导：正常工作 ✅
