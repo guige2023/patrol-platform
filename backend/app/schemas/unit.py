@@ -61,7 +61,10 @@ class UnitResponse(UnitBase):
         if v is None:
             return {}
         if isinstance(v, list):
-            return {} if v == [] else v
+            # 将列表转换为字典：list_item -> {"tag": list_item}
+            if not v:
+                return {}
+            return {str(item): None for item in v}
         return v
 
     class Config:

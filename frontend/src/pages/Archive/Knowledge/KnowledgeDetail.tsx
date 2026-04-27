@@ -44,7 +44,7 @@ const KnowledgeDetail: React.FC = () => {
   const handlePreview = async (filename: string) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE}/api/v1/knowledge/${id}/attachments/${encodeURIComponent(filename)}`, {
+      const response = await fetch(`${API_BASE}/api/v1/knowledge-files/${id}/attachments/${encodeURIComponent(filename)}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('预览失败');
@@ -68,7 +68,7 @@ const KnowledgeDetail: React.FC = () => {
   const handleDownload = async (filename: string) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE}/api/v1/knowledge/${id}/attachments/${encodeURIComponent(filename)}`, {
+      const response = await fetch(`${API_BASE}/api/v1/knowledge-files/${id}/attachments/${encodeURIComponent(filename)}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('下载失败');

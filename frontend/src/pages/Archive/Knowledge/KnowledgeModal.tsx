@@ -77,7 +77,7 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
     const formData = new FormData();
     formData.append('file', file);
     try {
-      const res = await api.post(`/knowledge/${knowledgeId}/attachments`, formData, {
+      const res = await api.post(`/knowledge-files/${knowledgeId}/attachments`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setAttachments(prev => [...prev, res.data || res]);
@@ -101,7 +101,7 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
       return;
     }
     try {
-      const res = await fetch(`/api/v1/knowledge/${knowledgeId}/attachments/${encodeURIComponent(att.filename)}/download?watermark=true`, {
+      const res = await fetch(`/api/v1/knowledge-files/${knowledgeId}/attachments/${encodeURIComponent(att.filename)}/download?watermark=true`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
@@ -153,7 +153,7 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
     }
 
     try {
-      const res = await fetch(`/api/v1/knowledge/${knowledgeId}/attachments/${encodeURIComponent(att.filename)}?watermark=true`, {
+      const res = await fetch(`/api/v1/knowledge-files/${knowledgeId}/attachments/${encodeURIComponent(att.filename)}?watermark=true`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
@@ -184,7 +184,7 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
   const handleDeleteAttachment = async (att: Attachment) => {
     if (!knowledgeId) return;
     try {
-      await api.delete(`/knowledge/${knowledgeId}/attachments/${att.filename}`);
+      await api.delete(`/knowledge-files/${knowledgeId}/attachments/${att.filename}`);
       setAttachments(prev => prev.filter(a => a.filename !== att.filename));
       message.success('删除成功');
     } catch (e: any) {

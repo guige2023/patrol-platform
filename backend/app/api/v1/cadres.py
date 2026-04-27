@@ -510,12 +510,14 @@ def _cell(row, col_map, key):
 
 
 def _date_cell(row, col_map, key):
+    """解析日期单元格，返回字符串格式（因为birth_date在模型中是String类型）"""
     from datetime import date
     v = _cell(row, col_map, key)
     if not v:
         return None
     try:
-        return date.fromisoformat(str(v).strip())
+        parsed_date = date.fromisoformat(str(v).strip())
+        return parsed_date.isoformat()  # 返回字符串格式 YYYY-MM-DD
     except (ValueError, TypeError):
         return None
 

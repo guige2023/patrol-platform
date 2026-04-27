@@ -18,13 +18,6 @@ interface Unit {
   last_inspection_year?: number | null;
 }
 
-// 判断单位是否为"管委会/政府部门"
-const isGovUnit = (unit: Unit): boolean => {
-  if (!unit.unit_type) return false;
-  const govTypes = ['government', 'government_agency', '党政机关', '政府部门', '党委工作机构', '党委', '政府', '管委会'];
-  return govTypes.includes(unit.unit_type);
-};
-
 interface CreatePlanModalProps {
   open: boolean;
   onClose: () => void;
@@ -106,25 +99,17 @@ const CreatePlanModal: React.FC<CreatePlanModalProps> = ({ open, onClose, onSucc
   };
 
   // Determine which units are "pending inspection" in current cycle
-  // 根据单位类型使用不同的巡察周期配置
+  // 使用统一的巡察周期配置
   const currentYear = new Date().getFullYear();
-  // Use fallback defaults of 3 years when configs are missing (NaN check)
-  const govCycleYearsRaw = configs.gov_cycle_years ?? '3';
-  const otherCycleYearsRaw = configs.other_cycle_years ?? '3';
-  const govCycleYears = parseInt(String(govCycleYearsRaw), 10) || 3;
-  const otherCycleYears = parseInt(String(otherCycleYearsRaw), 10) || 3;
-  const govCycleStartYear = currentYear - govCycleYears + 1;
-  const otherCycleStartYear = currentYear - otherCycleYears + 1;
+  const cycleYearsRaw = configs.patrol_cycle_years ?? '5';
+  const cycleYears = parseInt(String(cycleYearsRaw), 10) || 5;
+  // 从配置读取周期起始年份
+  const cycleStartDateRaw = configs.patrol_cycle_start_date ?? `${currentYear - cycleYears + 1}-01-01`;
+  const cycleStartYear = parseInt(String(cycleStartDateRaw).substring(0, 4), 10) || (currentYear - cycleYears + 1);
 
-  // 判断某个单位是否应该被标记为 pending
+  // 判断某个单位是否应该被标记为 pending（所有单位使用统一周期）
   const isUnitPending = (u: Unit): boolean => {
-    if (isGovUnit(u)) {
-      // 管委会/政府部门使用政府周期配置
-      return !u.last_inspection_year || u.last_inspection_year < govCycleStartYear;
-    } else {
-      // 其他单位使用其他单位周期配置
-      return !u.last_inspection_year || u.last_inspection_year < otherCycleStartYear;
-    }
+    return !u.last_inspection_year || u.last_inspection_year < cycleStartYear;
   };
 
   const pendingUnits = allUnits.filter(isUnitPending);
@@ -271,7 +256,7 @@ const CreatePlanModal: React.FC<CreatePlanModalProps> = ({ open, onClose, onSucc
           allowClear
         />
         <Text type="secondary" style={{ marginLeft: 12 }}>
-          当前周期（{govCycleStartYear}年起，{govCycleYears}年轮次）：共 {pendingUnits.length} 个单位待巡察
+          当前周期（{cycleStartYear}年起，{cycleYears}年轮次）：共 {pendingUnits.length} 个单位待巡察
         </Text>
       </div>
 
