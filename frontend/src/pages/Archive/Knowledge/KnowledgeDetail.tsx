@@ -41,15 +41,24 @@ const KnowledgeDetail: React.FC = () => {
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewUrl, setPreviewUrl] = useState('');
 
-  const handlePreview = async (filename: string) => {
+  // 支持在 iframe 中预览的文件类型（浏览器原生支持）
+  const PREVIEWABLE_TYPES = new Set(['pdf', 'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']);
+
+  const handlePreview = async (filename: string, fileType?: string) => {
     try {
+      // 对于不支持在浏览器内预览的文件类型，改为下载
+      const ext = (fileType || filename.split('.').pop() || '').toLowerCase();
+      if (!PREVIEWABLE_TYPES.has(ext)) {
+        message.info('该文件格式暂不支持在线预览，已改为下载');
+        handleDownload(filename);
+        return;
+      }
       const token = localStorage.getItem('token');
       const response = await fetch(`${API_BASE}/api/v1/knowledge-files/${id}/attachments/${encodeURIComponent(filename)}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('预览失败');
       const blob = await response.blob();
-      // 使用data URL而不是blob URL，让iframe可以直接渲染PDF
       const reader = new FileReader();
       reader.onload = () => {
         setPreviewUrl(reader.result as string);
@@ -68,15 +77,20 @@ const KnowledgeDetail: React.FC = () => {
   const handleDownload = async (filename: string) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE}/api/v1/knowledge-files/${id}/attachments/${encodeURIComponent(filename)}`, {
+      // 必须调用 /download 端点（返回 attachment Content-Disposition），不能用预览端点（inline）
+      const response = await fetch(`${API_BASE}/api/v1/knowledge-files/${id}/attachments/${encodeURIComponent(filename)}/download`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('下载失败');
       const blob = await response.blob();
+      // 从 Content-Disposition header 提取原始文件名
+      const contentDisp = response.headers.get('Content-Disposition') || '';
+      const fnMatch = contentDisp.match(/filename\*?=['"]?(?:UTF-8'')?([^;\n"']+)/i);
+      const downloadName = fnMatch ? decodeURIComponent(fnMatch[1]) : filename;
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = filename;
+      a.download = downloadName;
       a.click();
       window.URL.revokeObjectURL(url);
     } catch (e: any) {
@@ -94,7 +108,7 @@ const KnowledgeDetail: React.FC = () => {
       key: 'action',
       render: (_: any, record: any) => (
         <Space>
-          <Button type="link" icon={<EyeOutlined />} onClick={() => handlePreview(record.filename)}>预览</Button>
+          <Button type="link" icon={<EyeOutlined />} onClick={() => handlePreview(record.filename, record.file_type)}>预览</Button>
           <Button type="link" icon={<DownloadOutlined />} onClick={() => handleDownload(record.filename)}>下载</Button>
         </Space>
       )

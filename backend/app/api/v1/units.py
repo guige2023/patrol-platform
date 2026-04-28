@@ -306,9 +306,16 @@ async def import_units(
 
     contents = await file.read()
     wb = openpyxl.load_workbook(io.BytesIO(contents))
+    # 优先用用户当前激活的 sheet，若其首行无内容则回退到第一个有数据的 sheet
     ws = wb.active
-
     headers = [str(h.value).strip() if h.value else "" for h in ws[1]]
+    if not any(headers):
+        for sheet in wb.worksheets:
+            candidate = [str(h.value).strip() if h.value else "" for h in sheet[1]]
+            if any(candidate):
+                ws = sheet
+                headers = candidate
+                break
 
     # 中文表头映射
     HEADER_ALIASES = {
@@ -360,7 +367,7 @@ async def import_units(
     # field_key → set of valid labels
     field_option_map: dict[str, set[str]] = {}
     for fo in all_field_opts:
-        field_option_map[fo.field_key] = {opt["label"] for opt in json.loads(fo.options) if isinstance(opt, dict) and opt.get("label")}
+        field_option_map[fo.field_key] = {opt["value"] for opt in json.loads(fo.options) if isinstance(opt, dict) and opt.get("value")}
 
     # 需要校验的字段映射（表头 → field_key）
     validated_fields = {

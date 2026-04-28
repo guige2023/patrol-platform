@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Space, Tag, Modal, message } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { PlusOutlined, DownloadOutlined, PaperClipOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import SearchForm from '@/components/common/SearchForm';
 import KnowledgeModal from './KnowledgeModal';
@@ -47,6 +47,49 @@ const KnowledgeList: React.FC = () => {
     await publishKnowledge(id);
     message.success('发布成功');
     fetchData();
+  };
+
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:18800';
+
+  // 批量下载附件
+  const handleDownloadAttachments = async (record: Knowledge) => {
+    const attachments = (record as any).attachments || [];
+    if (attachments.length === 0) {
+      message.warning('暂无附件');
+      return;
+    }
+    if (attachments.length === 1) {
+      // 单文件直接下载
+      await downloadFile(record.id, attachments[0].filename);
+    } else {
+      // 多文件逐个下载
+      for (const att of attachments) {
+        await downloadFile(record.id, att.filename);
+      }
+    }
+  };
+
+  const downloadFile = async (knowledgeId: string, filename: string) => {
+    const token = localStorage.getItem('token');
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/v1/knowledge-files/${knowledgeId}/attachments/${encodeURIComponent(filename)}/download`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      if (!response.ok) throw new Error('下载失败');
+      const blob = await response.blob();
+      const contentDisp = response.headers.get('Content-Disposition') || '';
+      const fnMatch = contentDisp.match(/filename\*?=['"]?(?:UTF-8'')?([^;\n"']+)/i);
+      const downloadName = fnMatch ? decodeURIComponent(fnMatch[1]) : filename;
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = downloadName;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      message.error(`下载 ${filename} 失败`);
+    }
   };
 
   const categoryColors: Record<string, string> = {
@@ -97,6 +140,29 @@ const categoryLabels: Record<string, string> = {
       dataIndex: 'is_published',
       key: 'is_published',
       render: (v: boolean) => <span style={{ color: v ? '#52c41a' : '#faad14' }}>{v ? '已发布' : '草稿'}</span>,
+    },
+    {
+      title: '附件',
+      key: 'attachments',
+      render: (_: any, record: Knowledge) => {
+        const attachments: any[] = (record as any).attachments || [];
+        if (attachments.length === 0) return <span style={{ color: '#bfbfbf' }}>-</span>;
+        return (
+          <Space size={4}>
+            <PaperClipOutlined style={{ color: '#1677ff' }} />
+            <span>{attachments.length}</span>
+            <Button
+              type="link"
+              size="small"
+              icon={<DownloadOutlined />}
+              onClick={() => handleDownloadAttachments(record)}
+              style={{ padding: 0, height: 'auto' }}
+            >
+              下载
+            </Button>
+          </Space>
+        );
+      },
     },
     { title: '创建时间', dataIndex: 'created_at', key: 'created_at', render: (t: string) => t?.split('T')[0] },
     {
