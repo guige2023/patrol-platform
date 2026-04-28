@@ -306,16 +306,17 @@ async def import_units(
 
     contents = await file.read()
     wb = openpyxl.load_workbook(io.BytesIO(contents))
-    # 优先用用户当前激活的 sheet，若其首行无内容则回退到第一个有数据的 sheet
-    ws = wb.active
-    headers = [str(h.value).strip() if h.value else "" for h in ws[1]]
-    if not any(headers):
-        for sheet in wb.worksheets:
-            candidate = [str(h.value).strip() if h.value else "" for h in sheet[1]]
-            if any(candidate):
-                ws = sheet
-                headers = candidate
-                break
+    # 遍历所有 sheet，找到第一个首行有内容（表头）的 sheet
+    ws = None
+    headers = []
+    for sheet in wb.worksheets:
+        candidate = [str(h.value).strip() if h.value else "" for h in sheet[1]]
+        if any(candidate):
+            ws = sheet
+            headers = candidate
+            break
+    if ws is None:
+        raise HTTPException(status_code=400, detail="Excel 文件中没有找到有效的数据表")
 
     # 中文表头映射
     HEADER_ALIASES = {

@@ -180,7 +180,7 @@ const GroupList: React.FC = () => {
       <Row gutter={16} style={{ marginBottom: 16 }}>
         {statCards.map(card => (
           <Col key={card.key} xs={12} sm={6}>
-            <Card size="small" bordered={false} style={{ textAlign: 'center', background: '#fafafa' }}>
+            <Card size="small" variant="borderless" style={{ textAlign: 'center', background: '#fafafa' }}>
               <Space direction="vertical" size={4} style={{ width: '100%' }}>
                 <div style={{ color: card.color, fontSize: 18 }}>{card.icon}</div>
                 <Statistic
@@ -193,7 +193,7 @@ const GroupList: React.FC = () => {
           </Col>
         ))}
         <Col xs={12} sm={6}>
-          <Card size="small" bordered={false} style={{ textAlign: 'center', background: '#fafafa' }}>
+          <Card size="small" variant="borderless" style={{ textAlign: 'center', background: '#fafafa' }}>
             <Space direction="vertical" size={4} style={{ width: '100%' }}>
               <div style={{ color: '#595959', fontSize: 18 }}><UsergroupAddOutlined /></div>
               <Statistic

@@ -13,7 +13,7 @@ class AuditLog(Base):
     user_id = Column(Guid, ForeignKey("users.id", ondelete="SET NULL"))
     action = Column(String(64), nullable=False)
     entity_type = Column(String(32), nullable=False)
-    entity_id = Column(Guid, nullable=False)
+    entity_id = Column(Guid, nullable=True)
     detail = Column(JSON, default=dict)
     ip_address = Column(String(45))
     user_agent = Column(String(256))

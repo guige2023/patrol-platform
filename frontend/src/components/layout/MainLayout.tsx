@@ -266,7 +266,7 @@ const MainLayout: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             {/* Warning Bell */}
             <Dropdown
-              dropdownRender={() => warningMenu}
+              popupRender={() => warningMenu}
               trigger={['click']}
               open={warningDropdownVisible}
               onOpenChange={setWarningDropdownVisible}

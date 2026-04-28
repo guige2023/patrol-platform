@@ -367,7 +367,7 @@ async def import_cadres(
     # field_key → set of valid labels
     field_option_map: dict[str, set[str]] = {}
     for fo in all_field_opts:
-        field_option_map[fo.field_key] = {opt["label"] for opt in json.loads(fo.options) if isinstance(opt, dict) and opt.get("label")}
+        field_option_map[fo.field_key] = {opt["value"] for opt in json.loads(fo.options) if isinstance(opt, dict) and opt.get("value")}
 
     # 需要校验的字段映射（col_key → field_key）
     validated_fields = {

@@ -35,5 +35,8 @@ export const downloadBackup = (id: string) => {
 export const getBackupSettings = () =>
   api.get('/backup/settings').then(res => res.data);
 
-export const updateBackupSettings = (enabled: boolean, cron?: string) =>
-  api.put('/backup/settings', { auto_backup_enabled: enabled, cron_expression: cron }).then(res => res.data);
+export const updateBackupSettings = (enabled: boolean, cron?: string) => {
+  const payload: Record<string, unknown> = { auto_backup_enabled: enabled };
+  if (cron) payload.cron_expression = cron;
+  return api.put('/backup/settings', payload).then(res => res.data);
+};

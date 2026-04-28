@@ -230,7 +230,6 @@ const CadreList: React.FC = () => {
           )}
           <List
             size="small"
-            bordered
             dataSource={validationErrors}
             style={{ maxHeight: 280, overflow: 'auto', marginBottom: 16 }}
             renderItem={(item: string) => (

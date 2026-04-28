@@ -68,13 +68,14 @@ async def get_backup_settings(current_user: User = Depends(get_current_user)):
 @router.put("/settings")
 async def update_backup_settings(
     settings_update: dict,
+    uow: UnitOfWork = Depends(get_uow),
     current_user: User = Depends(get_current_user),
 ):
     """Update auto-backup settings."""
     current = _get_settings()
     current.update(settings_update)
     _save_settings(current)
-    await write_audit_log(None, current_user.id, "update", "backup_settings", None, settings_update)
+    await write_audit_log(uow.session, current_user.id, "update", "backup_settings", None, settings_update)
     return current
 
 
@@ -195,7 +196,7 @@ async def download_backup(filename: str, current_user: User = Depends(get_curren
 
 
 @router.delete("/{filename}")
-async def delete_backup(filename: str, current_user: User = Depends(get_current_user)):
+async def delete_backup(filename: str, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
     """Delete a backup file and its metadata."""
     backup_path = BACKUPS_DIR / filename
     meta_path = BACKUPS_DIR / f"{Path(filename).stem}.meta.json"
@@ -208,7 +209,7 @@ async def delete_backup(filename: str, current_user: User = Depends(get_current_
     if meta_path.exists():
         meta_path.unlink()
 
-    await write_audit_log(None, current_user.id, "delete", "backup", None, {"filename": filename})
+    await write_audit_log(uow.session, current_user.id, "delete", "backup", None, {"filename": filename})
     return {"message": "deleted"}
 
 

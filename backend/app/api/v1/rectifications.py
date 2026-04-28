@@ -261,8 +261,16 @@ async def import_rectifications(
     try:
         content = await file.read()
         wb = openpyxl.load_workbook(io.BytesIO(content))
-        ws = wb.active
-        headers = [cell.value for cell in ws[1]]
+        # 遍历所有 sheet，找到第一个首行有内容（表头）的 sheet
+        ws = None
+        for sheet in wb.worksheets:
+            row1 = [cell.value for cell in sheet[1]]
+            if any(row1):
+                ws = sheet
+                headers = row1
+                break
+        if ws is None:
+            raise HTTPException(status_code=400, detail="Excel 文件中没有找到有效的数据表")
         rows = []
         for row in ws.iter_rows(min_row=2, values_only=True):
             if not row[0]:
@@ -545,8 +553,16 @@ async def reimport_rectification(
     try:
         content = await file.read()
         wb = openpyxl.load_workbook(io.BytesIO(content))
-        ws = wb.active
-        headers = [cell.value for cell in ws[1]]
+        # 遍历所有 sheet，找到第一个首行有内容（表头）的 sheet
+        ws = None
+        for sheet in wb.worksheets:
+            row1 = [cell.value for cell in sheet[1]]
+            if any(row1):
+                ws = sheet
+                headers = row1
+                break
+        if ws is None:
+            raise HTTPException(status_code=400, detail="Excel 文件中没有找到有效的数据表")
         for row in ws.iter_rows(min_row=2, values_only=True):
             if not row[0]:
                 continue

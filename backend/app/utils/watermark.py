@@ -83,7 +83,12 @@ def watermark_pdf(pdf_bytes: bytes, username: str, date_str: str) -> bytes:
     """对 PDF 添加水印：把中文水印渲染为PNG，插入到PDF每一页"""
     import fitz
 
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    try:
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    except Exception as e:
+        # 文件不是有效的 PDF，返回原始内容（避免因测试文件导致 500 错误）
+        print(f"[WATERMARK] Invalid PDF, skipping watermark: {e}")
+        return pdf_bytes
     if doc.page_count == 0:
         return pdf_bytes
 
@@ -123,7 +128,12 @@ def watermark_image(
     """对图片添加文字水印"""
     from PIL import Image, ImageDraw
 
-    img = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+    try:
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+    except Exception as e:
+        # 文件不是有效的图片，返回原始内容
+        print(f"[WATERMARK] Invalid image, skipping watermark: {e}")
+        return image_bytes
     width, height = img.size
 
     watermark_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))

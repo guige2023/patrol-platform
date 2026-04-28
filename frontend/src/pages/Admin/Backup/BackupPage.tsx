@@ -7,11 +7,11 @@ import { getErrorMessage } from '@/utils/error';
 import type { ColumnsType } from 'antd/es/table';
 
 interface BackupRecord {
-  id: string;
   filename: string;
   type: 'auto' | 'manual';
   size: number;
   created_at: string;
+  timestamp?: string;
 }
 
 const BackupPage: React.FC = () => {
@@ -60,7 +60,7 @@ const BackupPage: React.FC = () => {
     if (!selectedBackup) return;
     setRestoring(true);
     try {
-      await restoreBackup(selectedBackup.id);
+      await restoreBackup(selectedBackup.filename);
       message.success('数据恢复成功');
       setRestoreModalVisible(false);
     } catch (e: any) {
@@ -70,9 +70,9 @@ const BackupPage: React.FC = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (filename: string) => {
     try {
-      await deleteBackup(id);
+      await deleteBackup(filename);
       message.success('删除成功');
       fetchData();
     } catch (e: any) {
@@ -81,7 +81,7 @@ const BackupPage: React.FC = () => {
   };
 
   const handleDownload = (record: BackupRecord) => {
-    downloadBackup(record.id).catch(() => message.error('下载失败'));
+    downloadBackup(record.filename).catch(() => message.error('下载失败'));
   };
 
   const handleAutoBackupChange = async (checked: boolean) => {
@@ -143,7 +143,7 @@ const BackupPage: React.FC = () => {
           }}>
             恢复
           </Button>
-          <Popconfirm title="确认删除该备份？" onConfirm={() => handleDelete(record.id)}>
+          <Popconfirm title="确认删除该备份？" onConfirm={() => handleDelete(record.filename)}>
             <Button type="link" size="small" danger icon={<DeleteOutlined />}>
               删除
             </Button>
