@@ -1,20 +1,19 @@
 import api from './client';
 import { message } from 'antd';
+import type { Knowledge, PaginationParams } from '@/types/api';
 
-export const getKnowledgeList = (params?: { page?: number; page_size?: number; title?: string; category?: string }) =>
-  api.get('/knowledge/', { params }).then(res => (res.data as any)?.data ?? res.data);
+export const getKnowledgeList = (params?: PaginationParams & { title?: string; category?: string }) =>
+  api.get('/knowledge/', { params }).then(res => res.data);
 
-// Backend returns {data: {knowledge_fields}, message: "..."} for single-object GET.
-// The response interceptor does NOT unwrap it (no items/total). Unwrap manually.
 export const getKnowledge = (id: string) =>
-  api.get(`/knowledge/${id}`).then(res => (res.data as any).data);
+  api.get(`/knowledge/${id}`).then(res => res.data);
 
 export const getKnowledgeDetail = getKnowledge;
 
-export const createKnowledge = (data: any) =>
+export const createKnowledge = (data: Partial<Knowledge>) =>
   api.post('/knowledge/', data).then(res => res.data);
 
-export const updateKnowledge = (id: string, data: any) =>
+export const updateKnowledge = (id: string, data: Partial<Knowledge>) =>
   api.put(`/knowledge/${id}`, data).then(res => res.data);
 
 export const deleteKnowledge = (id: string) =>
@@ -35,8 +34,9 @@ export const exportKnowledge = (params?: { category?: string }) => {
     a.download = 'knowledge.xlsx';
     a.click();
     window.URL.revokeObjectURL(url);
-  }).catch((e) => {
-    message.error('导出失败: ' + (e.message || '未知错误'));
+  }).catch((e: unknown) => {
+    const err = e instanceof Error ? e : new Error('Unknown error');
+    message.error('导出失败: ' + (err.message || '未知错误'));
     throw e;
   });
 };

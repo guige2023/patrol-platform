@@ -1,7 +1,8 @@
 import api from './client';
+import type { Unit, PaginationParams } from '@/types/api';
 
-export const getUnits = (params?: { page?: number; page_size?: number; name?: string }) =>
-  api.get('/units/', { params }).then(res => (res.data as any)?.data ?? res.data);
+export const getUnits = (params?: PaginationParams & { name?: string }) =>
+  api.get('/units/', { params }).then(res => res.data);
 
 export const getUnitTree = () =>
   api.get('/units/tree').then(res => res.data);
@@ -11,10 +12,10 @@ export const getUnit = (id: string) =>
 
 export const getUnitDetail = getUnit;
 
-export const createUnit = (data: any) =>
+export const createUnit = (data: Partial<Unit>) =>
   api.post('/units/', data).then(res => res.data);
 
-export const updateUnit = (id: string, data: any) =>
+export const updateUnit = (id: string, data: Partial<Unit>) =>
   api.put(`/units/${id}`, data).then(res => res.data);
 
 export const deleteUnit = (id: string) =>

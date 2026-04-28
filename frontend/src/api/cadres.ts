@@ -1,19 +1,18 @@
 import api from './client';
+import type { Cadre, PaginationParams } from '@/types/api';
 
-export const getCadres = (params?: { page?: number; page_size?: number; name?: string; unit_id?: string }) =>
-  api.get('/cadres/', { params }).then(res => (res.data as any)?.data ?? res.data);
+export const getCadres = (params?: PaginationParams & { name?: string; unit_id?: string }) =>
+  api.get('/cadres/', { params }).then(res => res.data);
 
-// Backend returns {data: {cadre_fields}, message: "..."} for single-object GET.
-// The response interceptor does NOT unwrap it (no items/total). Unwrap manually.
 export const getCadre = (id: string) =>
-  api.get(`/cadres/${id}`).then(res => (res.data as any).data);
+  api.get(`/cadres/${id}`).then(res => res.data);
 
 export const getCadreDetail = getCadre;
 
-export const createCadre = (data: any) =>
+export const createCadre = (data: Partial<Cadre>) =>
   api.post('/cadres/', data).then(res => res.data);
 
-export const updateCadre = (id: string, data: any) =>
+export const updateCadre = (id: string, data: Partial<Cadre>) =>
   api.put(`/cadres/${id}`, data).then(res => res.data);
 
 export const deleteCadre = (id: string) =>
@@ -47,5 +46,6 @@ export const getCadreGroups = (cadreId: string) =>
 
 export const batchDeleteCadres = (ids: string[]) =>
   api.post('/cadres/batch-delete', ids);
+
 export const getCadreReport = (cadreId: string) =>
   api.get(`/cadres/${cadreId}/report`).then(res => res.data);

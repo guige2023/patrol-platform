@@ -1,21 +1,34 @@
 import api from './client';
+import type { User, Role, PaginationParams } from '@/types/api';
 
 export const getUsers = () => api.get('/admin/users').then(res => res.data);
-export const createUser = (data: any) => api.post('/admin/users', data).then(res => res.data);
-export const updateUser = (id: string, data: any) => api.put(`/admin/users/${id}`, data).then(res => res.data);
+
+export const createUser = (data: Partial<User>) => api.post('/admin/users', data).then(res => res.data);
+
+export const updateUser = (id: string, data: Partial<User>) => api.put(`/admin/users/${id}`, data).then(res => res.data);
+
 export const deleteUser = (id: string) => api.delete(`/admin/users/${id}`);
-export const getAuditLogs = (params?: { page?: number; page_size?: number; entity_type?: string; search?: string }) =>
+
+export const getAuditLogs = (params?: PaginationParams & { entity_type?: string; search?: string }) =>
   api.get('/admin/audit-logs', { params }).then(res => res.data);
+
 export const getModules = () => api.get('/admin/modules').then(res => res.data);
-export const updateModule = (id: string, is_enabled: boolean, config?: any) =>
+
+export const updateModule = (id: string, is_enabled: boolean, config?: Record<string, unknown>) =>
   api.put(`/admin/modules/${id}`, { is_enabled, config }).then(res => res.data);
+
 export const getAlerts = (params?: { is_resolved?: boolean; level?: string }) =>
   api.get('/alerts/', { params }).then(res => res.data);
+
 export const resolveAlert = (id: string) => api.post(`/alerts/${id}/resolve`);
+
 export const getNotifications = (params?: { is_read?: boolean }) =>
   api.get('/notifications/', { params }).then(res => res.data);
+
 export const markNotificationRead = (id: string) => api.patch(`/notifications/${id}/read`);
+
 export const markAllNotificationsRead = () => api.post('/notifications/read-all');
+
 export const uploadFile = (file: File, entity_type?: string, entity_id?: string) => {
   const formData = new FormData();
   formData.append('file', file);
@@ -38,9 +51,9 @@ export const exportAuditLogs = (params?: { entity_type?: string }) => {
 
 export const getRoles = () => api.get('/admin/roles').then(res => res.data);
 
-export const createRole = (data: any) => api.post('/admin/roles', data);
+export const createRole = (data: Partial<Role>) => api.post('/admin/roles', data);
 
-export const updateRole = (id: string, data: any) => api.put(`/admin/roles/${id}`, data);
+export const updateRole = (id: string, data: Partial<Role>) => api.put(`/admin/roles/${id}`, data);
 
 export const deleteRole = (id: string) => api.delete(`/admin/roles/${id}`);
 

@@ -1,28 +1,49 @@
 import api from './client';
+import type { Group, PaginationParams } from '@/types/api';
 
-export const getGroups = (params?: { plan_id?: string; status?: string; search?: string }) =>
-  api.get('/groups/', { params }).then(res => (res.data as any)?.data ?? res.data);
-// Backend returns {data: {group_fields}, message: "..."} — manual unwrap needed.
+export interface CreateGroupData {
+  name: string;
+  plan_id: string;
+  target_unit_id?: string;
+  unit_ids?: string[];
+  authorization_letter?: string;
+  authorization_date?: string;
+  status?: string;
+}
+
+export const getGroups = (params?: PaginationParams & { plan_id?: string; status?: string; search?: string }) =>
+  api.get('/groups/', { params }).then(res => res.data);
+
 export const getGroup = (id: string) =>
-  api.get(`/groups/${id}`).then(res => (res.data as any).data);
-export const createGroup = (data: { name: string; plan_id: string; target_unit_id?: string; unit_ids?: string[]; authorization_letter?: string; authorization_date?: string; status?: string }) =>
+  api.get(`/groups/${id}`).then(res => res.data);
+
+export const createGroup = (data: CreateGroupData) =>
   api.post('/groups/', data).then(res => res.data);
-export const updateGroup = (id: string, data: any) =>
+
+export const updateGroup = (id: string, data: Partial<CreateGroupData>) =>
   api.put(`/groups/${id}`, data).then(res => res.data);
+
 export const addMember = (groupId: string, cadreId: string, role: string) =>
   api.post(`/groups/${groupId}/members`, { cadre_id: cadreId, role, is_leader: role === '组长' }).then(res => res.data);
+
 export const removeMember = (groupId: string, cadreId: string) =>
   api.delete(`/groups/${groupId}/members/${cadreId}`);
+
 export const getGroupMembers = (groupId: string) =>
   api.get(`/groups/${groupId}/members`).then(res => res.data);
+
 export const submitGroup = (id: string) =>
   api.post(`/groups/${id}/submit`);
+
 export const activateGroup = (id: string) =>
   api.post(`/groups/${id}/activate`);
+
 export const completeGroup = (id: string) =>
   api.post(`/groups/${id}/complete`);
+
 export const getGroupStatusLogs = (groupId: string) =>
   api.get(`/groups/${groupId}/status-logs`).then(res => res.data);
+
 export const deleteGroup = (id: string) =>
   api.delete(`/groups/${id}`);
 

@@ -1,21 +1,20 @@
 import api from './client';
+import { message } from 'antd';
+import type { Plan, PaginationParams } from '@/types/api';
 
 export const getPlanYears = () =>
-  api.get('/plans/years').then((res: any) => res.data?.data ?? []);
-import { message } from 'antd';
+  api.get('/plans/years').then(res => res.data);
 
-export const getPlans = (params?: { page?: number; page_size?: number; name?: string; year?: number; status?: string; principal_id?: string }) =>
-  api.get('/plans/', { params }).then(res => (res.data as any)?.data ?? res.data);
+export const getPlans = (params?: PaginationParams & { name?: string; year?: number; status?: string; principal_id?: string }) =>
+  api.get('/plans/', { params }).then(res => res.data);
 
-// Backend returns {data: {plan_fields}, message: "..."} for single-object GET.
-// The response interceptor does NOT unwrap it (no items/total). Unwrap manually.
 export const getPlan = (id: string) =>
-  api.get(`/plans/${id}`).then(res => (res.data as any).data);
+  api.get(`/plans/${id}`).then(res => res.data);
 
-export const createPlan = (data: any) =>
+export const createPlan = (data: Partial<Plan>) =>
   api.post('/plans/', data).then(res => res.data);
 
-export const updatePlan = (id: string, data: any) =>
+export const updatePlan = (id: string, data: Partial<Plan>) =>
   api.put(`/plans/${id}`, data).then(res => res.data);
 
 export const submitPlan = (id: string) =>

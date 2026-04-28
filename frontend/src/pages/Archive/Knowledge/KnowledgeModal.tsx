@@ -109,7 +109,9 @@ const KnowledgeModal: React.FC<KnowledgeModalProps> = ({ open, knowledgeId, onCl
         try {
           const errData = await res.json();
           errMsg = errData.detail || errData.message || errMsg;
-        } catch {}
+        } catch {
+          // Response might not be JSON, use default message
+        }
         throw new Error(errMsg);
       }
       const blob = await res.blob();

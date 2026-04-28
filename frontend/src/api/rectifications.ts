@@ -1,19 +1,19 @@
 import api from './client';
+import type { Rectification, PaginationParams } from '@/types/api';
 
-export const getRectifications = (params?: { page?: number; page_size?: number; status?: string; unit_id?: string; title?: string }) =>
-  api.get('/rectifications/', { params }).then(res => (res.data as any)?.data ?? res.data);
+export const getRectifications = (params?: PaginationParams & { status?: string; unit_id?: string; title?: string }) =>
+  api.get('/rectifications/', { params }).then(res => res.data);
 
-// Backend returns {data: {rectification_fields}, message: "..."} — manual unwrap needed.
 export const getRectification = (id: string) =>
-  api.get(`/rectifications/${id}`).then(res => (res.data as any).data);
+  api.get(`/rectifications/${id}`).then(res => res.data);
 
-export const createRectification = (data: any) =>
+export const createRectification = (data: Partial<Rectification>) =>
   api.post('/rectifications/', data).then(res => res.data);
 
-export const updateRectification = (id: string, data: any) =>
+export const updateRectification = (id: string, data: Partial<Rectification>) =>
   api.put(`/rectifications/${id}`, data).then(res => res.data);
 
-export const updateProgress = (id: string, progress: number, details?: any[]) =>
+export const updateRectificationProgress = (id: string, progress: number, details?: Record<string, unknown>[]) =>
   api.patch(`/rectifications/${id}/progress?progress=${progress}`, details ? { details } : undefined);
 
 export const signRectification = (id: string) =>
@@ -42,6 +42,7 @@ export const batchDeleteRectifications = (ids: string[]) =>
 
 export const submitRectification = (id: string) =>
   api.post(`/rectifications/${id}/submit`);
+
 export const batchUpdateRectificationStatus = (ids: string[], status: string) =>
   api.post('/rectifications/batch-status', { ids, status });
 

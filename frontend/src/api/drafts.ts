@@ -1,15 +1,16 @@
 import api from './client';
+import type { Draft, PaginationParams } from '@/types/api';
 
-export const getDrafts = (params?: { page?: number; page_size?: number; status?: string }) =>
-  api.get('/drafts/', { params }).then(res => (res.data as any)?.data ?? res.data);
+export const getDrafts = (params?: PaginationParams & { status?: string }) =>
+  api.get('/drafts/', { params }).then(res => res.data);
 
 export const getDraft = (id: string) =>
   api.get(`/drafts/${id}`).then(res => res.data);
 
-export const createDraft = (data: any) =>
+export const createDraft = (data: Partial<Draft>) =>
   api.post('/drafts/', data).then(res => res.data);
 
-export const updateDraft = (id: string, data: any) =>
+export const updateDraft = (id: string, data: Partial<Draft>) =>
   api.put(`/drafts/${id}`, data).then(res => res.data);
 
 export const submitDraft = (id: string, action: string, comment?: string) =>
