@@ -227,9 +227,7 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
         ) : (
           <Space>
             <Button onClick={onClose}>{mode === 'create' ? '取消' : '关闭'}</Button>
-            {mode === 'create' && (
-              <Button type="primary" onClick={handleSubmit} loading={loading}>确定</Button>
-            )}
+            <Button type="primary" onClick={handleSubmit} loading={loading}>确定</Button>
           </Space>
         )
       }

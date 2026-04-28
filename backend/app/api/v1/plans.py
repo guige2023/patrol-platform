@@ -997,7 +997,11 @@ async def publish_plan(plan_id: UUID, uow: UnitOfWork = Depends(get_uow), curren
         if unit:
             unit.last_inspection_year = current_year
             existing = unit.inspection_history or ""
-            round_info = f"{current_year}年{plan.round_name or ('%d轮' % plan.round)}"
+            if plan.round_number is not None:
+                round_num_str = f"{plan.round_number}轮"
+            else:
+                round_num_str = ""
+            round_info = f"{current_year}年{plan.round_name or round_num_str}"
             unit.inspection_history = (existing + f"; {round_info}").strip("; ")
             updated_units.append(unit.name)
 
