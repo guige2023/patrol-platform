@@ -545,6 +545,23 @@ def upgrade() -> None:
     # [REMOVED - duplicate of column-level index=True]     op.create_index(op.f('ix_documents_plan_id'), 'documents', ['plan_id'])
     # [REMOVED - duplicate of column-level index=True]     op.create_index(op.f('ix_documents_rectification_id'), 'documents', ['rectification_id'])
 
+    # warnings table (预警消息) - Warning model
+    op.create_table(
+        'warnings',
+        sa.Column('id', sa.Uuid, primary_key=True),
+        sa.Column('type', sa.String(32), nullable=False),
+        sa.Column('title', sa.String(256), nullable=False),
+        sa.Column('description', sa.Text),
+        sa.Column('source_id', sa.Uuid, index=True),
+        sa.Column('source_type', sa.String(32)),
+        sa.Column('level', sa.String(16), server_default='warning'),
+        sa.Column('is_read', sa.Boolean, server_default='false', index=True),
+        sa.Column('read_at', sa.DateTime),
+        sa.Column('read_by', sa.Uuid),
+        sa.Column('created_at', sa.DateTime, server_default=sa.func.now()),
+    )
+    op.create_index(op.f('ix_warnings_type'), 'warnings', ['type'])
+
 
 def downgrade() -> None:
     # Drop in reverse dependency order — tables with FK references must be dropped AFTER the tables they reference
@@ -558,6 +575,7 @@ def downgrade() -> None:
     op.drop_table('audit_logs')
     op.drop_table('attachments')
     op.drop_table('alerts')
+    op.drop_table('warnings')
     op.drop_table('rectifications')
     op.drop_table('clues')
     op.drop_table('draft_attachments')

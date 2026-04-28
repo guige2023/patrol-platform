@@ -39,6 +39,21 @@ async def mark_read(notification_id: UUID, uow: UnitOfWork = Depends(get_uow), c
     return {"message": "Marked as read"}
 
 
+@router.get("/unread-count")
+async def get_unread_count(
+    uow: UnitOfWork = Depends(get_uow),
+    current_user: User = Depends(get_current_user),
+):
+    result = await uow.execute(
+        select(Notification).where(
+            Notification.user_id == current_user.id,
+            Notification.is_read == False
+        )
+    )
+    count = len(result.scalars().all())
+    return {"unread_count": count}
+
+
 @router.post("/read-all")
 async def mark_all_read(uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
     await uow.execute(

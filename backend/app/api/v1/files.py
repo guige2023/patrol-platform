@@ -50,6 +50,22 @@ async def upload_file(
     return {"id": attachment.id, "file_name": file.filename}
 
 
+def _check_file_access(uow: UnitOfWork, current_user: User, entity_type: str, entity_id: UUID) -> bool:
+    """Check if user has access to the entity that owns this file."""
+    # General and knowledge files are publicly accessible to all authenticated users
+    if entity_type in ("general", "knowledge"):
+        return True
+    # super_admin has access to all files
+    if getattr(current_user, 'role', None) == 'super_admin':
+        return True
+    # File owner always has access
+    if entity_id and entity_id == current_user.id:
+        return True
+    # For entity-attached files, access is controlled by entity-level permissions
+    # (entity_id refers to the parent entity, not the user)
+    return False
+
+
 @router.get("/{file_id}")
 async def get_file_info(file_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
     from app.models.attachment import Attachment
@@ -57,6 +73,8 @@ async def get_file_info(file_id: UUID, uow: UnitOfWork = Depends(get_uow), curre
     f = result.scalar_one_or_none()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
+    if not _check_file_access(uow, current_user, f.entity_type, f.entity_id):
+        raise HTTPException(status_code=403, detail="Access denied")
     return {"id": f.id, "file_name": f.file_name, "file_size": f.file_size, "mime_type": f.mime_type}
 
 
@@ -67,4 +85,8 @@ async def download_file(file_id: UUID, uow: UnitOfWork = Depends(get_uow), curre
     f = result.scalar_one_or_none()
     if not f:
         raise HTTPException(status_code=404, detail="File not found")
+    if not _check_file_access(uow, current_user, f.entity_type, f.entity_id):
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not Path(f.file_path).is_file():
+        raise HTTPException(status_code=404, detail="File not found on disk")
     return FileResponse(f.file_path, filename=f.file_name, media_type=f.mime_type)
