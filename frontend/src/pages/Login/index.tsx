@@ -3,45 +3,34 @@ import { Input, Button, Card, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth';
-import api from '@/api/client';
 
 const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { login: _login } = useAuthStore();
+  const { login } = useAuthStore();
   const formRef = useRef<HTMLFormElement>(null);
 
-  // 支持自动化登录：URL 参数或 localStorage 预填
+  // 支持自动化预填用户名；密码不能通过 URL 传递或自动提交。
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const u = params.get('u');
-    const p = params.get('p');
-    if (u && p) {
+    if (u) {
       setUsername(u);
-      setPassword(p);
-      // 自动提交
-      setTimeout(() => {
-        handleSubmit(u, p);
-      }, 100);
     }
   }, []);
 
   const handleSubmit = async (user?: string, pwd?: string) => {
     const u = user ?? username;
     const p = pwd ?? password;
-    console.log('[Login] handleSubmit called:', { user, pwd, u, p, username, password });
     if (!u || !p) {
       message.error('请输入用户名和密码');
       return;
     }
     setLoading(true);
     try {
-      const res = await api.post<{ access_token: string; token_type: string; user: any }>('/auth/login', { username: u, password: p });
-      const { access_token } = res.data;
-      localStorage.setItem('token', access_token);
+      await login(u, p);
       message.success('登录成功');
       navigate('/');
     } catch (e: any) {

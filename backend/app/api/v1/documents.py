@@ -19,10 +19,11 @@ from app.models.user import User
 from app.schemas.document import DocumentResponse, GenerateDocumentRequest, GenerateRectificationNoticeRequest
 from app.schemas.common import PaginatedResponse, PageResult
 from app.core.audit import write_audit_log
+from app.config import settings
 
 router = APIRouter()
 
-DOCUMENTS_DIR = Path("/Users/guige/my_project/patrol_platform/backend/app/static/documents")
+DOCUMENTS_DIR = settings.documents_path
 DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
 
 

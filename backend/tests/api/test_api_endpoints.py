@@ -5,11 +5,16 @@ Run with: pytest backend/tests/api/test_api_endpoints.py -v
 """
 
 import pytest
+import os
 from httpx import AsyncClient, ASGITransport
 from app.main import app
 
+pytest_asyncio = pytest.importorskip("pytest_asyncio")
 
-@pytest.fixture
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+
+
+@pytest_asyncio.fixture
 async def client():
     """Async HTTP client for testing."""
     transport = ASGITransport(app=app)
@@ -17,12 +22,14 @@ async def client():
         yield ac
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def auth_client(client):
     """Authenticated HTTP client."""
+    if not ADMIN_PASSWORD:
+        pytest.skip("Set ADMIN_PASSWORD to run authenticated API tests")
     response = await client.post(
         "/api/v1/auth/login",
-        json={"username": "admin", "password": "admin123"}
+        json={"username": "admin", "password": ADMIN_PASSWORD}
     )
     assert response.status_code == 200
     token = response.json()["access_token"]
@@ -123,9 +130,11 @@ class TestAuthEndpoints:
 
     async def test_login(self, client):
         """Test POST /api/v1/auth/login"""
+        if not ADMIN_PASSWORD:
+            pytest.skip("Set ADMIN_PASSWORD to run login test")
         response = await client.post(
             "/api/v1/auth/login",
-            json={"username": "admin", "password": "admin123"}
+            json={"username": "admin", "password": ADMIN_PASSWORD}
         )
         assert response.status_code == 200
         data = response.json()

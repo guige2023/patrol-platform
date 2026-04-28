@@ -21,6 +21,7 @@ email-validator==2.1.0
 # File Storage
 minio==7.2.0
 python-magic==0.4.27
+meilisearch==0.31.6
 
 # Document Generation
 python-docx==1.1.0

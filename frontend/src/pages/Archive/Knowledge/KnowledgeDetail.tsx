@@ -6,7 +6,7 @@ import PageHeader from '@/components/common/PageHeader';
 import { getKnowledgeDetail, updateKnowledge } from '@/api/knowledge';
 import { getErrorMessage } from '@/utils/error';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:18800';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 const KnowledgeDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();

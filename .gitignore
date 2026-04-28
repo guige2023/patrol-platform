@@ -16,3 +16,18 @@ patrol.db
 .hermes/plans/prd_patrol_platform.md
 backend/patrol.db
 **/*.db
+
+# Runtime/generated data
+backend/uploads/
+backend/backend/uploads/
+backend/app/backups/
+backend/app/static/documents/
+backend/app/static/generated/
+backend/app/runtime/
+backend/backend.log
+backend.log
+
+# Local configuration
+.env.*
+!.env.example
+backend/.env

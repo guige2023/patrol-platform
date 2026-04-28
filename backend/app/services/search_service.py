@@ -2,14 +2,48 @@
 Meilisearch 全文搜索服务
 """
 
-import os
-import meilisearch
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from app.config import settings
 
-# Meilisearch 配置
-MEILISEARCH_URL = "http://127.0.0.1:7700"
-MEILISEARCH_KEY = "patrol_platform_key"
+try:
+    import meilisearch
+except ImportError:
+    meilisearch = None
+
+
+class _NullTask:
+    task_uid = None
+
+
+class _NullIndex:
+    def update_settings(self, *_args, **_kwargs):
+        return _NullTask()
+
+    def add_documents(self, *_args, **_kwargs):
+        return _NullTask()
+
+    def search(self, *_args, **_kwargs):
+        return {"hits": []}
+
+    def delete_document(self, *_args, **_kwargs):
+        return _NullTask()
+
+    def delete_documents(self, *_args, **_kwargs):
+        return _NullTask()
+
+    def delete_all_documents(self, *_args, **_kwargs):
+        return _NullTask()
+
+
+class _NullClient:
+    def create_index(self, *_args, **_kwargs):
+        return _NullTask()
+
+    def index(self, *_args, **_kwargs):
+        return _NullIndex()
+
+    def wait_for_task(self, *_args, **_kwargs):
+        return None
 
 # 索引名称
 INDEX_UNITS = "units"
@@ -44,12 +78,15 @@ CHINESE_SETTINGS = {
 
 
 class SearchService:
-    _client: Optional[meilisearch.Client] = None
+    _client: Optional[Any] = None
 
     @classmethod
-    def get_client(cls) -> meilisearch.Client:
+    def get_client(cls) -> Any:
         if cls._client is None:
-            cls._client = meilisearch.Client(MEILISEARCH_URL, MEILISEARCH_KEY)
+            if meilisearch is None:
+                cls._client = _NullClient()
+                return cls._client
+            cls._client = meilisearch.Client(settings.MEILISEARCH_URL, settings.MEILISEARCH_KEY)
             cls._setup_indexes()
         return cls._client
 

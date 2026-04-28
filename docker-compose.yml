@@ -6,13 +6,23 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:patrol123@db:5432/patrol
-      - SYNC_DATABASE_URL=postgresql://postgres:patrol123@db:5432/patrol
-      - SECRET_KEY=change-this-secret-key-in-production-please
-      - ENCRYPTION_KEY=change-this-32-byte-encryption-key-here
+      - DATABASE_URL=postgresql+asyncpg://postgres:${PATROL_DB_PASSWORD:?set PATROL_DB_PASSWORD}@db:5432/patrol
+      - SYNC_DATABASE_URL=postgresql://postgres:${PATROL_DB_PASSWORD:?set PATROL_DB_PASSWORD}@db:5432/patrol
+      - SECRET_KEY=${SECRET_KEY:?set SECRET_KEY}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:?set ENCRYPTION_KEY}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+      - SERVE_UPLOADS=false
+      - RUNTIME_DIR=/app/runtime
+      - LIBREOFFICE_CMD=${LIBREOFFICE_CMD:-libreoffice}
+      - MEILISEARCH_URL=http://meilisearch:7700
+      - MEILISEARCH_KEY=${MEILISEARCH_KEY:?set MEILISEARCH_KEY}
+    volumes:
+      - backend_runtime:/app/runtime
     depends_on:
       db:
         condition: service_healthy
+      meilisearch:
+        condition: service_started
     restart: unless-stopped
 
   frontend:
@@ -28,7 +38,7 @@ services:
     environment:
       - POSTGRES_DB=patrol
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=patrol123
+      - POSTGRES_PASSWORD=${PATROL_DB_PASSWORD:?set PATROL_DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -41,8 +51,8 @@ services:
   minio:
     image: minio/minio:latest
     environment:
-      - MINIO_ROOT_USER=minioadmin
-      - MINIO_ROOT_PASSWORD=minioadmin123
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:?set MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD}
     command: server /data --console-address ":9001"
     ports:
       - "9000:9000"
@@ -51,6 +61,17 @@ services:
       - minio_data:/data
     restart: unless-stopped
 
+  meilisearch:
+    image: getmeili/meilisearch:v1.7
+    environment:
+      - MEILI_MASTER_KEY=${MEILISEARCH_KEY:?set MEILISEARCH_KEY}
+      - MEILI_ENV=production
+    volumes:
+      - meili_data:/meili_data
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   minio_data:
+  backend_runtime:
+  meili_data:

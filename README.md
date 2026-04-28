@@ -16,6 +16,7 @@
 # 后端
 cd backend
 pip install -r requirements.txt
+export ADMIN_PASSWORD='your-initial-admin-password'
 python -m uvicorn app.main:app --host 0.0.0.0 --port 18800
 
 # 前端（新终端）
@@ -24,11 +25,13 @@ npm install
 npm run dev
 ```
 
-访问 http://localhost:3000，默认账号: `admin` / `admin123`
+访问 http://localhost:3070。首次初始化账号为 `admin`，密码使用 `ADMIN_PASSWORD`；如未设置，初始化脚本会生成随机密码并打印一次。
 
 ### 生产模式（Docker）
 
 ```bash
+cp .env.example .env
+# 编辑 .env，填入强密码和密钥
 docker-compose up -d
 docker-compose logs -f
 ```
@@ -39,11 +42,13 @@ docker-compose logs -f
 
 | 服务 | 端口 | 说明 |
 |------|------|------|
-| 前端 | 3000 | React 开发服务器 |
-| 后端 | 18800 | FastAPI（Vite 代理 `/api` → 本端口） |
+| 前端开发 | 3070 | React 开发服务器 |
+| 前端生产 | 3000 | Docker/Nginx |
+| 后端开发 | 18800 | FastAPI（Vite 代理 `/api` → 本端口） |
+| 后端生产 | 8000 | Docker Compose 内后端服务 |
 | Swagger | http://localhost:18800/docs | API 文档 |
 
-> 注意：旧文档可能写 8000/18000，请以本文件为准。
+> 注意：Docker 后端默认映射到 8000，本地开发命令使用 18800。
 
 ## 项目结构
 
@@ -161,6 +166,8 @@ patrol_platform/
 cd backend
 alembic upgrade head
 ```
+
+运行时上传、备份和生成文档默认写入 `runtime/`，不会进入版本控制。
 
 ## API 文档
 

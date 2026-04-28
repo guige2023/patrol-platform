@@ -1,9 +1,13 @@
 # tests/test_progress.py
 import pytest
+import importlib.util
 from httpx import AsyncClient, ASGITransport
 from uuid import uuid4
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
+
+
+HAS_PYTEST_ASYNCIO = importlib.util.find_spec("pytest_asyncio") is not None
 
 
 class TestProgressModel:
@@ -107,6 +111,7 @@ class TestProgressAPI:
         return user
 
     @pytest.mark.asyncio
+    @pytest.mark.skipif(not HAS_PYTEST_ASYNCIO, reason="pytest-asyncio is not installed")
     async def test_list_progress_requires_auth(self):
         """Test that list progress requires authentication."""
         from app.main import app
@@ -116,6 +121,7 @@ class TestProgressAPI:
             assert response.status_code in [401, 403, 307, 404]
 
     @pytest.mark.asyncio
+    @pytest.mark.skipif(not HAS_PYTEST_ASYNCIO, reason="pytest-asyncio is not installed")
     async def test_progress_template_download(self, mock_user):
         """Test template download endpoint exists."""
         from app.main import app

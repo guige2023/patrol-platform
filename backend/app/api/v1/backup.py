@@ -20,7 +20,7 @@ from app.config import settings
 
 router = APIRouter()
 
-BACKUPS_DIR = Path("/Users/guige/my_project/patrol_platform/backend/app/backups")
+BACKUPS_DIR = settings.backup_path
 BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
 
 SETTINGS_FILE = BACKUPS_DIR / "settings.json"
@@ -57,6 +57,13 @@ def _get_settings() -> dict:
 def _save_settings(settings: dict):
     with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
         json.dump(settings, f, ensure_ascii=False, indent=2)
+
+
+def _safe_backup_path(filename: str) -> Path:
+    safe_name = Path(filename).name
+    if safe_name != filename or not safe_name.endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Invalid backup filename")
+    return BACKUPS_DIR / safe_name
 
 
 @router.get("/settings")
@@ -181,7 +188,7 @@ async def create_backup(
 @router.get("/{filename}/download")
 async def download_backup(filename: str, current_user: User = Depends(get_current_user)):
     """Download a backup file."""
-    backup_path = BACKUPS_DIR / filename
+    backup_path = _safe_backup_path(filename)
     if not backup_path.exists():
         raise HTTPException(status_code=404, detail="Backup not found")
 
@@ -198,8 +205,8 @@ async def download_backup(filename: str, current_user: User = Depends(get_curren
 @router.delete("/{filename}")
 async def delete_backup(filename: str, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
     """Delete a backup file and its metadata."""
-    backup_path = BACKUPS_DIR / filename
-    meta_path = BACKUPS_DIR / f"{Path(filename).stem}.meta.json"
+    backup_path = _safe_backup_path(filename)
+    meta_path = BACKUPS_DIR / f"{backup_path.stem}.meta.json"
 
     if not backup_path.exists() and not meta_path.exists():
         raise HTTPException(status_code=404, detail="Backup not found")
@@ -220,7 +227,7 @@ async def restore_backup(
     current_user: User = Depends(get_current_user),
 ):
     """Restore database from a backup zip file."""
-    backup_path = BACKUPS_DIR / filename
+    backup_path = _safe_backup_path(filename)
     if not backup_path.exists():
         raise HTTPException(status_code=404, detail="Backup not found")
 
@@ -252,9 +259,13 @@ async def restore_backup(
 
                 # Clear existing data and insert new
                 try:
-                    await uow.execute(text(f'TTRUNCATE TABLE "{table_name}" RESTART IDENTITY CASCADE'))
-                except Exception:
-                    pass  # Table might not support truncate
+                    dialect = uow.session.get_bind().dialect.name
+                    if dialect == "postgresql":
+                        await uow.execute(text(f'TRUNCATE TABLE "{table_name}" RESTART IDENTITY CASCADE'))
+                    else:
+                        await uow.execute(text(f'DELETE FROM "{table_name}"'))
+                except Exception as exc:
+                    raise HTTPException(status_code=500, detail=f"Failed to clear table {table_name}: {exc}")
 
                 for record in records:
                     # Convert ISO dates back to datetime
@@ -275,8 +286,8 @@ async def restore_backup(
                     sql = text(f'INSERT INTO "{table_name}" ({col_str}) VALUES ({placeholders})')
                     try:
                         await uow.execute(sql, record)
-                    except Exception as e:
-                        pass  # Skip problematic records
+                    except Exception as exc:
+                        raise HTTPException(status_code=500, detail=f"Failed to restore table {table_name}: {exc}")
 
                 restored_tables.append(table_name)
 

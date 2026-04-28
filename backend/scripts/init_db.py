@@ -2,6 +2,8 @@
 import asyncio
 import sys
 import json
+import os
+import secrets
 sys.path.insert(0, '.')
 
 from sqlalchemy import select
@@ -21,6 +23,7 @@ async def init_db():
         # 创建默认管理员（幂等）
         existing_admin = await db.execute(select(User).where(User.username == "admin"))
         if not existing_admin.scalar_one_or_none():
+            admin_password = os.getenv("ADMIN_PASSWORD") or secrets.token_urlsafe(18)
             # 创建默认角色
             admin_role = Role(
                 name="超级管理员",
@@ -35,12 +38,14 @@ async def init_db():
             admin = User(
                 username="admin",
                 email="admin@patrol.local",
-                hashed_password=AuthService.get_password_hash("admin123"),
+                hashed_password=AuthService.get_password_hash(admin_password),
                 full_name="系统管理员",
                 is_active=True,
                 role="super_admin",
             )
             db.add(admin)
+        else:
+            admin_password = None
 
         # 创建默认单位（幂等）
         existing_unit = await db.execute(select(Unit).where(Unit.org_code == "ROOT"))
@@ -94,7 +99,10 @@ async def init_db():
                 db.add(config)
 
         await db.commit()
-        print("数据库初始化完成! 管理员账号: admin / admin123")
+        if admin_password:
+            print(f"数据库初始化完成! 管理员账号: admin / {admin_password}")
+        else:
+            print("数据库初始化完成! 管理员账号已存在，密码未变更。")
 
 
 if __name__ == "__main__":

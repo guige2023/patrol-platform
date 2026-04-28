@@ -20,11 +20,9 @@ from app.models.knowledge import Knowledge
 from app.utils.watermark import apply_watermark
 from app.utils.text_extract import extract_text_from_file
 from app.services.search_service import SearchService
+from app.config import settings
 
 router = APIRouter(tags=["知识库文件"])
-
-# Office 文件转 PDF 的工具路径
-LIBREOFFICE_CMD = "/Users/guige/bin/libreoffice"
 
 # 支持在线预览的文件类型
 OFFICE_EXTS = {"doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp"}
@@ -34,9 +32,10 @@ PDF_EXT = "pdf"
 
 def convert_to_pdf(file_path: str, output_dir: str) -> Optional[str]:
     """使用 LibreOffice 将 Office 文件转换为 PDF，返回 PDF 文件路径"""
+    libreoffice_cmd = shutil.which(settings.LIBREOFFICE_CMD) or settings.LIBREOFFICE_CMD
     try:
         result = subprocess.run(
-            [LIBREOFFICE_CMD, "--headless", "--convert-to", "pdf",
+            [libreoffice_cmd, "--headless", "--convert-to", "pdf",
              "--outdir", output_dir, file_path],
             capture_output=True,
             text=True,
@@ -52,7 +51,7 @@ def convert_to_pdf(file_path: str, output_dir: str) -> Optional[str]:
         print(f"[CONVERT] Error converting to PDF: {e}")
         return None
 
-UPLOAD_BASE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), "uploads", "knowledge")
+UPLOAD_BASE = str(settings.upload_path / "knowledge")
 
 # 支持上传的文件类型（最终都转为 PDF 存储）
 ALLOWED_EXTS = {"pdf", "png", "jpg", "jpeg", "gif", "bmp", "webp"} | OFFICE_EXTS
@@ -92,7 +91,7 @@ async def upload_attachment(
     if not knowledge:
         raise HTTPException(status_code=404, detail="知识库条目不存在")
 
-    filename = file.filename or "unknown"
+    filename = os.path.basename(file.filename or "unknown")
     ext = get_file_ext(filename)
 
     # 检查文件类型是否允许

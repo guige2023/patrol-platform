@@ -49,7 +49,7 @@ const KnowledgeList: React.FC = () => {
     fetchData();
   };
 
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:18800';
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
   // 批量下载附件
   const handleDownloadAttachments = async (record: Knowledge) => {

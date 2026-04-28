@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """创建完整模拟数据"""
-import asyncio, httpx, random, json
+import asyncio, httpx, random, json, os
 
 BASE = "http://localhost:8000/api/v1"
 
 async def main():
     async with httpx.AsyncClient(timeout=120) as client:
         # Login
-        r = await client.post(f"{BASE}/auth/login", json={"username":"admin","password":"admin123"})
+        password = os.getenv("ADMIN_PASSWORD")
+        if not password:
+            print("Set ADMIN_PASSWORD before creating mock data.")
+            return
+        r = await client.post(f"{BASE}/auth/login", json={"username":"admin","password":password})
         if r.status_code != 200:
             print(f"Login failed: {r.status_code} {r.text}"); return
         token = r.json()["access_token"]
