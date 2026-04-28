@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Modal, Steps, Button, Space, Form, Input, Select, Checkbox,
   message, Descriptions, Tag, Spin, Row, Col, Table, Typography
@@ -110,6 +110,8 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // Track whether the Form has been mounted to avoid calling resetFields before mount
+  const formMountedRef = useRef(false);
 
   // Data
   const [plans, setPlans] = useState<PlanOption[]>([]);
@@ -144,6 +146,13 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
   // Preview (step 4)
   const [previewData, setPreviewData] = useState<any>(null);
 
+  // Mark form as mounted when user is at step 0 (where the Form lives)
+  useEffect(() => {
+    if (currentStep === 0) {
+      formMountedRef.current = true;
+    }
+  }, [currentStep]);
+
   useEffect(() => {
     if (open) {
       setCurrentStep(0);
@@ -155,7 +164,10 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
       setMatchedCadres([]);
       setSelectedMemberIds([]);
       setPreviewData(null);
-      form.resetFields();
+      // Defer resetFields until after the Form is confirmed mounted to avoid antd warning
+      if (formMountedRef.current) {
+        requestAnimationFrame(() => form.resetFields());
+      }
       loadData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -593,7 +605,7 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ open, onClose, onSu
     >
       <Steps current={currentStep} items={steps} style={{ marginBottom: 24 }} />
       {loading && currentStep === 0 ? (
-        <div style={{ textAlign: 'center', padding: 40 }}><Spin tip="加载数据中..." /></div>
+        <div style={{ textAlign: 'center', padding: 40, position: 'relative' }}><Spin tip="加载数据中..." /></div>
       ) : (
         <>
           {currentStep === 0 && renderStep1()}

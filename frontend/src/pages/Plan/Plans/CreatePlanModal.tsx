@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Modal, Steps, Button, Space, Form, Input, DatePicker,
   Checkbox, message, Descriptions, Tag, Spin, Row, Col, Typography
@@ -43,6 +43,8 @@ const CreatePlanModal: React.FC<CreatePlanModalProps> = ({ open, onClose, onSucc
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // Track whether the Form has been mounted to avoid calling resetFields before mount
+  const formMountedRef = useRef(false);
 
   // System configs
   const [configs, setConfigs] = useState<Record<string, string>>({});
@@ -56,12 +58,22 @@ const CreatePlanModal: React.FC<CreatePlanModalProps> = ({ open, onClose, onSucc
   // Step 3 preview
   const [previewData, setPreviewData] = useState<any>(null);
 
+  // Mark form as mounted when user reaches step 2 (the first step with a Form)
+  useEffect(() => {
+    if (currentStep >= 1) {
+      formMountedRef.current = true;
+    }
+  }, [currentStep]);
+
   useEffect(() => {
     if (open) {
       setCurrentStep(0);
       setSelectedUnitIds([]);
       setUnitSearch('');
-      form.resetFields();
+      // Defer resetFields until after the Form is confirmed mounted to avoid antd warning
+      if (formMountedRef.current) {
+        requestAnimationFrame(() => form.resetFields());
+      }
       loadInitialData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -447,7 +459,7 @@ const CreatePlanModal: React.FC<CreatePlanModalProps> = ({ open, onClose, onSucc
     >
       <Steps current={currentStep} items={steps} style={{ marginBottom: 24 }} />
       {loading && currentStep === 0 ? (
-        <div style={{ textAlign: 'center', padding: 40 }}><Spin tip="加载数据中..." /></div>
+        <div style={{ textAlign: 'center', padding: 40, position: 'relative' }}><Spin tip="加载数据中..." /></div>
       ) : (
         <>
           {currentStep === 0 && renderStep1()}
