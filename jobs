@@ -326,3 +326,24 @@
 - Git commit: dadea52 ✅
 - GitHub push: ✅
 
+
+### 批量修复严重Bug (2026-04-28)
+- ✅ **001_initial_baseline.py**: 修复 migration FK 顺序问题
+  - user_roles 表依赖 users.id，移至 users 创建之后
+  - downgrade() 补充缺失的 role_permissions 显式删除，修正 user_roles 在 users 之前
+- ✅ **files.py**: 修复运行时错误
+  - 添加缺失的 `from sqlalchemy import select` 导入
+  - UPLOAD_DIR 从硬编码 `/tmp/patrol_uploads` 改为 `settings.RUNTIME_DIR`
+- ✅ **backup.py/system_configs.py/field_options.py**: 权限校验缺失
+  - 所有写操作添加 `check_permission(user, "backup:write"|"system:write"|"field:write")`
+  - 读操作添加 `backup:read` 权限检查
+- ✅ **config.py**: 弱密钥默认配置风险
+  - SECRET_KEY/ENCRYPTION_KEY/MINIO密钥默认值改为 None，强制要求有效值
+  - 启动时 fail-fast 检测弱默认密钥并报错
+  - TESTING=1 环境变量跳过验证（用于 pytest）
+  - 新增 `backend/tests/conftest.py` 设置 TESTING=1
+- ✅ **Pydantic 废弃警告修复**: 17 -> 2 个警告
+  - 9个schema文件将 `class Config: from_attributes = True` 改为 `model_config = ConfigDict(from_attributes=True)`
+- ✅ **.env**: 弱密钥替换为强随机值（64字节 SECRET_KEY，32字节 ENCRYPTION_KEY）
+- pytest: 21 passed, 19 skipped, 2 warnings
+- GitHub push: ✅

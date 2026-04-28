@@ -22,10 +22,10 @@ def upgrade() -> None:
     # =====================
     op.create_table(
         'units',
-        sa.Column('id', sa.String(36), primary_key=True),
+        sa.Column('id', sa.Uuid, primary_key=True),
         sa.Column('name', sa.String(256), nullable=False),
         sa.Column('org_code', sa.String(32), unique=True, nullable=False),
-        sa.Column('parent_id', sa.String(36), sa.ForeignKey('units.id', ondelete='CASCADE'), index=True),
+        sa.Column('parent_id', sa.Uuid, sa.ForeignKey('units.id', ondelete='CASCADE'), index=True),
         sa.Column('unit_type', sa.String(32)),
         sa.Column('level', sa.String(20)),
         sa.Column('sort_order', sa.Integer, default=0),
@@ -41,14 +41,14 @@ def upgrade() -> None:
         sa.Column('updated_at', sa.DateTime, server_default=sa.func.now(), onupdate=sa.func.now()),
     )
     op.create_index(op.f('ix_units_org_code'), 'units', ['org_code'], unique=True)
-    op.create_index(op.f('ix_units_parent_id'), 'units', ['parent_id'])
+    # ix_units_parent_id already created by column-level index=True above
 
     # =====================
     # roles
     # =====================
     op.create_table(
         'roles',
-        sa.Column('id', sa.String(36), primary_key=True),
+        sa.Column('id', sa.Uuid, primary_key=True),
         sa.Column('name', sa.String(64), unique=True, nullable=False),
         sa.Column('code', sa.String(64), unique=True, nullable=False),
         sa.Column('description', sa.String(256)),
@@ -64,7 +64,7 @@ def upgrade() -> None:
     # =====================
     op.create_table(
         'permissions',
-        sa.Column('id', sa.String(36), primary_key=True),
+        sa.Column('id', sa.Uuid, primary_key=True),
         sa.Column('code', sa.String(64), unique=True, nullable=False),
         sa.Column('name', sa.String(128), nullable=False),
         sa.Column('description', sa.String(256)),
@@ -77,8 +77,8 @@ def upgrade() -> None:
     # =====================
     op.create_table(
         'role_permissions',
-        sa.Column('role_id', sa.String(36), sa.ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True),
-        sa.Column('permission_id', sa.String(36), sa.ForeignKey('permissions.id', ondelete='CASCADE'), primary_key=True),
+        sa.Column('role_id', sa.Uuid, sa.ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True),
+        sa.Column('permission_id', sa.Uuid, sa.ForeignKey('permissions.id', ondelete='CASCADE'), primary_key=True),
     )
     op.create_index(op.f('ix_role_permissions_permission_id'), 'role_permissions', ['permission_id'])
 
@@ -87,7 +87,7 @@ def upgrade() -> None:
     # =====================
     op.create_table(
         'users',
-        sa.Column('id', sa.String(36), primary_key=True),
+        sa.Column('id', sa.Uuid, primary_key=True),
         sa.Column('username', sa.String(64), unique=True, nullable=False),
         sa.Column('email', sa.String(256), unique=True, nullable=False),
         sa.Column('hashed_password', sa.String(256), nullable=False),
@@ -96,7 +96,7 @@ def upgrade() -> None:
         sa.Column('id_card_encrypted', sa.String(512)),
         sa.Column('is_active', sa.Boolean, default=True),
         sa.Column('role', sa.String(64), default='操作员'),
-        sa.Column('unit_id', sa.String(36), sa.ForeignKey('units.id', ondelete='SET NULL')),
+        sa.Column('unit_id', sa.Uuid, sa.ForeignKey('units.id', ondelete='SET NULL')),
         sa.Column('created_at', sa.DateTime, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime, server_default=sa.func.now(), onupdate=sa.func.now()),
     )
@@ -109,8 +109,8 @@ def upgrade() -> None:
     # =====================
     op.create_table(
         'user_roles',
-        sa.Column('user_id', sa.String(36), sa.ForeignKey('users.id', ondelete='CASCADE'), primary_key=True),
-        sa.Column('role_id', sa.String(36), sa.ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True),
+        sa.Column('user_id', sa.Uuid, sa.ForeignKey('users.id', ondelete='CASCADE'), primary_key=True),
+        sa.Column('role_id', sa.Uuid, sa.ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True),
     )
     op.create_index(op.f('ix_user_roles_role_id'), 'user_roles', ['role_id'])
 
@@ -119,7 +119,7 @@ def upgrade() -> None:
     # =====================
     op.create_table(
         'cadres',
-        sa.Column('id', sa.String(36), primary_key=True),
+        sa.Column('id', sa.Uuid, primary_key=True),
         sa.Column('name', sa.String(64), nullable=False),
         sa.Column('id_card_encrypted', sa.String(512)),
         sa.Column('gender', sa.String(8)),
@@ -129,7 +129,7 @@ def upgrade() -> None:
         sa.Column('political_status', sa.String(32)),
         sa.Column('education', sa.String(32)),
         sa.Column('degree', sa.String(32)),
-        sa.Column('unit_id', sa.String(36), sa.ForeignKey('units.id', ondelete='SET NULL'), index=True),
+        sa.Column('unit_id', sa.Uuid, sa.ForeignKey('units.id', ondelete='SET NULL'), index=True),
         sa.Column('position', sa.String(128)),
         sa.Column('rank', sa.String(32)),
         sa.Column('category', sa.String(100)),
@@ -142,14 +142,14 @@ def upgrade() -> None:
         sa.Column('created_at', sa.DateTime, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime, server_default=sa.func.now(), onupdate=sa.func.now()),
     )
-    op.create_index(op.f('ix_cadres_unit_id'), 'cadres', ['unit_id'])
+    # [REMOVED - duplicate of column-level index=True]     op.create_index(op.f('ix_cadres_unit_id'), 'cadres', ['unit_id'])
 
     # =====================
     # knowledge
     # =====================
     op.create_table(
         'knowledge',
-        sa.Column('id', sa.String(36), primary_key=True),
+        sa.Column('id', sa.Uuid, primary_key=True),
         sa.Column('title', sa.String(256), nullable=False),
         sa.Column('category', sa.String(32), nullable=False, index=True),
         sa.Column('content', sa.Text),
@@ -161,18 +161,18 @@ def upgrade() -> None:
         sa.Column('is_published', sa.Boolean, default=False),
         sa.Column('is_active', sa.Boolean, default=True),
         sa.Column('attachments', sa.JSON),
-        sa.Column('created_by', sa.String(36), nullable=False),
+        sa.Column('created_by', sa.Uuid, nullable=False),
         sa.Column('created_at', sa.DateTime, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime, server_default=sa.func.now(), onupdate=sa.func.now()),
     )
-    op.create_index(op.f('ix_knowledge_category'), 'knowledge', ['category'])
+    # [REMOVED - duplicate of column-level index=True]     op.create_index(op.f('ix_knowledge_category'), 'knowledge', ['category'])
 
     # =====================
     # plans
     # =====================
     op.create_table(
         'plans',
-        sa.Column('id', sa.String(36), primary_key=True),
+        sa.Column('id', sa.Uuid, primary_key=True),
         sa.Column('name', sa.String(256), nullable=False),
         sa.Column('round_name', sa.String(64)),
         sa.Column('year', sa.Integer, nullable=False),
@@ -190,24 +190,24 @@ def upgrade() -> None:
         sa.Column('authorization_letter', sa.Text),
         sa.Column('authorization_date', sa.DateTime),
         sa.Column('approval_comment', sa.Text),
-        sa.Column('approved_by', sa.String(36)),
+        sa.Column('approved_by', sa.Uuid),
         sa.Column('is_active', sa.Boolean, default=True),
-        sa.Column('created_by', sa.String(36), nullable=False),
+        sa.Column('created_by', sa.Uuid, nullable=False),
         sa.Column('created_at', sa.DateTime, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime, server_default=sa.func.now(), onupdate=sa.func.now()),
     )
-    op.create_index(op.f('ix_plans_status'), 'plans', ['status'])
+    # [REMOVED - duplicate of column-level index=True]     op.create_index(op.f('ix_plans_status'), 'plans', ['status'])
 
     # =====================
     # plan_versions
     # =====================
     op.create_table(
         'plan_versions',
-        sa.Column('id', sa.String(36), primary_key=True),
-        sa.Column('plan_id', sa.String(36), sa.ForeignKey('plans.id', ondelete='CASCADE'), nullable=False),
+        sa.Column('id', sa.Uuid, primary_key=True),
+        sa.Column('plan_id', sa.Uuid, sa.ForeignKey('plans.id', ondelete='CASCADE'), nullable=False),
         sa.Column('version', sa.Integer, nullable=False),
         sa.Column('data', sa.JSON, nullable=False),
-        sa.Column('created_by', sa.String(36), nullable=False),
+        sa.Column('created_by', sa.Uuid, nullable=False),
         sa.Column('created_at', sa.DateTime, server_default=sa.func.now()),
     )
     op.create_index(op.f('ix_plan_versions_plan_id'), 'plan_versions', ['plan_id'])
@@ -217,15 +217,15 @@ def upgrade() -> None:
     # =====================
     op.create_table(
         'inspection_groups',
-        sa.Column('id', sa.String(36), primary_key=True),
+        sa.Column('id', sa.Uuid, primary_key=True),
         sa.Column('name', sa.String(128), nullable=False),
-        sa.Column('plan_id', sa.String(36), sa.ForeignKey('plans.id', ondelete='CASCADE'), nullable=False),
+        sa.Column('plan_id', sa.Uuid, sa.ForeignKey('plans.id', ondelete='CASCADE'), nullable=False),
         sa.Column('status', sa.String(32), default='draft'),
-        sa.Column('target_unit_id', sa.String(36), sa.ForeignKey('units.id', ondelete='SET NULL')),
+        sa.Column('target_unit_id', sa.Uuid, sa.ForeignKey('units.id', ondelete='SET NULL')),
         sa.Column('authorization_letter', sa.Text),
         sa.Column('authorization_date', sa.DateTime),
         sa.Column('is_active', sa.Boolean, default=True),
-        sa.Column('created_by', sa.String(36), nullable=False),
+        sa.Column('created_by', sa.Uuid, nullable=False),
         sa.Column('created_at', sa.DateTime, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime, server_default=sa.func.now(), onupdate=sa.func.now()),
         sa.Column('unit_ids', sa.JSON, default=list),
@@ -238,9 +238,9 @@ def upgrade() -> None:
     # =====================
     op.create_table(
         'group_members',
-        sa.Column('id', sa.String(36), primary_key=True),
-        sa.Column('group_id', sa.String(36), sa.ForeignKey('inspection_groups.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('cadre_id', sa.String(36), sa.ForeignKey('cadres.id', ondelete='CASCADE'), nullable=False),
+        sa.Column('id', sa.Uuid, primary_key=True),
+        sa.Column('group_id', sa.Uuid, sa.ForeignKey('inspection_groups.id', ondelete='CASCADE'), nullable=False),
+        sa.Column('cadre_id', sa.Uuid, sa.ForeignKey('cadres.id', ondelete='CASCADE'), nullable=False),
         sa.Column('role', sa.String(32)),
         sa.Column('is_leader', sa.Boolean, default=False),
         sa.Column('assigned_at', sa.DateTime, server_default=sa.func.now()),
@@ -253,30 +253,30 @@ def upgrade() -> None:
     # =====================
     op.create_table(
         'drafts',
-        sa.Column('id', sa.String(36), primary_key=True),
+        sa.Column('id', sa.Uuid, primary_key=True),
         sa.Column('title', sa.String(256), nullable=False),
-        sa.Column('group_id', sa.String(36), sa.ForeignKey('inspection_groups.id', ondelete='CASCADE')),
-        sa.Column('unit_id', sa.String(36), sa.ForeignKey('units.id', ondelete='CASCADE')),
+        sa.Column('group_id', sa.Uuid, sa.ForeignKey('inspection_groups.id', ondelete='CASCADE')),
+        sa.Column('unit_id', sa.Uuid, sa.ForeignKey('units.id', ondelete='CASCADE')),
         sa.Column('status', sa.String(32), default='draft', index=True),
         sa.Column('content', sa.Text),
         sa.Column('category', sa.String(32)),
         sa.Column('problem_type', sa.String(64)),
         sa.Column('severity', sa.String(16)),
         sa.Column('evidence_summary', sa.Text),
-        sa.Column('preliminary_reviewer', sa.String(36)),
+        sa.Column('preliminary_reviewer', sa.Uuid),
         sa.Column('preliminary_review_comment', sa.Text),
         sa.Column('preliminary_review_at', sa.DateTime),
-        sa.Column('final_reviewer', sa.String(36)),
+        sa.Column('final_reviewer', sa.Uuid),
         sa.Column('final_review_comment', sa.Text),
         sa.Column('final_review_at', sa.DateTime),
-        sa.Column('approved_by', sa.String(36)),
+        sa.Column('approved_by', sa.Uuid),
         sa.Column('approved_at', sa.DateTime),
         sa.Column('is_active', sa.Boolean, default=True),
-        sa.Column('created_by', sa.String(36), nullable=False),
+        sa.Column('created_by', sa.Uuid, nullable=False),
         sa.Column('created_at', sa.DateTime, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime, server_default=sa.func.now(), onupdate=sa.func.now()),
     )
-    op.create_index(op.f('ix_drafts_status'), 'drafts', ['status'])
+    # [REMOVED - duplicate of column-level index=True]     op.create_index(op.f('ix_drafts_status'), 'drafts', ['status'])
     op.create_index(op.f('ix_drafts_group_id'), 'drafts', ['group_id'])
     op.create_index(op.f('ix_drafts_unit_id'), 'drafts', ['unit_id'])
 
@@ -285,14 +285,14 @@ def upgrade() -> None:
     # =====================
     op.create_table(
         'draft_attachments',
-        sa.Column('id', sa.String(36), primary_key=True),
-        sa.Column('draft_id', sa.String(36), sa.ForeignKey('drafts.id', ondelete='CASCADE'), nullable=False),
+        sa.Column('id', sa.Uuid, primary_key=True),
+        sa.Column('draft_id', sa.Uuid, sa.ForeignKey('drafts.id', ondelete='CASCADE'), nullable=False),
         sa.Column('file_name', sa.String(256), nullable=False),
         sa.Column('file_path', sa.String(512), nullable=False),
         sa.Column('file_size', sa.Integer),
         sa.Column('mime_type', sa.String(128)),
         sa.Column('file_hash', sa.String(64)),
-        sa.Column('uploaded_by', sa.String(36), nullable=False),
+        sa.Column('uploaded_by', sa.Uuid, nullable=False),
         sa.Column('created_at', sa.DateTime, server_default=sa.func.now()),
     )
     op.create_index(op.f('ix_draft_attachments_draft_id'), 'draft_attachments', ['draft_id'])
@@ -302,7 +302,7 @@ def upgrade() -> None:
     # =====================
     op.create_table(
         'clues',
-        sa.Column('id', sa.String(36), primary_key=True),
+        sa.Column('id', sa.Uuid, primary_key=True),
         sa.Column('title', sa.String(256), nullable=False),
         sa.Column('content', sa.Text, nullable=False),
         sa.Column('source', sa.String(64)),
@@ -315,23 +315,23 @@ def upgrade() -> None:
         sa.Column('transfer_comment', sa.Text),
         sa.Column('handling_result', sa.Text),
         sa.Column('is_high_confidential', sa.Boolean, default=False),
-        sa.Column('registered_by', sa.String(36), nullable=False),
+        sa.Column('registered_by', sa.Uuid, nullable=False),
         sa.Column('created_at', sa.DateTime, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime, server_default=sa.func.now(), onupdate=sa.func.now()),
     )
-    op.create_index(op.f('ix_clues_status'), 'clues', ['status'])
+    # [REMOVED - duplicate of column-level index=True]     op.create_index(op.f('ix_clues_status'), 'clues', ['status'])
 
     # =====================
     # rectifications
     # =====================
     op.create_table(
         'rectifications',
-        sa.Column('id', sa.String(36), primary_key=True),
+        sa.Column('id', sa.Uuid, primary_key=True),
         sa.Column('title', sa.String(256), nullable=False),
-        sa.Column('plan_id', sa.String(36), sa.ForeignKey('plans.id', ondelete='SET NULL')),
-        sa.Column('clue_id', sa.String(36), sa.ForeignKey('clues.id', ondelete='SET NULL')),
-        sa.Column('draft_id', sa.String(36), sa.ForeignKey('drafts.id', ondelete='SET NULL')),
-        sa.Column('unit_id', sa.String(36), sa.ForeignKey('units.id', ondelete='CASCADE')),
+        sa.Column('plan_id', sa.Uuid, sa.ForeignKey('plans.id', ondelete='SET NULL')),
+        sa.Column('clue_id', sa.Uuid, sa.ForeignKey('clues.id', ondelete='SET NULL')),
+        sa.Column('draft_id', sa.Uuid, sa.ForeignKey('drafts.id', ondelete='SET NULL')),
+        sa.Column('unit_id', sa.Uuid, sa.ForeignKey('units.id', ondelete='CASCADE')),
         sa.Column('problem_description', sa.Text, nullable=False),
         sa.Column('rectification_requirement', sa.Text),
         sa.Column('deadline', sa.DateTime),
@@ -339,24 +339,24 @@ def upgrade() -> None:
         sa.Column('progress', sa.Integer, default=0),
         sa.Column('progress_details', sa.JSON, default=list),
         sa.Column('sign_date', sa.DateTime),
-        sa.Column('sign_by', sa.String(36)),
+        sa.Column('sign_by', sa.Uuid),
         sa.Column('completion_date', sa.DateTime),
         sa.Column('completion_report', sa.Text),
         sa.Column('verification_comment', sa.Text),
-        sa.Column('verified_by', sa.String(36)),
+        sa.Column('verified_by', sa.Uuid),
         sa.Column('verified_at', sa.DateTime),
         sa.Column('alert_level', sa.String(16), default='green'),
         sa.Column('alert_triggered_at', sa.DateTime),
         sa.Column('confirmed_completed', sa.Boolean),
         sa.Column('confirm_notes', sa.Text),
         sa.Column('confirmed_at', sa.DateTime),
-        sa.Column('confirmed_by', sa.String(36)),
+        sa.Column('confirmed_by', sa.Uuid),
         sa.Column('is_active', sa.Boolean, default=True),
-        sa.Column('created_by', sa.String(36), nullable=False),
+        sa.Column('created_by', sa.Uuid, nullable=False),
         sa.Column('created_at', sa.DateTime, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime, server_default=sa.func.now(), onupdate=sa.func.now()),
     )
-    op.create_index(op.f('ix_rectifications_status'), 'rectifications', ['status'])
+    # [REMOVED - duplicate of column-level index=True]     op.create_index(op.f('ix_rectifications_status'), 'rectifications', ['status'])
     op.create_index(op.f('ix_rectifications_plan_id'), 'rectifications', ['plan_id'])
     op.create_index(op.f('ix_rectifications_clue_id'), 'rectifications', ['clue_id'])
     op.create_index(op.f('ix_rectifications_draft_id'), 'rectifications', ['draft_id'])
@@ -367,35 +367,35 @@ def upgrade() -> None:
     # =====================
     op.create_table(
         'alerts',
-        sa.Column('id', sa.String(36), primary_key=True),
+        sa.Column('id', sa.Uuid, primary_key=True),
         sa.Column('type', sa.String(32), nullable=False),
         sa.Column('title', sa.String(256), nullable=False),
         sa.Column('content', sa.Text),
         sa.Column('entity_type', sa.String(32)),
-        sa.Column('entity_id', sa.String(36)),
+        sa.Column('entity_id', sa.Uuid),
         sa.Column('level', sa.String(16), default='warning'),
         sa.Column('is_resolved', sa.Boolean, default=False, index=True),
-        sa.Column('resolved_by', sa.String(36)),
+        sa.Column('resolved_by', sa.Uuid),
         sa.Column('resolved_at', sa.DateTime),
         sa.Column('created_at', sa.DateTime, server_default=sa.func.now()),
     )
-    op.create_index(op.f('ix_alerts_is_resolved'), 'alerts', ['is_resolved'])
+    # [REMOVED - duplicate of column-level index=True]     op.create_index(op.f('ix_alerts_is_resolved'), 'alerts', ['is_resolved'])
 
     # =====================
     # attachments
     # =====================
     op.create_table(
         'attachments',
-        sa.Column('id', sa.String(36), primary_key=True),
+        sa.Column('id', sa.Uuid, primary_key=True),
         sa.Column('entity_type', sa.String(32), nullable=False),
-        sa.Column('entity_id', sa.String(36)),
+        sa.Column('entity_id', sa.Uuid),
         sa.Column('file_name', sa.String(256), nullable=False),
         sa.Column('file_path', sa.String(512), nullable=False),
         sa.Column('file_size', sa.Integer, nullable=False),
         sa.Column('mime_type', sa.String(128), nullable=False),
         sa.Column('file_hash', sa.String(64)),
         sa.Column('version', sa.Integer, default=1),
-        sa.Column('uploaded_by', sa.String(36), nullable=False),
+        sa.Column('uploaded_by', sa.Uuid, nullable=False),
         sa.Column('created_at', sa.DateTime, server_default=sa.func.now()),
     )
 
@@ -404,11 +404,11 @@ def upgrade() -> None:
     # =====================
     op.create_table(
         'audit_logs',
-        sa.Column('id', sa.String(36), primary_key=True),
-        sa.Column('user_id', sa.String(36), sa.ForeignKey('users.id', ondelete='SET NULL')),
+        sa.Column('id', sa.Uuid, primary_key=True),
+        sa.Column('user_id', sa.Uuid, sa.ForeignKey('users.id', ondelete='SET NULL')),
         sa.Column('action', sa.String(64), nullable=False),
         sa.Column('entity_type', sa.String(32), nullable=False),
-        sa.Column('entity_id', sa.String(36)),
+        sa.Column('entity_id', sa.Uuid),
         sa.Column('detail', sa.JSON, default=dict),
         sa.Column('ip_address', sa.String(45)),
         sa.Column('user_agent', sa.String(256)),
@@ -421,7 +421,7 @@ def upgrade() -> None:
     # =====================
     op.create_table(
         'module_configs',
-        sa.Column('id', sa.String(36), primary_key=True),
+        sa.Column('id', sa.Uuid, primary_key=True),
         sa.Column('module_code', sa.String(64), unique=True, nullable=False),
         sa.Column('module_name', sa.String(128), nullable=False),
         sa.Column('is_enabled', sa.Boolean, default=True),
@@ -436,7 +436,7 @@ def upgrade() -> None:
     # =====================
     op.create_table(
         'rule_configs',
-        sa.Column('id', sa.String(36), primary_key=True),
+        sa.Column('id', sa.Uuid, primary_key=True),
         sa.Column('rule_code', sa.String(64), unique=True, nullable=False),
         sa.Column('rule_name', sa.String(128), nullable=False),
         sa.Column('rule_type', sa.String(32), nullable=False),
@@ -453,8 +453,8 @@ def upgrade() -> None:
     # =====================
     op.create_table(
         'notifications',
-        sa.Column('id', sa.String(36), primary_key=True),
-        sa.Column('user_id', sa.String(36), sa.ForeignKey('users.id', ondelete='CASCADE'), nullable=False),
+        sa.Column('id', sa.Uuid, primary_key=True),
+        sa.Column('user_id', sa.Uuid, sa.ForeignKey('users.id', ondelete='CASCADE'), nullable=False),
         sa.Column('type', sa.String(32), nullable=False),
         sa.Column('title', sa.String(256), nullable=False),
         sa.Column('content', sa.String(2048), nullable=False),
@@ -463,14 +463,14 @@ def upgrade() -> None:
         sa.Column('created_at', sa.DateTime, server_default=sa.func.now()),
     )
     op.create_index(op.f('ix_notifications_user_id'), 'notifications', ['user_id'])
-    op.create_index(op.f('ix_notifications_is_read'), 'notifications', ['is_read'])
+    # [REMOVED - duplicate of column-level index=True]     op.create_index(op.f('ix_notifications_is_read'), 'notifications', ['is_read'])
 
     # =====================
     # system_configs
     # =====================
     op.create_table(
         'system_configs',
-        sa.Column('id', sa.String(36), primary_key=True),
+        sa.Column('id', sa.Uuid, primary_key=True),
         sa.Column('key', sa.String(100), unique=True, nullable=False),
         sa.Column('value', sa.Text, nullable=False),
         sa.Column('description', sa.String(500)),
@@ -484,7 +484,7 @@ def upgrade() -> None:
     # =====================
     op.create_table(
         'field_options',
-        sa.Column('id', sa.String(36), primary_key=True),
+        sa.Column('id', sa.Uuid, primary_key=True),
         sa.Column('field_key', sa.String(100), unique=True, nullable=False),
         sa.Column('label', sa.String(200), nullable=False),
         sa.Column('options', sa.Text, nullable=False),
@@ -499,9 +499,9 @@ def upgrade() -> None:
     # =====================
     op.create_table(
         'progress',
-        sa.Column('id', sa.String(36), primary_key=True),
-        sa.Column('plan_id', sa.String(36), sa.ForeignKey('plans.id', ondelete='CASCADE'), nullable=False, index=True),
-        sa.Column('group_id', sa.String(36), sa.ForeignKey('inspection_groups.id', ondelete='CASCADE'), index=True),
+        sa.Column('id', sa.Uuid, primary_key=True),
+        sa.Column('plan_id', sa.Uuid, sa.ForeignKey('plans.id', ondelete='CASCADE'), nullable=False, index=True),
+        sa.Column('group_id', sa.Uuid, sa.ForeignKey('inspection_groups.id', ondelete='CASCADE'), index=True),
         sa.Column('week_number', sa.Integer, nullable=False),
         sa.Column('report_date', sa.DateTime, nullable=False),
         sa.Column('talk_count', sa.Integer, default=0),
@@ -515,35 +515,35 @@ def upgrade() -> None:
         sa.Column('next_week_plan', sa.Text),
         sa.Column('notes', sa.Text),
         sa.Column('is_active', sa.Boolean, default=True),
-        sa.Column('created_by', sa.String(36), nullable=False),
+        sa.Column('created_by', sa.Uuid, nullable=False),
         sa.Column('created_at', sa.DateTime, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime, server_default=sa.func.now(), onupdate=sa.func.now()),
     )
-    op.create_index(op.f('ix_progress_plan_id'), 'progress', ['plan_id'])
-    op.create_index(op.f('ix_progress_group_id'), 'progress', ['group_id'])
+    # [REMOVED - duplicate of column-level index=True]     op.create_index(op.f('ix_progress_plan_id'), 'progress', ['plan_id'])
+    # [REMOVED - duplicate of column-level index=True]     op.create_index(op.f('ix_progress_group_id'), 'progress', ['group_id'])
 
     # =====================
     # documents
     # =====================
     op.create_table(
         'documents',
-        sa.Column('id', sa.String(36), primary_key=True),
+        sa.Column('id', sa.Uuid, primary_key=True),
         sa.Column('title', sa.String(256), nullable=False),
         sa.Column('doc_number', sa.String(64)),
         sa.Column('type', sa.String(32), nullable=False, index=True),
         sa.Column('generate_date', sa.DateTime, nullable=False),
-        sa.Column('generator', sa.String(36)),
+        sa.Column('generator', sa.Uuid),
         sa.Column('file_path', sa.String(512)),
         sa.Column('file_url', sa.String(512)),
-        sa.Column('plan_id', sa.String(36), sa.ForeignKey('plans.id', ondelete='SET NULL'), index=True),
-        sa.Column('rectification_id', sa.String(36), sa.ForeignKey('rectifications.id', ondelete='SET NULL'), index=True),
+        sa.Column('plan_id', sa.Uuid, sa.ForeignKey('plans.id', ondelete='SET NULL'), index=True),
+        sa.Column('rectification_id', sa.Uuid, sa.ForeignKey('rectifications.id', ondelete='SET NULL'), index=True),
         sa.Column('is_active', sa.Boolean, default=True),
         sa.Column('created_at', sa.DateTime, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime, server_default=sa.func.now(), onupdate=sa.func.now()),
     )
-    op.create_index(op.f('ix_documents_type'), 'documents', ['type'])
-    op.create_index(op.f('ix_documents_plan_id'), 'documents', ['plan_id'])
-    op.create_index(op.f('ix_documents_rectification_id'), 'documents', ['rectification_id'])
+    # [REMOVED - duplicate of column-level index=True]     op.create_index(op.f('ix_documents_type'), 'documents', ['type'])
+    # [REMOVED - duplicate of column-level index=True]     op.create_index(op.f('ix_documents_plan_id'), 'documents', ['plan_id'])
+    # [REMOVED - duplicate of column-level index=True]     op.create_index(op.f('ix_documents_rectification_id'), 'documents', ['rectification_id'])
 
 
 def downgrade() -> None:
