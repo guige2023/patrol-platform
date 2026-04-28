@@ -1,9 +1,0 @@
-{
-  "auto_backup_enabled": true,
-  "auto_backup_interval_hours": 24,
-  "max_backups_to_keep": 10,
-  "backup_types": [
-    "manual",
-    "auto"
-  ]
-}

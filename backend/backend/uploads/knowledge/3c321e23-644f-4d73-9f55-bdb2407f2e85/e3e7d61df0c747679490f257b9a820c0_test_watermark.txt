@@ -1,2 +1,0 @@
-Hello, this is a test file for watermark testing.
-Second line of content.
