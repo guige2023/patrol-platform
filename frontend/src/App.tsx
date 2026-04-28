@@ -1,78 +1,94 @@
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
+import { lazy, Suspense } from 'react'
 import MainLayout from './components/layout/MainLayout'
 import Login from './pages/Login'
-import Dashboard from './pages/Dashboard'
-import UnitList from './pages/Archive/Units/UnitList'
-import UnitDetail from './pages/Archive/Units/UnitDetail'
-import CadreList from './pages/Archive/Cadres/CadreList'
-import CadreDetail from './pages/Archive/Cadres/CadreDetail'
-import KnowledgeList from './pages/Archive/Knowledge/KnowledgeList'
-import KnowledgeDetail from './pages/Archive/Knowledge/KnowledgeDetail'
-import PlanList from './pages/Plan/Plans/PlanList'
-import PlanCreateWizard from './pages/Plan/Plans/PlanCreateWizard'
-import GroupList from './pages/Plan/Groups/GroupList'
-import GroupDetailPage from './pages/Plan/Groups/GroupDetailPage'
-import DraftList from './pages/Execution/Drafts/DraftList'
-import ClueList from './pages/Execution/Clues/ClueList'
-import RectificationList from './pages/Execution/Rectifications/RectificationList'
-import RectificationDetail from './pages/Execution/Rectifications/RectificationDetail'
-import ProgressPage from './pages/Execution/Progress/ProgressPage'
-import DocumentList from './pages/Execution/Documents/DocumentList'
-import UserList from './pages/Admin/Users/UserList'
-import AuditLog from './pages/Admin/Audit/AuditLog'
-import RoleList from './pages/Admin/Roles/RoleList'
-import ModuleConfig from './pages/Admin/Modules/ModuleConfig'
-import FieldOptionsConfig from './pages/Admin/Fields/FieldOptionsConfig'
-import SystemConfigPage from './pages/Admin/Configs/SystemConfigPage'
-import BackupPage from './pages/Admin/Backup/BackupPage'
-import Notifications from './pages/Admin/Notifications/Notifications'
-import Alerts from './pages/Admin/Alerts/Alerts'
-import InitWizard from './pages/Init/InitWizard'
-import GlobalSearch from './pages/GlobalSearch/GlobalSearch'
 import { useEffect, useState } from 'react'
 import { getMe } from './api/auth'
 
+// Lazy-loaded page components for code splitting
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const GlobalSearch = lazy(() => import('./pages/GlobalSearch/GlobalSearch'))
+const UnitList = lazy(() => import('./pages/Archive/Units/UnitList'))
+const UnitDetail = lazy(() => import('./pages/Archive/Units/UnitDetail'))
+const CadreList = lazy(() => import('./pages/Archive/Cadres/CadreList'))
+const CadreDetail = lazy(() => import('./pages/Archive/Cadres/CadreDetail'))
+const KnowledgeList = lazy(() => import('./pages/Archive/Knowledge/KnowledgeList'))
+const KnowledgeDetail = lazy(() => import('./pages/Archive/Knowledge/KnowledgeDetail'))
+const PlanList = lazy(() => import('./pages/Plan/Plans/PlanList'))
+const PlanCreateWizard = lazy(() => import('./pages/Plan/Plans/PlanCreateWizard'))
+const GroupList = lazy(() => import('./pages/Plan/Groups/GroupList'))
+const GroupDetailPage = lazy(() => import('./pages/Plan/Groups/GroupDetailPage'))
+const DraftList = lazy(() => import('./pages/Execution/Drafts/DraftList'))
+const ClueList = lazy(() => import('./pages/Execution/Clues/ClueList'))
+const RectificationList = lazy(() => import('./pages/Execution/Rectifications/RectificationList'))
+const RectificationDetail = lazy(() => import('./pages/Execution/Rectifications/RectificationDetail'))
+const ProgressPage = lazy(() => import('./pages/Execution/Progress/ProgressPage'))
+const DocumentList = lazy(() => import('./pages/Execution/Documents/DocumentList'))
+const UserList = lazy(() => import('./pages/Admin/Users/UserList'))
+const AuditLog = lazy(() => import('./pages/Admin/Audit/AuditLog'))
+const RoleList = lazy(() => import('./pages/Admin/Roles/RoleList'))
+const ModuleConfig = lazy(() => import('./pages/Admin/Modules/ModuleConfig'))
+const FieldOptionsConfig = lazy(() => import('./pages/Admin/Fields/FieldOptionsConfig'))
+const SystemConfigPage = lazy(() => import('./pages/Admin/Configs/SystemConfigPage'))
+const BackupPage = lazy(() => import('./pages/Admin/Backup/BackupPage'))
+const Notifications = lazy(() => import('./pages/Admin/Notifications/Notifications'))
+const Alerts = lazy(() => import('./pages/Admin/Alerts/Alerts'))
+const InitWizard = lazy(() => import('./pages/Init/InitWizard'))
+
+// Loading fallback component
+const PageLoader = () => (
+  <div style={{
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '100vh',
+    color: '#1890ff'
+  }}>
+    加载中...
+  </div>
+)
+
 const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
-  { path: '/init', element: <InitWizard /> },
+  { path: '/init', element: <Suspense fallback={<PageLoader />}><InitWizard /></Suspense> },
   {
     path: '/',
     element: <MainLayout />,
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
-      { path: 'dashboard', element: <Dashboard /> },
-      { path: 'search', element: <GlobalSearch /> },
+      { path: 'dashboard', element: <Suspense fallback={<PageLoader />}><Dashboard /></Suspense> },
+      { path: 'search', element: <Suspense fallback={<PageLoader />}><GlobalSearch /></Suspense> },
       // 档案管理
-      { path: 'archive/units', element: <UnitList /> },
-      { path: 'archive/units/:id', element: <UnitDetail /> },
-      { path: 'archive/cadres', element: <CadreList /> },
-      { path: 'archive/cadres/:id', element: <CadreDetail /> },
-      { path: 'archive/knowledge', element: <KnowledgeList /> },
-      { path: 'archive/knowledge/:id', element: <KnowledgeDetail /> },
+      { path: 'archive/units', element: <Suspense fallback={<PageLoader />}><UnitList /></Suspense> },
+      { path: 'archive/units/:id', element: <Suspense fallback={<PageLoader />}><UnitDetail /></Suspense> },
+      { path: 'archive/cadres', element: <Suspense fallback={<PageLoader />}><CadreList /></Suspense> },
+      { path: 'archive/cadres/:id', element: <Suspense fallback={<PageLoader />}><CadreDetail /></Suspense> },
+      { path: 'archive/knowledge', element: <Suspense fallback={<PageLoader />}><KnowledgeList /></Suspense> },
+      { path: 'archive/knowledge/:id', element: <Suspense fallback={<PageLoader />}><KnowledgeDetail /></Suspense> },
       // 巡察计划
-      { path: 'plans', element: <PlanList /> },
-      { path: 'plans/new', element: <PlanCreateWizard /> },
-      { path: 'plans/:id', element: <PlanList /> },
+      { path: 'plans', element: <Suspense fallback={<PageLoader />}><PlanList /></Suspense> },
+      { path: 'plans/new', element: <Suspense fallback={<PageLoader />}><PlanCreateWizard /></Suspense> },
+      { path: 'plans/:id', element: <Suspense fallback={<PageLoader />}><PlanList /></Suspense> },
       // 巡察组
-      { path: 'groups', element: <GroupList /> },
-      { path: 'groups/:id', element: <GroupDetailPage /> },
+      { path: 'groups', element: <Suspense fallback={<PageLoader />}><GroupList /></Suspense> },
+      { path: 'groups/:id', element: <Suspense fallback={<PageLoader />}><GroupDetailPage /></Suspense> },
       // 执行管理
-      { path: 'execution/drafts', element: <DraftList /> },
-      { path: 'execution/clues', element: <ClueList /> },
-      { path: 'execution/rectifications', element: <RectificationList /> },
-      { path: 'execution/rectifications/:id', element: <RectificationDetail /> },
-      { path: 'progress', element: <ProgressPage /> },
-      { path: 'documents', element: <DocumentList /> },
+      { path: 'execution/drafts', element: <Suspense fallback={<PageLoader />}><DraftList /></Suspense> },
+      { path: 'execution/clues', element: <Suspense fallback={<PageLoader />}><ClueList /></Suspense> },
+      { path: 'execution/rectifications', element: <Suspense fallback={<PageLoader />}><RectificationList /></Suspense> },
+      { path: 'execution/rectifications/:id', element: <Suspense fallback={<PageLoader />}><RectificationDetail /></Suspense> },
+      { path: 'progress', element: <Suspense fallback={<PageLoader />}><ProgressPage /></Suspense> },
+      { path: 'documents', element: <Suspense fallback={<PageLoader />}><DocumentList /></Suspense> },
       // 系统管理
-      { path: 'admin/users', element: <UserList /> },
-      { path: 'admin/audit', element: <AuditLog /> },
-      { path: 'admin/roles', element: <RoleList /> },
-      { path: 'admin/modules', element: <ModuleConfig /> },
-      { path: 'admin/fields', element: <FieldOptionsConfig /> },
-      { path: 'admin/configs', element: <SystemConfigPage /> },
-      { path: 'admin/backup', element: <BackupPage /> },
-      { path: 'admin/notifications', element: <Notifications /> },
-      { path: 'admin/alerts', element: <Alerts /> },
+      { path: 'admin/users', element: <Suspense fallback={<PageLoader />}><UserList /></Suspense> },
+      { path: 'admin/audit', element: <Suspense fallback={<PageLoader />}><AuditLog /></Suspense> },
+      { path: 'admin/roles', element: <Suspense fallback={<PageLoader />}><RoleList /></Suspense> },
+      { path: 'admin/modules', element: <Suspense fallback={<PageLoader />}><ModuleConfig /></Suspense> },
+      { path: 'admin/fields', element: <Suspense fallback={<PageLoader />}><FieldOptionsConfig /></Suspense> },
+      { path: 'admin/configs', element: <Suspense fallback={<PageLoader />}><SystemConfigPage /></Suspense> },
+      { path: 'admin/backup', element: <Suspense fallback={<PageLoader />}><BackupPage /></Suspense> },
+      { path: 'admin/notifications', element: <Suspense fallback={<PageLoader />}><Notifications /></Suspense> },
+      { path: 'admin/alerts', element: <Suspense fallback={<PageLoader />}><Alerts /></Suspense> },
     ],
   },
 ])
