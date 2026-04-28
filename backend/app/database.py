@@ -32,19 +32,60 @@ class GUIDTypeDecorator(TypeDecorator):
         return value
 
 
-engine = create_async_engine(settings.DATABASE_URL, echo=False, pool_pre_ping=True, pool_size=20, max_overflow=30)
+# Lazy initialization to avoid creating engine at import time (needed for alembic)
+_engine = None
+_async_session_local = None
 
-AsyncSessionLocal = async_sessionmaker(
-    bind=engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autocommit=False,
-    autoflush=False,
-)
+
+def _get_engine():
+    global _engine
+    if _engine is None:
+        _engine = create_async_engine(
+            settings.DATABASE_URL,
+            echo=False,
+            pool_pre_ping=True,
+            pool_size=20,
+            max_overflow=30,
+        )
+    return _engine
+
+
+def _get_async_session_local():
+    global _async_session_local
+    if _async_session_local is None:
+        _async_session_local = async_sessionmaker(
+            bind=_get_engine(),
+            class_=AsyncSession,
+            expire_on_commit=False,
+            autocommit=False,
+            autoflush=False,
+        )
+    return _async_session_local
+
+
+# Backwards compatibility: allow `from app.database import engine, AsyncSessionLocal`
+# These will lazily create the engine/sessionmaker on first use
+class _LazyProxy:
+    def __getattr__(self, name):
+        return getattr(_get_engine(), name)
+
+
+class _LazySessionLocalProxy:
+    """Proxy that lazily creates AsyncSessionLocal on first attribute access."""
+    _instance = None
+
+    def __getattr__(self, name):
+        if _LazySessionLocalProxy._instance is None:
+            _LazySessionLocalProxy._instance = _get_async_session_local()
+        return getattr(_LazySessionLocalProxy._instance, name)
+
+
+engine = _LazyProxy()  # type: ignore
+AsyncSessionLocal = _LazySessionLocalProxy()  # type: ignore
 
 
 async def get_db():
-    async with AsyncSessionLocal() as session:
+    async with _get_async_session_local()() as session:
         try:
             yield session
         finally:
@@ -106,7 +147,7 @@ class UnitOfWork:
 
 async def get_uow():
     """Unit of Work 工厂函数，通过 FastAPI 依赖注入使用"""
-    async with AsyncSessionLocal() as session:
+    async with _get_async_session_local()() as session:
         uow = UnitOfWork(session)
         try:
             yield uow
