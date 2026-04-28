@@ -3,7 +3,7 @@
 ## 测试环境
 - 服务: http://localhost:18800
 - 数据库: patrol.db (SQLite)
-- 认证: admin / admin123
+- 认证: admin / (see ADMIN_PASSWORD env var)
 
 ## 端点测试结果 (共 22 个)
 
