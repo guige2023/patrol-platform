@@ -302,3 +302,27 @@
 - Vite 生产构建：成功 ✅
 - 知识库下载/预览：正常工作 ✅
 - 创建巡察计划向导：正常工作 ✅
+
+## 2026-04-28 Bug 修复 (第四轮)
+
+### 知识库预览/下载 500 错误
+- ✅ **watermark.py**: `watermark_pdf` 对无效 PDF 文件（pymupdf.FileDataError）添加 try-except 容错，返回原始内容
+- ✅ **watermark.py**: `watermark_image` 对无效图片文件添加 try-except 容错，返回原始内容
+- 根因：测试数据 "test.pdf" 实际是纯文本，不是有效 PDF，PyMuPDF 无法解析
+
+### Excel 导入 wb.active 读错 sheet
+- ✅ **units.py**: `import_units` 改为遍历所有 sheet，找第一个首行有内容的 sheet，不再依赖 wb.active
+- ✅ **rectifications.py**: `import_rectifications` 同样修复
+- ✅ **rectifications.py**: `reimport_rectification` 同样修复
+- 根因：wb.active 返回用户最后激活的 sheet，可能是说明页或空白页
+
+### 创建巡察计划
+- ✅ 全流程验证通过：Step1 基本信息 → Step2 选择单位 → Step3 匹配巡察组 → Step4 确认创建
+- ✅ 创建成功并出现在计划列表第一行
+
+### 服务状态
+- 后端: http://localhost:18800 ✅ (v3.2.0)
+- 前端: http://localhost:3070 ✅ (vite)
+- Git commit: dadea52 ✅
+- GitHub push: ✅
+
