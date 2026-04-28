@@ -1,7 +1,27 @@
 import api from './client';
-import type { ProgressRecord, PaginationParams } from '@/types/api';
+import type { PaginationParams } from '@/types/api';
 
-export { ProgressRecord };
+export interface ProgressRecord {
+  id: string;
+  plan_id: string;
+  plan_name?: string;
+  group_id?: string;
+  group_name?: string;
+  week_number: number;
+  report_date: string;
+  talk_count: number;
+  doc_review_count: number;
+  petition_count: number;
+  visit_count: number;
+  problem_total: number;
+  problem_party: number;
+  problem_pty: number;
+  problem_key: number;
+  progress?: number;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+}
 
 export const getProgressList = (params?: PaginationParams & { plan_id?: string; group_id?: string }) =>
   api.get('/progress/', { params }).then(res => res.data);

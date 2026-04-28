@@ -1,5 +1,5 @@
 import api from './client';
-import type { Group, PaginationParams } from '@/types/api';
+import type { PaginationParams } from '@/types/api';
 
 export interface CreateGroupData {
   name: string;

@@ -4,7 +4,7 @@ import { FileTextOutlined } from '@ant-design/icons';
 import { getUnits } from '@/api/units';
 import { getClues } from '@/api/clues';
 import { getDrafts } from '@/api/drafts';
-import { createRectification, updateRectification, getRectification, updateProgress } from '@/api/rectifications';
+import { createRectification, updateRectification, getRectification, updateRectificationProgress } from '@/api/rectifications';
 import DraftDetail from '@/pages/Execution/Drafts/DraftDetail';
 import dayjs from 'dayjs';
 import { getErrorMessage } from '@/utils/error';
@@ -139,7 +139,7 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
           return;
         }
       }
-      await updateProgress(rectificationId, values.progress || 0, details);
+      await updateRectificationProgress(rectificationId, values.progress || 0, details);
       message.success('进度更新成功');
       onSuccess();
       onClose();
