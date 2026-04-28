@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
@@ -48,8 +48,7 @@ class ProgressResponse(ProgressBase):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class GroupOverview(BaseModel):
@@ -66,5 +65,4 @@ class GroupOverview(BaseModel):
     total_problems: int = 0
     latest_report_date: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

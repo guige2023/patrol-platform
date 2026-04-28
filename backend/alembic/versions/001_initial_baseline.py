@@ -73,16 +73,6 @@ def upgrade() -> None:
     op.create_index(op.f('ix_permissions_code'), 'permissions', ['code'], unique=True)
 
     # =====================
-    # user_roles (association)
-    # =====================
-    op.create_table(
-        'user_roles',
-        sa.Column('user_id', sa.String(36), sa.ForeignKey('users.id', ondelete='CASCADE'), primary_key=True),
-        sa.Column('role_id', sa.String(36), sa.ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True),
-    )
-    op.create_index(op.f('ix_user_roles_role_id'), 'user_roles', ['role_id'])
-
-    # =====================
     # role_permissions (association)
     # =====================
     op.create_table(
@@ -113,6 +103,16 @@ def upgrade() -> None:
     op.create_index(op.f('ix_users_username'), 'users', ['username'], unique=True)
     op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)
     op.create_index(op.f('ix_users_unit_id'), 'users', ['unit_id'])
+
+    # =====================
+    # user_roles (association) — after users so FK to users.id resolves
+    # =====================
+    op.create_table(
+        'user_roles',
+        sa.Column('user_id', sa.String(36), sa.ForeignKey('users.id', ondelete='CASCADE'), primary_key=True),
+        sa.Column('role_id', sa.String(36), sa.ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True),
+    )
+    op.create_index(op.f('ix_user_roles_role_id'), 'user_roles', ['role_id'])
 
     # =====================
     # cadres
@@ -547,6 +547,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Drop in reverse dependency order — tables with FK references must be dropped AFTER the tables they reference
     op.drop_table('documents')
     op.drop_table('progress')
     op.drop_table('field_options')
@@ -567,8 +568,10 @@ def downgrade() -> None:
     op.drop_table('plans')
     op.drop_table('knowledge')
     op.drop_table('cadres')
-    op.drop_table('users')
+    # user_roles must be dropped before users (FK dependency)
     op.drop_table('user_roles')
+    op.drop_table('users')
+    # role_permissions must be dropped before roles and permissions (FK dependency)
     op.drop_table('role_permissions')
     op.drop_table('permissions')
     op.drop_table('roles')

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
@@ -96,5 +96,4 @@ class CadreResponse(CadreBase):
     created_at: Optional[datetime] = None
     unit_name: Optional[str] = None  # 关联单位名称（列表展示用）
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

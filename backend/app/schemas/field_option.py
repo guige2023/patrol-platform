@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
@@ -54,5 +54,4 @@ class FieldOptionResponse(BaseModel):
             updated_at=obj.updated_at,
         )
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

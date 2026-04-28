@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from uuid import UUID, uuid4
 from pathlib import Path
 import aiofiles
@@ -8,10 +9,11 @@ from app.dependencies import get_uow, get_current_user
 from app.database import UnitOfWork
 from app.models.user import User
 from app.core.audit import write_audit_log
+from app.config import settings
 
 router = APIRouter()
 
-UPLOAD_DIR = Path("/tmp/patrol_uploads")
+UPLOAD_DIR = Path(settings.RUNTIME_DIR) / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 

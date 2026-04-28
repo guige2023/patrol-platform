@@ -10,13 +10,13 @@ services:
       - SYNC_DATABASE_URL=postgresql://postgres:${PATROL_DB_PASSWORD}@db:5432/patrol
       - SECRET_KEY=${SECRET_KEY}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
-      - CORS_ORIGINS=${CORS_ORIGINS}-http://localhost:3000
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
       - SERVE_UPLOADS=false
       - RUNTIME_DIR=/app/runtime
-      - LIBREOFFICE_CMD=${LIBREOFFICE_CMD}-libreoffice
+      - LIBREOFFICE_CMD=${LIBREOFFICE_CMD:-libreoffice}
       - MEILISEARCH_URL=http://meilisearch:7700
       - MEILISEARCH_KEY=${MEILISEARCH_KEY}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD}-
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
     volumes:
       - backend_runtime:/app/runtime
     depends_on:
