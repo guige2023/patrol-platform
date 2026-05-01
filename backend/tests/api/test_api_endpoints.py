@@ -11,7 +11,7 @@ from app.main import app
 
 pytest_asyncio = pytest.importorskip("pytest_asyncio")
 
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 
 
 @pytest_asyncio.fixture
@@ -23,19 +23,20 @@ async def client():
 
 
 @pytest_asyncio.fixture
-async def auth_client(client):
-    """Authenticated HTTP client."""
+async def auth_client():
+    """Authenticated HTTP client - creates its own client to avoid fixture pollution."""
     if not ADMIN_PASSWORD:
         pytest.skip("Set ADMIN_PASSWORD to run authenticated API tests")
-    response = await client.post(
-        "/api/v1/auth/login",
-        json={"username": "admin", "password": ADMIN_PASSWORD}
-    )
-    assert response.status_code == 200
-    token = response.json()["access_token"]
-
-    client.headers["Authorization"] = f"Bearer {token}"
-    return client
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/api/v1/auth/login",
+            json={"username": "admin", "password": ADMIN_PASSWORD}
+        )
+        assert response.status_code == 200, f"Login failed: {response.text}"
+        token = response.json()["access_token"]
+        client.headers["Authorization"] = f"Bearer {token}"
+        yield client
 
 
 class TestKnowledgeEndpoints:
