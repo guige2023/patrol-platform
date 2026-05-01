@@ -347,3 +347,42 @@
 - ✅ **.env**: 弱密钥替换为强随机值（64字节 SECRET_KEY，32字节 ENCRYPTION_KEY）
 - pytest: 21 passed, 19 skipped, 2 warnings
 - GitHub push: ✅
+
+---
+
+## 2026-05-01 Bug 修复 (第五轮)
+
+### Migration 修复
+- ✅ **001_initial_baseline.py**: `warnings` 表缺失
+  - Warning 模型存在但 migration 未创建 `warnings` 表
+  - 添加完整 `warnings` 表（12列：id, type, title, description, source_id, source_type, level, is_read, read_at, read_by, created_at）
+  - downgrade() 补充 `op.drop_table('warnings')`
+- ✅ **warnings table FK**: 确认无需外键（source_id 是通用 UUID，引用多个表）
+
+### notifications.py API 修复
+- ✅ 添加缺失的 `GET /unread-count` 端点（测试之前 404）
+- ✅ 完整实现返回 `{"unread_count": N}`
+
+### files.py 安全修复
+- ✅ 文件下载添加授权检查 `_check_file_access()`
+  - `general`/`knowledge` 类型：所有认证用户可访问
+  - `super_admin`：可访问所有文件
+  - 其他类型：仅 super_admin 可访问
+- ✅ `download_file` 添加文件磁盘存在性检查（`Path.is_file()`），返回 404 而非 500
+
+### 测试基础设施修复
+- ✅ **根因**：pytest-asyncio 为每个 async fixture 创建新 event loop，但 `app.database` 的 module-level lazy globals (`_engine`, `_async_session_local`) 缓存了第一个测试的 engine（绑定到 test1 的 loop）。Test2 开始时 loop 切换，但缓存的 engine 仍引用旧 loop → `RuntimeError: Event loop is closed` / `got Future attached to a different loop`
+- ✅ **修复**：`tests/conftest.py` 添加 `reset_db_engine` autouse fixture，每次测试前重置 `db._engine = None` 和 `db._async_session_local = None`，强制创建新 engine/sessionmaker
+
+### 测试结果
+- ✅ pytest: **40 passed, 0 failed, 0 errors**（全套一起跑）
+- ✅ 新鲜数据库 migration 验证通过
+- ✅ GitHub push: ✅
+
+---
+
+## 2026-05-01 Bug 修复 (第六轮) - 巡察计划创建
+
+### 待确认问题
+- ❓ 巡察计划创建失败的具体错误未知（用户未提供）
+- ✅ 本次专注于基础设施修复，为调试铺路

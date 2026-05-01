@@ -82,3 +82,20 @@
 - [x] ~~**Drafts Modal**~~ ✅ DraftDetail 支持创建/编辑/查看模式，功能完整
 - [x] ~~**Notifications**~~ ✅ 2026-04-18 新增页面
 - [x] ~~**Alerts**~~ ✅ 2026-04-18 新增页面
+
+---
+
+## 2026-05-01 第五轮 Bug 修复
+
+### Migration 修复
+- [x] ~~**warnings-table**~~ ✅ `001_initial_baseline.py` 添加缺失的 `warnings` 表（12列）
+
+### API 修复
+- [x] ~~**notif-unread-count**~~ ✅ `notifications.py` 添加 `GET /unread-count` 端点
+- [x] ~~**files-auth**~~ ✅ `files.py` 文件下载添加授权检查 `_check_file_access()`
+
+### 测试基础设施
+- [x] ~~**fixture-loop**~~ ✅ `tests/conftest.py` 添加 `reset_db_engine` autouse fixture，修复 pytest-asyncio event-loop 缓存问题
+
+### 测试结果
+- [x] ~~**pytest-40**~~ ✅ 全套测试 40 passed, 0 failed, 0 errors
