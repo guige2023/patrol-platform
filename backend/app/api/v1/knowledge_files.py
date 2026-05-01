@@ -184,6 +184,74 @@ async def list_attachments(
     return knowledge.attachments or []
 
 
+@router.get("/{knowledge_id}/attachments/{filename}/download")
+async def download_attachment(
+    knowledge_id: uuid.UUID,
+    filename: str,
+    watermark: bool = Query(False, description="是否添加水印"),
+    uow: UnitOfWork = Depends(get_uow),
+    current_user: User = Depends(get_current_user),
+):
+    """下载附件（支持水印）"""
+    result = await uow.execute(select(Knowledge).where(Knowledge.id == knowledge_id))
+    knowledge = result.scalar_one_or_none()
+    if not knowledge:
+        raise HTTPException(status_code=404, detail="知识库条目不存在")
+
+    attachments = knowledge.attachments or []
+    att = None
+    for a in attachments:
+        if a["filename"] == filename:
+            att = a
+            break
+    if not att:
+        raise HTTPException(status_code=404, detail="附件不存在")
+
+    safe_filename = att["url"].split("/")[-1]
+    file_path = os.path.join(UPLOAD_BASE, str(knowledge_id), safe_filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    # 读取文件内容
+    with open(file_path, "rb") as f:
+        file_bytes = f.read()
+
+    # 根据 file_type 确定 MIME 类型
+    file_type = att.get("file_type", get_file_ext(filename))
+    mime_types = {
+        "pdf": "application/pdf",
+        "png": "image/png",
+        "jpg": "image/jpeg",
+        "jpeg": "image/jpeg",
+        "gif": "image/gif",
+        "bmp": "image/bmp",
+        "webp": "image/webp",
+    }
+    media_type = mime_types.get(file_type, "application/octet-stream")
+
+    # 下载文件名：优先使用原始文件名（如果文件是被转换过的）
+    download_filename = att.get("original_filename") or filename
+
+    if watermark:
+        file_bytes = apply_watermark(
+            file_bytes, download_filename,
+            username=current_user.full_name,
+            date_str=datetime.now().strftime("%Y-%m-%d")
+        )
+        # 水印后文件名加 _watermarked 后缀
+        name_part = download_filename.rsplit(".", 1)
+        if len(name_part) == 2:
+            download_filename = f"{name_part[0]}_watermarked.{name_part[1]}"
+        else:
+            download_filename = f"{download_filename}_watermarked"
+
+    return StreamingResponse(
+        io.BytesIO(file_bytes),
+        media_type=media_type,
+        headers={"Content-Disposition": content_disposition(download_filename, "attachment")},
+    )
+
+
 @router.delete("/{knowledge_id}/attachments/{filename}")
 async def delete_attachment(
     knowledge_id: uuid.UUID,
@@ -286,72 +354,4 @@ async def preview_attachment(
         io.BytesIO(file_bytes),
         media_type=media_type,
         headers={"Content-Disposition": content_disposition(filename, "inline")},
-    )
-
-
-@router.get("/{knowledge_id}/attachments/{filename}/download")
-async def download_attachment(
-    knowledge_id: uuid.UUID,
-    filename: str,
-    watermark: bool = Query(False, description="是否添加水印"),
-    uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
-):
-    """下载附件（支持水印）"""
-    result = await uow.execute(select(Knowledge).where(Knowledge.id == knowledge_id))
-    knowledge = result.scalar_one_or_none()
-    if not knowledge:
-        raise HTTPException(status_code=404, detail="知识库条目不存在")
-
-    attachments = knowledge.attachments or []
-    att = None
-    for a in attachments:
-        if a["filename"] == filename:
-            att = a
-            break
-    if not att:
-        raise HTTPException(status_code=404, detail="附件不存在")
-
-    safe_filename = att["url"].split("/")[-1]
-    file_path = os.path.join(UPLOAD_BASE, str(knowledge_id), safe_filename)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="文件不存在")
-
-    # 读取文件内容
-    with open(file_path, "rb") as f:
-        file_bytes = f.read()
-
-    # 根据 file_type 确定 MIME 类型
-    file_type = att.get("file_type", get_file_ext(filename))
-    mime_types = {
-        "pdf": "application/pdf",
-        "png": "image/png",
-        "jpg": "image/jpeg",
-        "jpeg": "image/jpeg",
-        "gif": "image/gif",
-        "bmp": "image/bmp",
-        "webp": "image/webp",
-    }
-    media_type = mime_types.get(file_type, "application/octet-stream")
-
-    # 下载文件名：优先使用原始文件名（如果文件是被转换过的）
-    download_filename = att.get("original_filename") or filename
-
-    if watermark:
-        file_bytes = apply_watermark(
-            file_bytes, download_filename,
-            username=current_user.full_name,
-            date_str=datetime.now().strftime("%Y-%m-%d")
-        )
-        # 水印后文件名加 _watermarked 后缀
-        name_part = download_filename.rsplit(".", 1)
-        if len(name_part) == 2:
-            download_filename = f"{name_part[0]}_watermarked.{name_part[1]}"
-        else:
-            download_filename = f"{download_filename}_watermarked"
-
-    return StreamingResponse(
-        io.BytesIO(file_bytes),
-        media_type=media_type,
-        headers={"Content-Disposition": content_disposition(download_filename, "attachment")},
     )

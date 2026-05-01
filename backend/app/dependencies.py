@@ -20,7 +20,11 @@ async def get_current_user(
     user_id = payload.get("sub")
     if user_id is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-    result = await db.execute(select(User).where(User.id == user_id))
+    # Eagerly load roles relationship so check_permission can access user.roles
+    from sqlalchemy.orm import selectinload
+    result = await db.execute(
+        select(User).where(User.id == user_id).options(selectinload(User.roles))
+    )
     user = result.scalar_one_or_none()
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
@@ -28,15 +32,24 @@ async def get_current_user(
 
 
 async def check_permission(user: User, *required_permissions: str) -> User:
-    """检查用户权限。超级管理员拥有所有权限。"""
+    """检查用户权限。超级管理员拥有所有权限。
+    
+    权限来源优先级：
+    1. user.role 字段（简单模式）
+    2. user.roles 关联（RBAC 模式，通过 user_roles 中间表）
+    """
     if user is None:
         raise HTTPException(status_code=401, detail="未认证")
     
     role_code = getattr(user, 'role', None)
+    
+    # 如果 role 字段为空，尝试从 user.roles 关联中获取第一个角色的 code
+    if not role_code and hasattr(user, 'roles') and user.roles:
+        role_code = getattr(user.roles[0], 'code', None)
+    
     if not role_code:
         raise HTTPException(status_code=403, detail="用户没有角色")
     
-    # 直接使用user.role (role.code) 进行权限检查，避免额外的数据库查询
     # super_admin拥有所有权限
     if role_code == 'super_admin' or role_code == '*':
         return user
