@@ -239,10 +239,21 @@ class SearchService:
 
     @classmethod
     def search_index(cls, index_name: str, query: str, limit: int = 20) -> List[Dict[str, Any]]:
-        """搜索指定索引"""
+        """搜索指定索引（严格前缀匹配）"""
         try:
+            import unicodedata
+
+            def normalize(s: str) -> str:
+                return unicodedata.normalize("NFKC", s).lower()
+
             result = cls.get_client().index(index_name).search(query, {"limit": limit})
-            return result["hits"]
+            hits = result["hits"]
+            name_field = cls.NAME_FIELDS.get(index_name, "name")
+            q_norm = normalize(query)
+            return [
+                hit for hit in hits
+                if normalize(hit.get(name_field, "") or "").startswith(q_norm)
+            ]
         except Exception as e:
             print(f"[SEARCH] Error searching {index_name}: {e}")
             return []
