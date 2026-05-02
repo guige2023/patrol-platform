@@ -108,7 +108,7 @@ const ClueList: React.FC = () => {
   const [unitOptions, setUnitOptions] = useState<{ label: string; value: string }[]>([]);
 
   useEffect(() => {
-    getUnits({ page: 1, page_size: 999 }).then((res: any) => {
+    getUnits({ page: 1, page_size: 100 }).then((res: any) => {
       setUnitOptions((res.items || []).map((u: any) => ({ label: u.name, value: u.name })));
     }).catch(() => {});
   }, []);

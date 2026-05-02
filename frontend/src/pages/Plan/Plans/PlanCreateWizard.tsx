@@ -62,7 +62,7 @@ const PlanCreateWizard: React.FC = () => {
 
   useEffect(() => {
     // Load units for step 2
-    getUnits({ page: 1, page_size: 999 }).then(res => {
+    getUnits({ page: 1, page_size: 100 }).then(res => {
       setAllUnits(res.items || []);
     }).catch(() => {});
   }, []);

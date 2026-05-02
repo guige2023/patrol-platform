@@ -55,7 +55,7 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
   // 加载被巡察单位名称
   useEffect(() => {
     if (planData?.target_units?.length) {
-      getUnits({ page: 1, page_size: 999 }).then((res: any) => {
+      getUnits({ page: 1, page_size: 100 }).then((res: any) => {
         const units = res.items || [];
         const names = (planData.target_units || [])
           .map((id: string) => units.find((u: any) => u.id === id)?.name)

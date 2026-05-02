@@ -66,7 +66,7 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
 
   const fetchUnits = async () => {
     try {
-      const res = await getUnits({ page: 1, page_size: 9999 });
+      const res = await getUnits({ page: 1, page_size: 100 });
       const units = (res && Array.isArray(res.items)) ? res.items : [];
       setUnitOptions(units.map((u: any) => ({ label: u.name, value: u.id })));
     } catch {
@@ -76,7 +76,7 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
 
   const fetchClues = async () => {
     try {
-      const res = await getClues({ page: 1, page_size: 9999 });
+      const res = await getClues({ page: 1, page_size: 100 });
       const clues = (res && Array.isArray(res.items)) ? res.items : [];
       setClueOptions(clues.map((c: any) => ({ label: c.title, value: c.id })));
     } catch {
@@ -93,7 +93,7 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
 
   const fetchDrafts = async () => {
     try {
-      const res = await getDrafts({ page: 1, page_size: 9999 });
+      const res = await getDrafts({ page: 1, page_size: 100 });
       const drafts = (res && Array.isArray(res.items)) ? res.items : [];
       setDraftOptions(drafts.map((d: any) => ({ label: d.title, value: d.id })));
     } catch {

@@ -42,7 +42,7 @@ const CadreList: React.FC = () => {
 
   const fetchUnits = async () => {
     try {
-      const res = await getUnits({ page: 1, page_size: 999 });
+      const res = await getUnits({ page: 1, page_size: 100 });
       setAllUnits(res.items.map((u: any) => ({ id: u.id, name: u.name })));
     } catch { /* ignore */ }
   };
