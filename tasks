@@ -99,3 +99,29 @@
 
 ### 测试结果
 - [x] ~~**pytest-40**~~ ✅ 全套测试 40 passed, 0 failed, 0 errors
+
+---
+
+## 2026-05-02 Bug 修复
+
+### 知识库 - Modal 附件不显示
+- [x] ~~**knowledge-modal-attachments**~~ ✅ `frontend/src/api/knowledge.ts` 第9行 `getKnowledge` 返回值修正：
+  - 错误：`.then(res => res.data)` → 返回 `{data: {..entity..}, message: "success"}`
+  - 正确：`.then(res => res.data.data)` → 返回 `{..entity..}`，modal 才能访问 `res.attachments`
+  - 验证：知识详情 Modal 现在正确显示附件名称和大小
+
+### 知识库 - 下载/预览 500 错误
+- [x] ~~**knowledge-download-500**~~ ✅ 后端缺失 `pymupdf` 模块导致水印功能报错：
+  - 根因：`watermark.py` 第84行 `import fitz` 失败 → `watermark_pdf()` 崩溃
+  - 修复：`pip install pymupdf` 安装 PyMuPDF 库
+  - 重启：uvicorn 进程加载新模块
+  - 验证：PDF 下载（带水印）从 324 bytes → 12921 bytes ✅；预览 API 返回 200 ✅
+
+### 巡察计划 - 创建功能端到端验证
+- [x] ~~**plan-creation-e2e**~~ ✅ 通过 Playwright + API 完整验证：
+  - Step 1 选择单位 ✅
+  - Step 2 填写表单（自动计算工作日）✅
+  - Step 3 预览确认 ✅
+  - "确认创建" API 返回 201 ✅
+  - 新计划已写入数据库 ✅
+  - 注意：`browser_snapshot` 无法捕获 Portal 渲染的 Modal（已知 Vite dev server 特性）

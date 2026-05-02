@@ -386,3 +386,20 @@
 ### 待确认问题
 - ❓ 巡察计划创建失败的具体错误未知（用户未提供）
 - ✅ 本次专注于基础设施修复，为调试铺路
+
+---
+
+## 2026-05-01 Bug修复: 知识库下载/预览 + 创建计划失败
+
+### 知识库文件预览/下载 405 错误
+- ✅ **k-fix-1** 路由顺序修复: knowledge_files.py 中 GET /{filename}/download 路由必须
+  在 DELETE /{filename} 和 GET /{filename} 之前注册。Starlette 按注册顺序匹配，
+  {filename} 参数默认匹配包括/的所有字符，导致 /test.pdf/download 被 DELETE /{filename}
+  路由(匹配到 test.pdf/download)拦截返回405
+- 验证: GET /api/v1/knowledge-files/{id}/attachments/test.pdf → 200 (文件存在时)
+
+### 创建巡察计划失败
+- ✅ **p-fix-1** 数据库切换: .env 中 DATABASE_URL 从 patrol_test 改为 patrol
+  (patrol_test 为空库，无单位数据，导致创建计划时 target_units 验证失败)
+- 验证: POST /api/v1/plans/ → 200 成功创建计划
+

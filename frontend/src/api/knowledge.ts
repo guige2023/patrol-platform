@@ -6,7 +6,7 @@ export const getKnowledgeList = (params?: PaginationParams & { title?: string; c
   api.get('/knowledge/', { params }).then(res => res.data);
 
 export const getKnowledge = (id: string) =>
-  api.get(`/knowledge/${id}`).then(res => res.data);
+  api.get(`/knowledge/${id}`).then(res => res.data.data);
 
 export const getKnowledgeDetail = getKnowledge;
 
