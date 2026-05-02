@@ -403,3 +403,29 @@
   (patrol_test 为空库，无单位数据，导致创建计划时 target_units 验证失败)
 - 验证: POST /api/v1/plans/ → 200 成功创建计划
 
+
+---
+
+## 2026-05-02 Bug修复: 知识库附件不显示 + 下载500错误
+
+### 知识库 Modal 附件不显示
+- ✅ **k-fix-2** `frontend/src/api/knowledge.ts` 第9行 `getKnowledge` 返回值修正：
+  - API 返回 `{data: {...entity...}, message: "success"}` 两层包装
+  - 原代码 `.then(res => res.data)` 只解开一层，返回 `{...entity...}`
+  - 但 `getKnowledgeDetail` alias `getKnowledge` 共用同一函数，实际返回类型不匹配
+  - 修复为 `.then(res => res.data.data)` 解开两层，modal 正确访问 `res.attachments`
+- 验证: 知识详情 Modal 显示 "调试上传" + 附件 "debug_test.pdf, 13 B"
+
+### 知识库下载/预览 500 错误
+- ✅ **k-fix-3** 后端缺失 `pymupdf` 依赖：
+  - 根因: `watermark.py` 第84行 `import fitz` (PyMuPDF) 失败
+  - `apply_watermark()` → `watermark_pdf()` 崩溃 → 500 Internal Server Error
+  - 修复: `pip install pymupdf` 安装 PyMuPDF 1.27.2.3
+  - 重启 uvicorn 进程加载新模块
+- 验证: PDF 下载（带水印）从 324 bytes → 12921 bytes ✅
+
+### 巡察计划创建端到端验证
+- ✅ **p-fix-2** 完整流程测试通过：
+  - Step 1 选择单位 → Step 2 填写表单 → Step 3 预览 → API 201 创建成功
+  - 新计划 "徐圩新区党工委2026年度第4轮巡察计划" 已写入数据库
+  - 注意: `browser_snapshot` 无法捕获 Portal 渲染 Modal（Vite dev server 已知特性）
