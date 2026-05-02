@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import String, TypeDecorator
 from app.config import settings
+import os
 
 
 Base = declarative_base()
@@ -44,8 +45,8 @@ def _get_engine():
             settings.DATABASE_URL,
             echo=False,
             pool_pre_ping=True,
-            pool_size=20,
-            max_overflow=30,
+            pool_size=int(os.environ.get("DB_POOL_SIZE", "20")),
+            max_overflow=int(os.environ.get("DB_MAX_OVERFLOW", "30")),
         )
     return _engine
 

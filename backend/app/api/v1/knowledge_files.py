@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional
 from urllib.parse import quote
-from app.dependencies import get_uow, get_current_user
+from app.dependencies import get_uow, get_current_user, require_permission
 from app.database import UnitOfWork
 from app.models.user import User
 from app.models.knowledge import Knowledge
@@ -38,8 +38,8 @@ def convert_to_pdf(file_path: str, output_dir: str) -> Optional[str]:
             [libreoffice_cmd, "--headless", "--convert-to", "pdf",
              "--outdir", output_dir, file_path],
             capture_output=True,
+            timeout=120,  # 120s timeout for LibreOffice conversion
             text=True,
-            timeout=60
         )
         if result.returncode == 0:
             base_name = os.path.splitext(os.path.basename(file_path))[0]
@@ -82,7 +82,7 @@ async def upload_attachment(
     knowledge_id: uuid.UUID,
     file: UploadFile = File(...),
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("attachment:write")),
 ):
     """上传文件到知识库（Office 文件自动转为 PDF，图片保持原样）"""
     # 检查知识库是否存在
@@ -109,8 +109,13 @@ async def upload_attachment(
     safe_filename = f"{uuid.uuid4().hex}_{filename}"
     file_path = os.path.join(upload_dir, safe_filename)
 
-    # 读取上传的文件内容
-    content = await file.read()
+    # 流式读取 + 大小硬限制（100MB），防止内存耗尽
+    MAX_KNOWLEDGE_FILE_SIZE = 100 * 1024 * 1024
+    content = b""
+    while chunk := await file.read(65536):
+        if len(content) + len(chunk) > MAX_KNOWLEDGE_FILE_SIZE:
+            raise HTTPException(status_code=413, detail="文件大小超过限制（最大 100MB）")
+        content += chunk
 
     # Office 文件需要转换为 PDF
     final_filename = filename
@@ -209,11 +214,18 @@ async def download_attachment(
 
     safe_filename = att["url"].split("/")[-1]
     file_path = os.path.join(UPLOAD_BASE, str(knowledge_id), safe_filename)
-    if not os.path.exists(file_path):
+
+    # Path traversal protection: resolve to real path and verify it's within UPLOAD_BASE
+    real_base = os.path.realpath(UPLOAD_BASE)
+    real_file_path = os.path.realpath(file_path)
+    if not real_file_path.startswith(real_base + os.sep) and real_file_path != real_base:
+        raise HTTPException(status_code=403, detail="无效的文件路径")
+
+    if not os.path.exists(real_file_path):
         raise HTTPException(status_code=404, detail="文件不存在")
 
     # 读取文件内容
-    with open(file_path, "rb") as f:
+    with open(real_file_path, "rb") as f:
         file_bytes = f.read()
 
     # 根据 file_type 确定 MIME 类型
@@ -257,7 +269,7 @@ async def delete_attachment(
     knowledge_id: uuid.UUID,
     filename: str,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("attachment:write")),
 ):
     """删除附件"""
     result = await uow.execute(select(Knowledge).where(Knowledge.id == knowledge_id))
@@ -322,11 +334,18 @@ async def preview_attachment(
 
     safe_filename = att["url"].split("/")[-1]
     file_path = os.path.join(UPLOAD_BASE, str(knowledge_id), safe_filename)
-    if not os.path.exists(file_path):
+
+    # Path traversal protection: resolve to real path and verify it's within UPLOAD_BASE
+    real_base = os.path.realpath(UPLOAD_BASE)
+    real_file_path = os.path.realpath(file_path)
+    if not real_file_path.startswith(real_base + os.sep) and real_file_path != real_base:
+        raise HTTPException(status_code=403, detail="无效的文件路径")
+
+    if not os.path.exists(real_file_path):
         raise HTTPException(status_code=404, detail="文件不存在")
 
     # 读取文件内容
-    with open(file_path, "rb") as f:
+    with open(real_file_path, "rb") as f:
         file_bytes = f.read()
 
     # 根据 file_type 确定 MIME 类型

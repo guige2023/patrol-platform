@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Dict, Any
 from uuid import UUID
-from app.dependencies import get_uow, get_current_user, check_permission
+from app.dependencies import get_uow, get_current_user, require_permission
 from app.database import UnitOfWork
 from app.models.user import User
 from app.models.system_config import SystemConfig
@@ -64,10 +64,9 @@ async def update_system_config(
     key: str,
     payload: Dict[str, Any],
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("system:write")),
 ):
     """更新单个系统配置"""
-    await check_permission(current_user, "system:write")
     value = payload.get("value")
     if value is None:
         raise HTTPException(status_code=400, detail="缺少 value 字段")

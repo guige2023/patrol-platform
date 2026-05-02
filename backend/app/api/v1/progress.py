@@ -7,7 +7,7 @@ from typing import Optional
 from uuid import UUID
 from datetime import datetime
 from urllib.parse import quote
-from app.dependencies import get_uow, get_current_user
+from app.dependencies import get_uow, get_current_user, require_permission
 from app.database import UnitOfWork
 from app.models.progress import Progress
 from app.models.plan import Plan
@@ -28,9 +28,9 @@ async def list_progress(
     plan_id: Optional[UUID] = None,
     group_id: Optional[UUID] = None,
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=9999),
+    page_size: int = Query(20, ge=1, le=100),
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("progress:write")),
 ):
     query = select(Progress).where(Progress.is_active == True)
     if plan_id:
@@ -54,7 +54,7 @@ async def list_progress(
 async def get_group_overview(
     plan_id: Optional[UUID] = None,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("progress:write")),
 ):
     """Get overview of progress by group for dashboard cards."""
     query = select(
@@ -116,7 +116,7 @@ async def get_group_overview(
 
 @router.get("/template")
 async def download_progress_template(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("progress:write")),
 ):
     """Download progress import template (.xlsx)."""
     wb = openpyxl.Workbook()
@@ -174,7 +174,7 @@ async def export_progress(
     plan_id: Optional[UUID] = None,
     group_id: Optional[UUID] = None,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("progress:write")),
 ):
     """Export progress data as .xlsx."""
     query = select(Progress).where(Progress.is_active == True)
@@ -249,7 +249,7 @@ async def export_progress(
 
 
 @router.get("/{progress_id}", response_model=ProgressResponse)
-async def get_progress(progress_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def get_progress(progress_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("progress:write"))):
     result = await uow.execute(select(Progress).where(Progress.id == progress_id, Progress.is_active == True))
     item = result.scalar_one_or_none()
     if not item:
@@ -258,7 +258,7 @@ async def get_progress(progress_id: UUID, uow: UnitOfWork = Depends(get_uow), cu
 
 
 @router.post("/", response_model=ProgressResponse, status_code=201)
-async def create_progress(progress_data: ProgressCreate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def create_progress(progress_data: ProgressCreate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("progress:write"))):
     progress = Progress(**progress_data.model_dump(), created_by=current_user.id)
     uow.add(progress)
     await uow.commit()
@@ -268,7 +268,7 @@ async def create_progress(progress_data: ProgressCreate, uow: UnitOfWork = Depen
 
 
 @router.put("/{progress_id}", response_model=ProgressResponse)
-async def update_progress(progress_id: UUID, progress_data: ProgressUpdate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def update_progress(progress_id: UUID, progress_data: ProgressUpdate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("progress:write"))):
     result = await uow.execute(select(Progress).where(Progress.id == progress_id))
     progress = result.scalar_one_or_none()
     if not progress:
@@ -285,7 +285,7 @@ async def update_progress(progress_id: UUID, progress_data: ProgressUpdate, uow:
 
 
 @router.delete("/{progress_id}")
-async def delete_progress(progress_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def delete_progress(progress_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("progress:write"))):
     result = await uow.execute(select(Progress).where(Progress.id == progress_id))
     progress = result.scalar_one_or_none()
     if not progress:
@@ -302,7 +302,7 @@ async def import_progress(
     plan_id: UUID,
     file: UploadFile = File(...),
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("progress:write")),
 ):
     """Import progress from Excel file."""
     plan_result = await uow.execute(select(Plan).where(Plan.id == plan_id, Plan.is_active == True))

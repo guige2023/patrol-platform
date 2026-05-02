@@ -31,3 +31,7 @@ backend.log
 .env.*
 !.env.example
 backend/.env
+
+# Runtime directories (generated data)
+runtime/
+frontend/.vite/

@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional
 from uuid import UUID
-from app.dependencies import get_uow, get_current_user
+from app.dependencies import get_uow, get_current_user, require_permission
 from app.database import UnitOfWork
 from app.models.alert import Alert
 from app.models.user import User
@@ -16,7 +16,7 @@ async def list_alerts(
     is_resolved: Optional[bool] = None,
     level: Optional[str] = None,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("alert:write")),
 ):
     query = select(Alert)
     if is_resolved is not None:
@@ -44,7 +44,7 @@ async def list_alerts(
 
 
 @router.post("/{alert_id}/resolve")
-async def resolve_alert(alert_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def resolve_alert(alert_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("alert:write"))):
     from sqlalchemy import select
     result = await uow.execute(select(Alert).where(Alert.id == alert_id))
     alert = result.scalar_one_or_none()

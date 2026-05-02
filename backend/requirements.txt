@@ -39,6 +39,9 @@ openpyxl==3.1.2
 xlrd==2.0.1
 aiofiles==23.2.1
 
+# Knowledge base / text extraction
+PyMuPDF==1.23.26
+
 # Testing
 pytest==7.4.4
 pytest-asyncio==0.23.3

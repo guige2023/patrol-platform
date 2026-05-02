@@ -12,7 +12,7 @@ import io
 import json
 import zipfile
 import os
-from app.dependencies import get_uow, get_current_user, check_permission
+from app.dependencies import get_uow, get_current_user, require_permission
 from app.database import UnitOfWork
 from app.models.user import User
 from app.core.audit import write_audit_log
@@ -67,9 +67,8 @@ def _safe_backup_path(filename: str) -> Path:
 
 
 @router.get("/settings")
-async def get_backup_settings(current_user: User = Depends(get_current_user)):
+async def get_backup_settings(current_user: User = Depends(require_permission("backup:read"))):
     """Get auto-backup settings."""
-    await check_permission(current_user, "backup:read")
     return _get_settings()
 
 
@@ -77,10 +76,9 @@ async def get_backup_settings(current_user: User = Depends(get_current_user)):
 async def update_backup_settings(
     settings_update: dict,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("backup:write")),
 ):
     """Update auto-backup settings."""
-    await check_permission(current_user, "backup:write")
     current = _get_settings()
     current.update(settings_update)
     _save_settings(current)
@@ -89,9 +87,8 @@ async def update_backup_settings(
 
 
 @router.get("/")
-async def list_backups(current_user: User = Depends(get_current_user)):
+async def list_backups(current_user: User = Depends(require_permission("backup:read"))):
     """List all backups (stored as JSON metadata in backups/ dir)."""
-    await check_permission(current_user, "backup:read")
     backups = []
     if not BACKUPS_DIR.exists():
         return {"backups": []}
@@ -120,10 +117,9 @@ async def list_backups(current_user: User = Depends(get_current_user)):
 async def create_backup(
     type: str = Query("manual", description="backup type: manual or auto"),
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("backup:write")),
 ):
     """Create a full database backup, returns zip file download."""
-    await check_permission(current_user, "backup:write")
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     backup_name = f"backup_{type}_{timestamp}"
     zip_path = BACKUPS_DIR / f"{backup_name}.zip"
@@ -190,9 +186,8 @@ async def create_backup(
 
 
 @router.get("/{filename}/download")
-async def download_backup(filename: str, current_user: User = Depends(get_current_user)):
+async def download_backup(filename: str, current_user: User = Depends(require_permission("backup:read"))):
     """Download a backup file."""
-    await check_permission(current_user, "backup:read")
     backup_path = _safe_backup_path(filename)
     if not backup_path.exists():
         raise HTTPException(status_code=404, detail="Backup not found")
@@ -208,9 +203,8 @@ async def download_backup(filename: str, current_user: User = Depends(get_curren
 
 
 @router.delete("/{filename}")
-async def delete_backup(filename: str, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def delete_backup(filename: str, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("backup:write"))):
     """Delete a backup file and its metadata."""
-    await check_permission(current_user, "backup:write")
     backup_path = _safe_backup_path(filename)
     meta_path = BACKUPS_DIR / f"{backup_path.stem}.meta.json"
 
@@ -230,10 +224,9 @@ async def delete_backup(filename: str, uow: UnitOfWork = Depends(get_uow), curre
 async def restore_backup(
     filename: str,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("backup:write")),
 ):
     """Restore database from a backup zip file."""
-    await check_permission(current_user, "backup:write")
     backup_path = _safe_backup_path(filename)
     if not backup_path.exists():
         raise HTTPException(status_code=404, detail="Backup not found")

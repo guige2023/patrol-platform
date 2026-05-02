@@ -5,7 +5,7 @@ from sqlalchemy import select, func
 from uuid import UUID
 from typing import Optional, List
 from datetime import date, datetime
-from app.dependencies import get_uow, get_current_user
+from app.dependencies import get_uow, get_current_user, require_permission
 from app.database import UnitOfWork
 from app.models.clue import Clue
 from app.models.user import User
@@ -22,7 +22,7 @@ router = APIRouter()
 @router.get("/", response_model=PaginatedResponse[ClueResponse])
 async def list_clues(
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=9999),
+    page_size: int = Query(20, ge=1, le=100),
     title: Optional[str] = None,
     status: Optional[str] = None,
     source: Optional[str] = None,
@@ -30,7 +30,7 @@ async def list_clues(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("clue:write")),
 ):
     query = select(Clue)
     if title:
@@ -79,7 +79,7 @@ async def export_clues(
     source: Optional[str] = None,
     category: Optional[str] = None,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("clue:write")),
 ):
     """Export all clues as .xlsx."""
     query = select(Clue)
@@ -152,7 +152,7 @@ async def export_clues(
 
 
 @router.get("/{clue_id}")
-async def get_clue(clue_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def get_clue(clue_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("clue:write"))):
     result = await uow.execute(select(Clue).where(Clue.id == clue_id))
     clue = result.scalar_one_or_none()
     if not clue:
@@ -161,7 +161,7 @@ async def get_clue(clue_id: UUID, uow: UnitOfWork = Depends(get_uow), current_us
 
 
 @router.post("/", response_model=ClueResponse, status_code=201)
-async def create_clue(clue_data: ClueCreate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def create_clue(clue_data: ClueCreate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("clue:write"))):
     clue = Clue(**clue_data.model_dump(), registered_by=current_user.id)
     uow.add(clue)
     await uow.commit()
@@ -171,7 +171,7 @@ async def create_clue(clue_data: ClueCreate, uow: UnitOfWork = Depends(get_uow),
 
 
 @router.put("/{clue_id}", response_model=ClueResponse)
-async def update_clue(clue_id: UUID, clue_data: ClueUpdate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def update_clue(clue_id: UUID, clue_data: ClueUpdate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("clue:write"))):
     result = await uow.execute(select(Clue).where(Clue.id == clue_id))
     clue = result.scalar_one_or_none()
     if not clue:
@@ -185,7 +185,7 @@ async def update_clue(clue_id: UUID, clue_data: ClueUpdate, uow: UnitOfWork = De
 
 
 @router.post("/{clue_id}/transfer")
-async def transfer_clue(clue_id: UUID, body: ClueTransfer = Body(...), uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def transfer_clue(clue_id: UUID, body: ClueTransfer = Body(...), uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("clue:write"))):
     result = await uow.execute(select(Clue).where(Clue.id == clue_id))
     clue = result.scalar_one_or_none()
     if not clue:

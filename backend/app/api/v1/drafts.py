@@ -7,7 +7,7 @@ from uuid import UUID
 import io
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from app.dependencies import get_uow, get_current_user
+from app.dependencies import get_uow, get_current_user, require_permission
 from app.database import UnitOfWork
 from app.models.draft import Draft, DraftAttachment
 from app.models.user import User
@@ -23,13 +23,13 @@ router = APIRouter()
 @router.get("/", response_model=PaginatedResponse[DraftResponse])
 async def list_drafts(
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=9999),
+    page_size: int = Query(20, ge=1, le=100),
     title: Optional[str] = None,
     status: Optional[str] = None,
     group_id: Optional[UUID] = None,
     unit_id: Optional[UUID] = None,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("draft:write")),
 ):
     query = select(Draft).where(Draft.is_active == True)
     if title:
@@ -73,7 +73,7 @@ async def export_drafts(
     status: Optional[str] = None,
     category: Optional[str] = None,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("draft:write")),
 ):
     """Export all drafts as .xlsx."""
     query = select(Draft).where(Draft.is_active == True)
@@ -142,7 +142,7 @@ async def export_drafts(
 
 
 @router.get("/{draft_id}", response_model=DraftResponse)
-async def get_draft(draft_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def get_draft(draft_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("draft:write"))):
     result = await uow.execute(select(Draft).where(Draft.id == draft_id))
     draft = result.scalar_one_or_none()
     if not draft:
@@ -170,7 +170,7 @@ async def get_draft(draft_id: UUID, uow: UnitOfWork = Depends(get_uow), current_
 
 
 @router.post("/", response_model=DraftResponse, status_code=201)
-async def create_draft(draft_data: DraftCreate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def create_draft(draft_data: DraftCreate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("draft:write"))):
     draft = Draft(**draft_data.model_dump(), created_by=current_user.id)
     uow.add(draft)
     await uow.commit()
@@ -180,7 +180,7 @@ async def create_draft(draft_data: DraftCreate, uow: UnitOfWork = Depends(get_uo
 
 
 @router.put("/{draft_id}", response_model=DraftResponse)
-async def update_draft(draft_id: UUID, draft_data: DraftUpdate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def update_draft(draft_id: UUID, draft_data: DraftUpdate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("draft:write"))):
     result = await uow.execute(select(Draft).where(Draft.id == draft_id))
     draft = result.scalar_one_or_none()
     if not draft:
@@ -194,7 +194,7 @@ async def update_draft(draft_id: UUID, draft_data: DraftUpdate, uow: UnitOfWork 
 
 
 @router.post("/{draft_id}/submit")
-async def submit_draft_action(draft_id: UUID, request: DraftSubmitRequest, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def submit_draft_action(draft_id: UUID, request: DraftSubmitRequest, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("draft:write"))):
     result = await uow.execute(select(Draft).where(Draft.id == draft_id))
     draft = result.scalar_one_or_none()
     if not draft:
@@ -232,7 +232,7 @@ async def submit_draft_action(draft_id: UUID, request: DraftSubmitRequest, uow: 
 
 
 @router.delete("/{draft_id}")
-async def delete_draft(draft_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def delete_draft(draft_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("draft:write"))):
     result = await uow.execute(select(Draft).where(Draft.id == draft_id))
     draft = result.scalar_one_or_none()
     if not draft:
@@ -247,7 +247,7 @@ async def delete_draft(draft_id: UUID, uow: UnitOfWork = Depends(get_uow), curre
 async def batch_delete_drafts(
     ids: List[UUID],
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("draft:write")),
 ):
     """Soft-delete multiple drafts at once."""
     if not ids:

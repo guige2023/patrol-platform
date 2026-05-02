@@ -8,7 +8,7 @@ from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
 from urllib.parse import quote
-from app.dependencies import get_uow, get_current_user
+from app.dependencies import get_uow, get_current_user, require_permission
 from app.database import UnitOfWork
 from app.models.plan import Plan, PlanVersion, PlanStatus
 from app.models.user import User
@@ -48,7 +48,7 @@ router = APIRouter()
 @router.get("/", response_model=PaginatedResponse[PlanResponse])
 async def list_plans(
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=9999),
+    page_size: int = Query(20, ge=1, le=100),
     name: Optional[str] = None,
     year: Optional[int] = None,
     status: Optional[str] = None,
@@ -861,7 +861,7 @@ async def get_plan(plan_id: UUID, uow: UnitOfWork = Depends(get_uow), current_us
 
 
 @router.post("/", status_code=201)
-async def create_plan(plan_data: PlanCreate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def create_plan(plan_data: PlanCreate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("plan:write"))):
     plan = Plan(**plan_data.model_dump(), created_by=current_user.id)
     uow.add(plan)
     await uow.commit()
@@ -898,7 +898,7 @@ async def create_plan(plan_data: PlanCreate, uow: UnitOfWork = Depends(get_uow),
 
 
 @router.put("/{plan_id}")
-async def update_plan(plan_id: UUID, plan_data: PlanUpdate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def update_plan(plan_id: UUID, plan_data: PlanUpdate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("plan:write"))):
     result = await uow.execute(select(Plan).where(Plan.id == plan_id))
     plan = result.scalar_one_or_none()
     if not plan:
@@ -947,7 +947,7 @@ async def update_plan(plan_id: UUID, plan_data: PlanUpdate, uow: UnitOfWork = De
 
 
 @router.post("/{plan_id}/submit")
-async def submit_plan(plan_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def submit_plan(plan_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("plan:submit"))):
     result = await uow.execute(select(Plan).where(Plan.id == plan_id))
     plan = result.scalar_one_or_none()
     if not plan:
@@ -961,7 +961,7 @@ async def submit_plan(plan_id: UUID, uow: UnitOfWork = Depends(get_uow), current
 
 
 @router.post("/{plan_id}/approve")
-async def approve_plan(plan_id: UUID, comment: Optional[str] = None, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def approve_plan(plan_id: UUID, comment: Optional[str] = None, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("plan:approve"))):
     result = await uow.execute(select(Plan).where(Plan.id == plan_id))
     plan = result.scalar_one_or_none()
     if not plan:
@@ -977,7 +977,7 @@ async def approve_plan(plan_id: UUID, comment: Optional[str] = None, uow: UnitOf
 
 
 @router.post("/{plan_id}/publish")
-async def publish_plan(plan_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def publish_plan(plan_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("plan:publish"))):
     from datetime import datetime
     from app.models.unit import Unit
     result = await uow.execute(select(Plan).where(Plan.id == plan_id))
@@ -1014,7 +1014,7 @@ async def publish_plan(plan_id: UUID, uow: UnitOfWork = Depends(get_uow), curren
 
 
 @router.delete("/{plan_id}")
-async def delete_plan(plan_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def delete_plan(plan_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("plan:delete"))):
     result = await uow.execute(select(Plan).where(Plan.id == plan_id))
     plan = result.scalar_one_or_none()
     if not plan:
@@ -1034,7 +1034,7 @@ async def update_plan_status(
     plan_id: UUID,
     data: StatusUpdateRequest,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("plan:write")),
 ):
     """切换计划状态：published → in_progress，或 in_progress → completed"""
     result = await uow.execute(select(Plan).where(Plan.id == plan_id))

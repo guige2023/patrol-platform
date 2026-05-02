@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.dependencies import get_uow, get_current_user
+from app.dependencies import get_uow, get_current_user, require_permission
 from app.database import UnitOfWork
 from app.models.user import User
 from app.models.unit import Unit
@@ -18,7 +18,7 @@ router = APIRouter()
 async def search(
     q: str = Query(..., min_length=1),
     type: Optional[str] = None,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("search:write")),
 ):
     """
     全局全文搜索（基于 Meilisearch）
@@ -117,7 +117,7 @@ async def search(
 @router.post("/rebuild")
 async def rebuild_search_index(
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("search:write")),
 ):
     """重建所有搜索索引（从数据库全量导入）"""
     try:
@@ -170,7 +170,7 @@ async def rebuild_search_index(
 
 
 @router.get("/status")
-async def search_status(current_user: User = Depends(get_current_user)):
+async def search_status(current_user: User = Depends(require_permission("search:write"))):
     """获取搜索服务状态"""
     try:
         client = SearchService.get_client()

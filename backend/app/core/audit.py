@@ -26,4 +26,5 @@ async def write_audit_log(
         user_agent=user_agent,
     )
     db.add(audit_log)
+    await db.flush()
     await db.commit()

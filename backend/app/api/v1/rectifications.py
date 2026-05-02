@@ -9,7 +9,7 @@ from datetime import datetime
 import io
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from app.dependencies import get_uow, get_current_user
+from app.dependencies import get_uow, get_current_user, require_permission
 from app.database import UnitOfWork
 from app.models.rectification import Rectification
 from app.models.user import User
@@ -46,7 +46,7 @@ async def export_rectifications(
     status: Optional[str] = None,
     alert_level: Optional[str] = None,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("rectification:write")),
 ):
     """Export all rectifications as .xlsx."""
     query = (
@@ -123,7 +123,7 @@ async def export_rectifications(
 
 
 @router.get("/template")
-async def download_rectification_template(current_user: User = Depends(get_current_user)):
+async def download_rectification_template(current_user: User = Depends(require_permission("rectification:write"))):
     """Download the rectification import template as .xlsx."""
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -161,7 +161,7 @@ async def download_rectification_template(current_user: User = Depends(get_curre
 async def export_rectifications_by_year(
     year: Optional[int] = None,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("rectification:write")),
 ):
     """Export rectifications as .xlsx (optionally filtered by year)."""
     query = select(Rectification).options(selectinload(Rectification.unit)).where(Rectification.is_active == True)
@@ -221,13 +221,13 @@ async def export_rectifications_by_year(
 @router.get("/", response_model=PaginatedResponse[RectificationResponse])
 async def list_rectifications(
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=9999),
+    page_size: int = Query(20, ge=1, le=100),
     title: Optional[str] = None,
     status: Optional[str] = None,
     unit_id: Optional[UUID] = None,
     alert_level: Optional[str] = None,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("rectification:write")),
 ):
     query = select(Rectification).where(Rectification.is_active == True)
     if title:
@@ -255,7 +255,7 @@ async def list_rectifications(
 async def import_rectifications(
     file: UploadFile = File(...),
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("rectification:write")),
 ):
     """Import rectifications from .xlsx file."""
     try:
@@ -316,7 +316,7 @@ async def import_rectifications(
 async def batch_delete_rectifications(
     ids: List[UUID],
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("rectification:write")),
 ):
     """Soft-delete multiple rectifications at once."""
     if not ids:
@@ -339,7 +339,7 @@ async def batch_delete_rectifications(
 async def batch_update_rectification_status(
     request: dict,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("rectification:write")),
 ):
     """Update status for multiple rectifications at once."""
     ids = request.get("ids", [])
@@ -372,7 +372,7 @@ async def batch_update_rectification_status(
 # ============================================================
 
 @router.post("/", response_model=RectificationResponse, status_code=201)
-async def create_rectification(rect_data: RectificationCreate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def create_rectification(rect_data: RectificationCreate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("rectification:write"))):
     rect = Rectification(**rect_data.model_dump(), created_by=current_user.id)
     uow.add(rect)
     await uow.commit()
@@ -382,7 +382,7 @@ async def create_rectification(rect_data: RectificationCreate, uow: UnitOfWork =
 
 
 @router.get("/{rect_id}")
-async def get_rectification(rect_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def get_rectification(rect_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("rectification:write"))):
     result = await uow.execute(select(Rectification).where(Rectification.id == rect_id))
     rect = result.scalar_one_or_none()
     if not rect:
@@ -391,7 +391,7 @@ async def get_rectification(rect_id: UUID, uow: UnitOfWork = Depends(get_uow), c
 
 
 @router.put("/{rect_id}", response_model=RectificationResponse)
-async def update_rectification(rect_id: UUID, rect_data: RectificationUpdate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def update_rectification(rect_id: UUID, rect_data: RectificationUpdate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("rectification:write"))):
     result = await uow.execute(select(Rectification).where(Rectification.id == rect_id))
     rect = result.scalar_one_or_none()
     if not rect:
@@ -405,7 +405,7 @@ async def update_rectification(rect_id: UUID, rect_data: RectificationUpdate, uo
 
 
 @router.patch("/{rect_id}/progress")
-async def update_progress(rect_id: UUID, progress: int, details: Optional[List[dict]] = None, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def update_progress(rect_id: UUID, progress: int, details: Optional[List[dict]] = None, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("rectification:write"))):
     result = await uow.execute(select(Rectification).where(Rectification.id == rect_id))
     rect = result.scalar_one_or_none()
     if not rect:
@@ -422,7 +422,7 @@ async def update_progress(rect_id: UUID, progress: int, details: Optional[List[d
 
 
 @router.post("/{rect_id}/sign")
-async def sign_rectification(rect_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def sign_rectification(rect_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("rectification:write"))):
     result = await uow.execute(select(Rectification).where(Rectification.id == rect_id))
     rect = result.scalar_one_or_none()
     if not rect:
@@ -436,7 +436,7 @@ async def sign_rectification(rect_id: UUID, uow: UnitOfWork = Depends(get_uow), 
 
 
 @router.post("/{rect_id}/submit")
-async def submit_rectification(rect_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def submit_rectification(rect_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("rectification:write"))):
     """Submit a completed rectification for admin approval."""
     result = await uow.execute(select(Rectification).where(Rectification.id == rect_id))
     rect = result.scalar_one_or_none()
@@ -451,7 +451,7 @@ async def submit_rectification(rect_id: UUID, uow: UnitOfWork = Depends(get_uow)
 
 
 @router.post("/{rect_id}/verify")
-async def verify_rectification(rect_id: UUID, comment: Optional[str] = None, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def verify_rectification(rect_id: UUID, comment: Optional[str] = None, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("rectification:write"))):
     result = await uow.execute(select(Rectification).where(Rectification.id == rect_id))
     rect = result.scalar_one_or_none()
     if not rect:
@@ -470,7 +470,7 @@ async def confirm_rectification(
     rect_id: UUID,
     body: dict,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("rectification:write")),
 ):
     """Confirm a rectification as completed or rejected."""
     result = await uow.execute(select(Rectification).where(Rectification.id == rect_id))
@@ -493,7 +493,7 @@ async def confirm_rectification(
 async def export_rectification_pdf(
     rect_id: UUID,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("rectification:write")),
 ):
     """Export a single rectification as .xlsx (PDF requires reportlab)."""
     result = await uow.execute(
@@ -542,7 +542,7 @@ async def reimport_rectification(
     rect_id: UUID,
     file: UploadFile = File(...),
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("rectification:write")),
 ):
     """Reimport/update a rectification from .xlsx file."""
     result = await uow.execute(select(Rectification).where(Rectification.id == rect_id))
@@ -583,7 +583,7 @@ async def reimport_rectification(
 
 
 @router.delete("/{rect_id}")
-async def delete_rectification(rect_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def delete_rectification(rect_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("rectification:write"))):
     """Soft-delete a rectification by setting is_active=False."""
     result = await uow.execute(select(Rectification).where(Rectification.id == rect_id))
     rect = result.scalar_one_or_none()

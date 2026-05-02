@@ -6,7 +6,7 @@ from uuid import UUID
 import io
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from app.dependencies import get_uow, get_current_user, check_permission
+from app.dependencies import get_uow, get_current_user, require_permission
 from app.database import UnitOfWork
 from app.models.user import User, Role, Permission
 from app.models.unit import Unit
@@ -22,10 +22,9 @@ router = APIRouter()
 
 @router.get("/users")
 async def list_users(
-    uow: UnitOfWork = Depends(get_uow), 
-    current_user: User = Depends(get_current_user),
+    uow: UnitOfWork = Depends(get_uow),
+    current_user: User = Depends(require_permission("user:read")),
 ):
-    await check_permission(current_user, "user:read")
     result = await uow.execute(select(User).order_by(User.created_at.desc()))
     users = result.scalars().all()
     return [
@@ -38,9 +37,8 @@ async def list_users(
 async def create_user(
     user_data: UserCreate,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("user:write")),
 ):
-    await check_permission(current_user, "user:write")
     existing = await uow.execute(select(User).where(User.username == user_data.username))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Username already exists")
@@ -65,9 +63,8 @@ async def update_user(
     user_id: UUID,
     user_data: UserUpdate,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("user:write")),
 ):
-    await check_permission(current_user, "user:write")
     result = await uow.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
@@ -86,9 +83,8 @@ async def update_user(
 async def delete_user(
     user_id: UUID,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("user:write")),
 ):
-    await check_permission(current_user, "user:write")
     result = await uow.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
@@ -126,9 +122,8 @@ async def list_audit_logs(
     entity_type: str = None,
     search: str = None,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("audit:read")),
 ):
-    await check_permission(current_user, "audit:read")
     # JOIN with users to get full_name
     query = (
         select(AuditLog, User.full_name)
@@ -174,7 +169,7 @@ async def list_audit_logs(
 async def export_audit_logs(
     entity_type: str = None,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("audit:read")),
 ):
     """Export audit logs as .xlsx."""
     query = select(AuditLog)
@@ -236,10 +231,9 @@ async def export_audit_logs(
 
 @router.get("/modules")
 async def list_modules(
-    uow: UnitOfWork = Depends(get_uow), 
-    current_user: User = Depends(get_current_user),
+    uow: UnitOfWork = Depends(get_uow),
+    current_user: User = Depends(require_permission("module:read")),
 ):
-    await check_permission(current_user, "module:read")
     result = await uow.execute(select(ModuleConfig))
     modules = result.scalars().all()
     return modules
@@ -247,13 +241,12 @@ async def list_modules(
 
 @router.put("/modules/{module_id}")
 async def update_module(
-    module_id: UUID, 
-    data: dict = None, 
-    uow: UnitOfWork = Depends(get_uow), 
-    current_user: User = Depends(get_current_user),
+    module_id: UUID,
+    data: dict = None,
+    uow: UnitOfWork = Depends(get_uow),
+    current_user: User = Depends(require_permission("module:write")),
 ):
     """Update module config. Accepts body with is_enabled and optional config."""
-    await check_permission(current_user, "module:write")
     result = await uow.execute(select(ModuleConfig).where(ModuleConfig.id == module_id))
     module = result.scalar_one_or_none()
     if not module:
@@ -274,11 +267,10 @@ async def update_module(
 
 @router.get("/roles")
 async def list_roles(
-    uow: UnitOfWork = Depends(get_uow), 
-    current_user: User = Depends(get_current_user),
+    uow: UnitOfWork = Depends(get_uow),
+    current_user: User = Depends(require_permission("role:read")),
 ):
     """List all roles."""
-    await check_permission(current_user, "role:read")
     result = await uow.execute(select(Role).order_by(Role.created_at.desc()))
     roles = result.scalars().all()
     return [
@@ -299,10 +291,9 @@ async def list_roles(
 async def create_role(
     data: dict,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("role:write")),
 ):
     """Create a new role."""
-    await check_permission(current_user, "role:write")
     name = data.get("name")
     code = data.get("code")
     if not name or not code:
@@ -329,10 +320,9 @@ async def update_role(
     role_id: UUID,
     data: dict,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("role:write")),
 ):
     """Update a role."""
-    await check_permission(current_user, "role:write")
     result = await uow.execute(select(Role).where(Role.id == role_id))
     role = result.scalar_one_or_none()
     if not role:
@@ -354,10 +344,9 @@ async def update_role(
 async def delete_role(
     role_id: UUID,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("role:write")),
 ):
     """Soft-delete a role."""
-    await check_permission(current_user, "role:write")
     result = await uow.execute(select(Role).where(Role.id == role_id))
     role = result.scalar_one_or_none()
     if not role:
@@ -370,11 +359,10 @@ async def delete_role(
 
 @router.get("/permissions")
 async def list_permissions(
-    uow: UnitOfWork = Depends(get_uow), 
-    current_user: User = Depends(get_current_user),
+    uow: UnitOfWork = Depends(get_uow),
+    current_user: User = Depends(require_permission("role:read")),
 ):
     """List all available permissions."""
-    await check_permission(current_user, "role:read")
     result = await uow.execute(select(Permission).order_by(Permission.code))
     perms = result.scalars().all()
     return [

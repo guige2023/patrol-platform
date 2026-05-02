@@ -8,7 +8,7 @@ from datetime import datetime
 import io
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from app.dependencies import get_uow, get_current_user
+from app.dependencies import get_uow, get_current_user, require_permission
 from app.database import UnitOfWork
 from app.models.knowledge import Knowledge
 from app.models.user import User
@@ -23,13 +23,13 @@ router = APIRouter()
 @router.get("/", response_model=PaginatedResponse[KnowledgeResponse])
 async def list_knowledge(
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=9999),
+    page_size: int = Query(20, ge=1, le=100),
     title: Optional[str] = None,
     category: Optional[str] = None,
     tags: Optional[str] = None,
     is_published: Optional[bool] = None,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("knowledge:write")),
 ):
     query = select(Knowledge).where(Knowledge.is_active == True)
     if title:
@@ -52,7 +52,7 @@ async def list_knowledge(
 
 
 @router.get("/knowledge-categories")
-async def list_categories(uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def list_categories(uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("knowledge:write"))):
     result = await uow.execute(
         select(Knowledge.category, func.count(Knowledge.id).label("count"))
         .where(Knowledge.is_active == True)
@@ -72,7 +72,7 @@ CATEGORY_LABELS = {
 async def export_knowledge(
     category: Optional[str] = None,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("knowledge:write")),
 ):
     """Export all knowledge items as .xlsx."""
     query = select(Knowledge).where(Knowledge.is_active == True)
@@ -134,7 +134,7 @@ async def export_knowledge(
 
 
 @router.get("/{knowledge_id}")
-async def get_knowledge(knowledge_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def get_knowledge(knowledge_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("knowledge:write"))):
     result = await uow.execute(select(Knowledge).where(Knowledge.id == knowledge_id))
     knowledge = result.scalar_one_or_none()
     if not knowledge:
@@ -143,7 +143,7 @@ async def get_knowledge(knowledge_id: UUID, uow: UnitOfWork = Depends(get_uow), 
 
 
 @router.post("/", response_model=KnowledgeResponse, status_code=201)
-async def create_knowledge(knowledge_data: KnowledgeCreate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def create_knowledge(knowledge_data: KnowledgeCreate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("knowledge:write"))):
     knowledge = Knowledge(**knowledge_data.model_dump(), created_by=current_user.id)
     uow.add(knowledge)
     await uow.commit()
@@ -167,7 +167,7 @@ async def create_knowledge(knowledge_data: KnowledgeCreate, uow: UnitOfWork = De
 
 
 @router.put("/{knowledge_id}", response_model=KnowledgeResponse)
-async def update_knowledge(knowledge_id: UUID, knowledge_data: KnowledgeUpdate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def update_knowledge(knowledge_id: UUID, knowledge_data: KnowledgeUpdate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("knowledge:write"))):
     result = await uow.execute(select(Knowledge).where(Knowledge.id == knowledge_id))
     knowledge = result.scalar_one_or_none()
     if not knowledge:
@@ -203,7 +203,7 @@ async def update_knowledge(knowledge_id: UUID, knowledge_data: KnowledgeUpdate, 
 
 
 @router.delete("/{knowledge_id}")
-async def delete_knowledge(knowledge_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def delete_knowledge(knowledge_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("knowledge:write"))):
     result = await uow.execute(select(Knowledge).where(Knowledge.id == knowledge_id))
     knowledge = result.scalar_one_or_none()
     if not knowledge:
@@ -222,7 +222,7 @@ async def delete_knowledge(knowledge_id: UUID, uow: UnitOfWork = Depends(get_uow
 
 
 @router.post("/{knowledge_id}/publish")
-async def publish_knowledge(knowledge_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def publish_knowledge(knowledge_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("knowledge:write"))):
     result = await uow.execute(select(Knowledge).where(Knowledge.id == knowledge_id))
     knowledge = result.scalar_one_or_none()
     if not knowledge:

@@ -10,7 +10,7 @@ import aiofiles
 import io
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from app.dependencies import get_uow, get_current_user
+from app.dependencies import get_uow, get_current_user, require_permission
 from app.database import UnitOfWork
 from app.models.document import Document, DocumentType
 from app.models.plan import Plan
@@ -33,9 +33,9 @@ async def list_documents(
     plan_id: Optional[UUID] = None,
     search: Optional[str] = None,
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=9999),
+    page_size: int = Query(20, ge=1, le=100),
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("document:write")),
 ):
     query = select(Document).where(Document.is_active == True)
     if type:
@@ -63,7 +63,7 @@ async def list_documents(
 
 
 @router.get("/{document_id}")
-async def get_document(document_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def get_document(document_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("document:write"))):
     result = await uow.execute(select(Document).where(Document.id == document_id))
     item = result.scalar_one_or_none()
     if not item:
@@ -72,7 +72,7 @@ async def get_document(document_id: UUID, uow: UnitOfWork = Depends(get_uow), cu
 
 
 @router.delete("/{document_id}")
-async def delete_document(document_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def delete_document(document_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("document:write"))):
     result = await uow.execute(select(Document).where(Document.id == document_id))
     doc = result.scalar_one_or_none()
     if not doc:
@@ -85,7 +85,7 @@ async def delete_document(document_id: UUID, uow: UnitOfWork = Depends(get_uow),
 
 
 @router.get("/{document_id}/download")
-async def download_document(document_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def download_document(document_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("document:write"))):
     result = await uow.execute(select(Document).where(Document.id == document_id, Document.is_active == True))
     doc = result.scalar_one_or_none()
     if not doc:
@@ -102,7 +102,7 @@ async def download_document(document_id: UUID, uow: UnitOfWork = Depends(get_uow
 
 
 @router.get("/{document_id}/preview")
-async def preview_document(document_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def preview_document(document_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("document:write"))):
     """Preview document - returns file as blob."""
     result = await uow.execute(select(Document).where(Document.id == document_id, Document.is_active == True))
     doc = result.scalar_one_or_none()
@@ -126,7 +126,7 @@ async def preview_document(document_id: UUID, uow: UnitOfWork = Depends(get_uow)
 async def generate_document(
     request: GenerateDocumentRequest,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("document:write")),
 ):
     """Generate a document from plan (巡察公告, 成立通知, 部署会通知, 反馈意见)."""
     plan_result = await uow.execute(select(Plan).where(Plan.id == request.plan_id, Plan.is_active == True))
@@ -194,7 +194,7 @@ async def generate_document(
 async def generate_rectification_notice(
     request: GenerateRectificationNoticeRequest,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("document:write")),
 ):
     """Generate rectification notice document."""
     rect_result = await uow.execute(select(Rectification).where(Rectification.id == request.rectification_id, Rectification.is_active == True))

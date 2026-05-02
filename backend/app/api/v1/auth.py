@@ -18,7 +18,7 @@ async def login(request: LoginRequest, uow: UnitOfWork = Depends(get_uow)):
     result = await uow.execute(select(User).where(User.username == request.username))
     user = result.scalar_one_or_none()
     if not user or not verify_password(request.password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="用户名或密码错误")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is inactive")
     access_token = create_access_token(data={"sub": str(user.id)})

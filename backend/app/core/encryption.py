@@ -1,11 +1,21 @@
 from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.backends import default_backend
 from app.config import settings
 import base64
-import hashlib
 
 
 def _get_cipher():
-    key = hashlib.sha256(settings.ENCRYPTION_KEY.encode()).digest()
+    # Use PBKDF2 with 100,000 iterations instead of raw SHA256 for key derivation
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=b"patrol-platform-v1",  # Application-specific salt (change on key rotation)
+        iterations=100000,
+        backend=default_backend(),
+    )
+    key = kdf.derive(settings.ENCRYPTION_KEY.encode())
     return Fernet(base64.urlsafe_b64encode(key))
 
 

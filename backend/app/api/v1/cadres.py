@@ -5,7 +5,7 @@ from sqlalchemy import select, func
 from typing import List, Optional
 from uuid import UUID
 import io, codecs
-from app.dependencies import get_uow, get_current_user
+from app.dependencies import get_uow, get_current_user, require_permission
 from app.database import UnitOfWork
 from app.models.cadre import Cadre
 from app.models.unit import Unit
@@ -25,13 +25,13 @@ router = APIRouter()
 @router.get("/", response_model=PaginatedResponse[CadreResponse])
 async def list_cadres(
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=9999),
+    page_size: int = Query(20, ge=1, le=100),
     name: Optional[str] = None,
     unit_id: Optional[UUID] = None,
     tags: Optional[str] = None,
     is_available: Optional[bool] = None,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("cadre:write")),
 ):
     query = select(Cadre).where(Cadre.is_active == True).options(selectinload(Cadre.unit))
     if name:
@@ -66,7 +66,7 @@ async def export_cadres(
     unit_id: Optional[UUID] = None,
     is_available: Optional[bool] = None,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("cadre:write")),
 ):
     """Export cadres as .xlsx (max 10000 rows)."""
     query = select(Cadre).where(Cadre.is_active == True).options(selectinload(Cadre.unit))
@@ -141,7 +141,7 @@ async def export_cadres(
 
 @router.get("/template")
 async def download_cadre_template(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("cadre:write")),
 ):
     """Download cadre import template (.xlsx)."""
     wb = openpyxl.Workbook()
@@ -215,7 +215,7 @@ async def download_cadre_template(
 
 
 @router.get("/{cadre_id}")
-async def get_cadre(cadre_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def get_cadre(cadre_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("cadre:write"))):
     result = await uow.execute(select(Cadre).where(Cadre.id == cadre_id))
     cadre = result.scalar_one_or_none()
     if not cadre:
@@ -225,7 +225,7 @@ async def get_cadre(cadre_id: UUID, uow: UnitOfWork = Depends(get_uow), current_
 
 
 @router.post("/", response_model=CadreResponse, status_code=201)
-async def create_cadre(cadre_data: CadreCreate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def create_cadre(cadre_data: CadreCreate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("cadre:write"))):
     data = cadre_data.model_dump()
     if data.get("id_card_encrypted"):
         data["id_card_encrypted"] = encrypt_field(data["id_card_encrypted"])
@@ -238,7 +238,7 @@ async def create_cadre(cadre_data: CadreCreate, uow: UnitOfWork = Depends(get_uo
 
 
 @router.put("/{cadre_id}", response_model=CadreResponse)
-async def update_cadre(cadre_id: UUID, cadre_data: CadreUpdate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def update_cadre(cadre_id: UUID, cadre_data: CadreUpdate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("cadre:write"))):
     result = await uow.execute(select(Cadre).where(Cadre.id == cadre_id))
     cadre = result.scalar_one_or_none()
     if not cadre:
@@ -255,7 +255,7 @@ async def update_cadre(cadre_id: UUID, cadre_data: CadreUpdate, uow: UnitOfWork 
 
 
 @router.delete("/{cadre_id}")
-async def delete_cadre(cadre_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def delete_cadre(cadre_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("cadre:write"))):
     result = await uow.execute(select(Cadre).where(Cadre.id == cadre_id))
     cadre = result.scalar_one_or_none()
     if not cadre:
@@ -270,7 +270,7 @@ async def delete_cadre(cadre_id: UUID, uow: UnitOfWork = Depends(get_uow), curre
 async def batch_delete_cadres(
     ids: List[UUID] = Body(...),
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("cadre:write")),
 ):
     """Soft-delete multiple cadres at once."""
     if not ids:
@@ -290,7 +290,7 @@ async def batch_delete_cadres(
 
 
 @router.get("/{cadre_id}/id-card/masked")
-async def get_masked_id_card(cadre_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def get_masked_id_card(cadre_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("cadre:write"))):
     result = await uow.execute(select(Cadre).where(Cadre.id == cadre_id))
     cadre = result.scalar_one_or_none()
     if not cadre or not cadre.id_card_encrypted:
@@ -303,7 +303,7 @@ async def get_masked_id_card(cadre_id: UUID, uow: UnitOfWork = Depends(get_uow),
 async def import_cadres(
     file: UploadFile = File(...),
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("cadre:write")),
 ):
     """
     导入干部数据（Excel .xlsx）
@@ -476,7 +476,7 @@ async def import_cadres(
 async def get_cadre_groups(
     cadre_id: UUID,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("cadre:write")),
 ):
     """Get all inspection groups that contain this cadre (via GroupMember)."""
     result = await uow.execute(
@@ -551,7 +551,7 @@ def _json_cell(row, col_map, key):
 async def get_cadre_report(
     cadre_id: UUID,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("cadre:write")),
 ):
     """Generate personal inspection report for a cadre."""
     # Get cadre

@@ -5,7 +5,7 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from uuid import UUID
-from app.dependencies import get_uow, get_current_user
+from app.dependencies import get_uow, get_current_user, require_permission
 from app.database import UnitOfWork
 from app.models.inspection_group import InspectionGroup, GroupMember
 from app.models.plan import Plan
@@ -30,9 +30,9 @@ async def list_groups(
     status: Optional[str] = None,
     search: Optional[str] = None,
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=9999),
+    page_size: int = Query(20, ge=1, le=100),
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("group:write")),
 ):
     query = select(InspectionGroup).where(InspectionGroup.is_active == True).options(selectinload(InspectionGroup.members).selectinload(GroupMember.cadre))
     if plan_id:
@@ -78,7 +78,7 @@ async def export_groups(
     status: Optional[str] = None,
     ids: Optional[str] = None,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("group:write")),
 ):
     """Export inspection groups as .xlsx. Pass ids=comma-separated UUIDs for batch export."""
     query = (
@@ -159,7 +159,7 @@ async def export_groups(
 async def create_group(
     group_data: GroupCreate,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("group:write")),
 ):
     # 组长与副组长不可为同一人
     if group_data.leader_id and group_data.vice_leader_ids:
@@ -230,7 +230,7 @@ async def create_group(
 async def get_available_cadres(
     plan_id: Optional[UUID] = Query(None, description="Optional plan ID to filter out cadres already in groups for that plan"),
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("group:write")),
 ):
     """Get cadres available for assignment to a group's plan.
     
@@ -261,7 +261,7 @@ async def get_available_cadres(
 async def auto_match_group(
     body: dict,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("group:write")),
 ):
     """Auto-assign group members based on rule engine."""
     plan_id = body.get("plan_id")
@@ -314,7 +314,7 @@ async def auto_match_group(
 
 
 @router.get("/{group_id}")
-async def get_group(group_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def get_group(group_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("group:write"))):
     result = await uow.execute(
         select(InspectionGroup)
         .where(InspectionGroup.id == group_id)
@@ -367,7 +367,7 @@ async def get_group(group_id: UUID, uow: UnitOfWork = Depends(get_uow), current_
 async def list_group_members(
     group_id: UUID,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("group:write")),
 ):
     """Get all members of an inspection group."""
     result = await uow.execute(
@@ -393,7 +393,7 @@ async def add_member(
     group_id: UUID,
     member_data: GroupMemberCreate,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("group:write")),
 ):
     result = await uow.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
     group = result.scalar_one_or_none()
@@ -428,7 +428,7 @@ async def add_member(
 
 
 @router.delete("/{group_id}/members/{cadre_id}")
-async def remove_member(group_id: UUID, cadre_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def remove_member(group_id: UUID, cadre_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("group:write"))):
     result = await uow.execute(
         select(GroupMember).where(GroupMember.group_id == group_id, GroupMember.cadre_id == cadre_id)
     )
@@ -446,7 +446,7 @@ async def replace_group_members(
     group_id: UUID,
     data: GroupMembersReplace,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("group:write")),
 ):
     """原子全量替换巡察组成员：先删后插，保证原子性"""
     result = await uow.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
@@ -481,7 +481,7 @@ async def replace_group_members(
 
 
 @router.post("/{group_id}/submit")
-async def submit_group(group_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def submit_group(group_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("group:write"))):
     result = await uow.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
     group = result.scalar_one_or_none()
     if not group:
@@ -494,7 +494,7 @@ async def submit_group(group_id: UUID, uow: UnitOfWork = Depends(get_uow), curre
 
 
 @router.post("/{group_id}/activate")
-async def activate_group(group_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def activate_group(group_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("group:write"))):
     """Start executing the inspection group (approved → active)."""
     result = await uow.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
     group = result.scalar_one_or_none()
@@ -510,7 +510,7 @@ async def activate_group(group_id: UUID, uow: UnitOfWork = Depends(get_uow), cur
 
 
 @router.post("/{group_id}/complete")
-async def complete_group(group_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def complete_group(group_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("group:write"))):
     """Mark the inspection group as completed (active → completed)."""
     result = await uow.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
     group = result.scalar_one_or_none()
@@ -526,7 +526,7 @@ async def complete_group(group_id: UUID, uow: UnitOfWork = Depends(get_uow), cur
 
 
 @router.get("/{group_id}/status-logs")
-async def get_group_status_logs(group_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def get_group_status_logs(group_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("group:write"))):
     """Get status transition history for a group from audit_logs."""
     result = await uow.execute(
         select(AuditLog)
@@ -565,7 +565,7 @@ async def update_group(
     group_id: UUID,
     group_data: GroupUpdate,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("group:write")),
 ):
     result = await uow.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
     group = result.scalar_one_or_none()
@@ -582,7 +582,7 @@ async def update_group(
 
 
 @router.delete("/{group_id}")
-async def delete_group(group_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def delete_group(group_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("group:write"))):
     result = await uow.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
     group = result.scalar_one_or_none()
     if not group:
@@ -598,7 +598,7 @@ async def assign_concurrent_roles(
     group_id: UUID,
     body: dict,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("group:write")),
 ):
     """Assign concurrent roles (clue officer, liaison officer) to a group."""
     result = await uow.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
@@ -614,7 +614,7 @@ async def assign_concurrent_roles(
 async def get_group_phase_logs(
     group_id: UUID,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("group:write")),
 ):
     """Get phase transition logs for an inspection group."""
     result = await uow.execute(
@@ -642,7 +642,7 @@ async def update_group_status(
     group_id: UUID,
     body: dict,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("group:write")),
 ):
     """Update group status directly (e.g., from 'approved' to 'active')."""
     result = await uow.execute(select(InspectionGroup).where(InspectionGroup.id == group_id))
@@ -662,7 +662,7 @@ async def update_group_status(
 async def batch_delete_groups(
     ids: List[UUID],
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("group:write")),
 ):
     """Soft-delete multiple inspection groups at once."""
     if not ids:

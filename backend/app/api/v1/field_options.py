@@ -5,7 +5,7 @@ from typing import List
 from uuid import UUID
 import json
 
-from app.dependencies import get_uow, get_current_user, check_permission
+from app.dependencies import get_uow, get_current_user, require_permission
 from app.database import UnitOfWork
 from app.models.user import User
 from app.models.field_option import FieldOption
@@ -41,9 +41,8 @@ async def get_field_option(
 async def create_field_option(
     data: FieldOptionCreate,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("field:write")),
 ):
-    await check_permission(current_user, "field:write")
     existing = await uow.execute(select(FieldOption).where(FieldOption.field_key == data.field_key))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail=f"字段 '{data.field_key}' 已存在")
@@ -65,9 +64,8 @@ async def update_field_option(
     field_key: str,
     data: FieldOptionUpdate,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("field:write")),
 ):
-    await check_permission(current_user, "field:write")
     result = await uow.execute(select(FieldOption).where(FieldOption.field_key == field_key))
     option = result.scalar_one_or_none()
     if not option:
@@ -89,9 +87,8 @@ async def update_field_option(
 async def delete_field_option(
     field_key: str,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("field:write")),
 ):
-    await check_permission(current_user, "field:write")
     result = await uow.execute(select(FieldOption).where(FieldOption.field_key == field_key))
     option = result.scalar_one_or_none()
     if not option:

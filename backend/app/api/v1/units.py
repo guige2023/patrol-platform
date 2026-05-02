@@ -7,7 +7,7 @@ from typing import List, Optional
 from uuid import UUID
 import io, codecs
 
-from app.dependencies import get_uow, get_current_user
+from app.dependencies import get_uow, get_current_user, require_permission
 from app.database import UnitOfWork
 from app.models.unit import Unit
 from app.models.user import User
@@ -59,7 +59,7 @@ async def get_unit_tree(
 @router.get("/", response_model=PaginatedResponse[UnitResponse])
 async def list_units(
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=9999),
+    page_size: int = Query(20, ge=1, le=100),
     name: Optional[str] = None,
     unit_type: Optional[str] = None,
     parent_id: Optional[UUID] = None,
@@ -250,7 +250,7 @@ async def get_unit(unit_id: UUID, uow: UnitOfWork = Depends(get_uow), current_us
 
 
 @router.post("/", response_model=UnitResponse, status_code=201)
-async def create_unit(unit_data: UnitCreate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def create_unit(unit_data: UnitCreate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("unit:write"))):
     unit = Unit(**unit_data.model_dump())
     uow.add(unit)
     await uow.commit()
@@ -260,7 +260,7 @@ async def create_unit(unit_data: UnitCreate, uow: UnitOfWork = Depends(get_uow),
 
 
 @router.put("/{unit_id}", response_model=UnitResponse)
-async def update_unit(unit_id: UUID, unit_data: UnitUpdate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def update_unit(unit_id: UUID, unit_data: UnitUpdate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("unit:write"))):
     result = await uow.execute(select(Unit).where(Unit.id == unit_id))
     unit = result.scalar_one_or_none()
     if not unit:
@@ -274,7 +274,7 @@ async def update_unit(unit_id: UUID, unit_data: UnitUpdate, uow: UnitOfWork = De
 
 
 @router.delete("/{unit_id}")
-async def delete_unit(unit_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(get_current_user)):
+async def delete_unit(unit_id: UUID, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("unit:delete"))):
     result = await uow.execute(select(Unit).where(Unit.id == unit_id))
     unit = result.scalar_one_or_none()
     if not unit:
@@ -290,7 +290,7 @@ async def delete_unit(unit_id: UUID, uow: UnitOfWork = Depends(get_uow), current
 async def import_units(
     file: UploadFile = File(...),
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("unit:write")),
 ):
     """
     导入单位数据（Excel .xlsx）

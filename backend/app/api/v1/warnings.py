@@ -6,7 +6,7 @@ from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
 from pydantic import BaseModel
-from app.dependencies import get_uow, get_current_user
+from app.dependencies import get_uow, get_current_user, require_permission
 from app.database import UnitOfWork
 from app.models.user import User
 from app.models.warning import Warning
@@ -30,9 +30,9 @@ async def list_warnings(
     type: Optional[str] = None,
     level: Optional[str] = None,
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=9999),
+    page_size: int = Query(20, ge=1, le=100),
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("warning:write")),
 ):
     """List warnings with optional filters."""
     query = select(Warning)
@@ -76,7 +76,7 @@ async def list_warnings(
 @router.get("/unread-count")
 async def get_unread_count(
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("warning:write")),
 ):
     """Get count of unread warnings."""
     result = await uow.execute(
@@ -89,7 +89,7 @@ async def get_unread_count(
 async def mark_as_read(
     warning_id: UUID,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("warning:write")),
 ):
     """Mark a warning as read."""
     result = await uow.execute(select(Warning).where(Warning.id == warning_id))
@@ -107,7 +107,7 @@ async def mark_as_read(
 @router.post("/read-all")
 async def mark_all_as_read(
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("warning:write")),
 ):
     """Mark all warnings as read."""
     await uow.execute(
@@ -123,7 +123,7 @@ async def mark_all_as_read(
 async def delete_warning(
     warning_id: UUID,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("warning:write")),
 ):
     """Delete a warning."""
     result = await uow.execute(select(Warning).where(Warning.id == warning_id))
@@ -140,7 +140,7 @@ async def delete_warning(
 async def create_warning(
     warning_data: WarningCreate,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("warning:write")),
 ):
     """Create a new warning (used internally by the system)."""
     warning = Warning(

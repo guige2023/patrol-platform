@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -18,6 +18,40 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response: Response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    return response
+
+
+@app.middleware("http")
+async def csrf_protection(request: Request, call_next):
+    """CSRF protection: reject state-changing requests without proper origin header."""
+    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        origin = request.headers.get("origin")
+        referer = request.headers.get("referer")
+        allowed_origins = {f"http://{h}" if not h.startswith("http") else h for h in settings.cors_origin_list}
+        allowed_origins.add(settings.cors_origin_list[0] if settings.cors_origin_list else "")
+        # Allow requests with matching origin or referer, skip for same-origin API calls
+        if origin and origin not in allowed_origins and not (
+            referer and any(referer.startswith(allowed) for allowed in allowed_origins)
+        ):
+            # Same-origin API call (no origin header) is safe
+            if not origin:
+                pass
+            else:
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "CSRF protection: invalid origin"},
+                )
+    return await call_next(request)
 
 app.include_router(v1_router, prefix=settings.API_V1_PREFIX)
 
