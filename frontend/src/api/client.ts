@@ -18,20 +18,22 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (response) => {
-    // Backend wraps list responses in {data: {items, total, page, page_size}}
-    // But login endpoint returns {access_token, token_type, user} directly (no wrapper)
-    // Only unwrap if we detect the pagination pattern
+    // Backend wraps responses in {data: ..., message: ...} for single objects
+    // and {data: {items, total, ...}} for paginated lists
+    // Only unwrap if we detect the wrapper pattern
     const rd = response.data;
-    if (
-      rd &&
-      typeof rd === 'object' &&
-      !Array.isArray(rd) &&
-      'data' in rd &&
-      'items' in (rd as any).data &&
-      'total' in (rd as any).data
-    ) {
+    if (rd && typeof rd === 'object' && !Array.isArray(rd) && 'data' in rd) {
+      const d = (rd as any).data;
       // Paginated list: {data: {items, total, page, page_size}}
-      response.data = (rd as any).data;
+      if (typeof d === 'object' && d !== null && 'items' in d && 'total' in d) {
+        response.data = d;
+      }
+      // Single object: {data: {...obj...}, message: '...'}
+      // OR plain array: {data: [...]}
+      // Both cases: return rd.data directly
+      else if (d !== null) {
+        response.data = d;
+      }
     }
     return response;
   },

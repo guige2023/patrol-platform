@@ -15,11 +15,12 @@ export interface Document {
 }
 
 export const getDocuments = (params?: { type?: string; plan_id?: string; page?: number; page_size?: number; search?: string }) =>
-  api.get('/documents/', { params }).then(res => (res.data as any)?.data ?? res.data);
+  // Interceptor unwraps {data: {items,total,...}} → {items,total,...}
+  api.get('/documents/', { params }).then(res => res.data);
 
-// Backend returns {data: {doc_fields}, message: "..."} — manual unwrap needed.
+// Interceptor unwraps {data: {...doc...}} → {...doc...}
 export const getDocument = (id: string) =>
-  api.get(`/documents/${id}`).then(res => (res.data as any).data);
+  api.get(`/documents/${id}`).then(res => res.data);
 
 export const deleteDocument = (id: string) =>
   api.delete(`/documents/${id}`);
