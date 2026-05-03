@@ -30,7 +30,7 @@ export default function Coverage() {
   useEffect(() => {
     setLoading(true)
     api.get('/dashboard/yearly-coverage', { params: { year } })
-      .then(res => setData(res.data))
+      .then(res => setData(res.data ?? res))
       .finally(() => setLoading(false))
   }, [year])
 

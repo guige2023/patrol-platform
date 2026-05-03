@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     MEILISEARCH_URL: str = "http://127.0.0.1:7700"
     MEILISEARCH_KEY: str = ""
 
-    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3070,http://localhost:3071,http://localhost:3072"
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3005,http://localhost:3070,http://localhost:3071,http://localhost:3072"
     SERVE_UPLOADS: bool = False
 
     RUNTIME_DIR: str = "runtime"

@@ -38,7 +38,7 @@ const RectificationKanban: React.FC = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getRectifications({ page: 1, page_size: 200 });
+      const res = await getRectifications({ page: 1, page_size: 100 });
       setRectifications(res?.items || []);
     } catch {
       message.error('加载整改数据失败');
