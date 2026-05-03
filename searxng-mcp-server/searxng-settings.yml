@@ -1,0 +1,95 @@
+# SearXNG 配置文件
+# 用于 Docker 容器
+
+general:
+  debug: false
+  instance_name: "SearXNG-MCP"
+  
+search:
+  safe_search: 1
+  autocomplete: 'duckduckgo'
+  
+server:
+  bind_address: "0.0.0.0"
+  port: 8080
+  secret_key: "changeme_in_production"  # 生产环境请修改
+  limiter: true
+  
+engines:
+  # 通用搜索
+  - name: google
+    engine: google
+    shortcut: go
+    disabled: true
+    
+  - name: bing
+    engine: bing
+    shortcut: bi
+    disabled: false
+    
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+    disabled: true
+    
+  - name: baidu
+    engine: baidu
+    shortcut: bd
+    disabled: false
+    
+  # 技术搜索
+  - name: github
+    engine: github
+    shortcut: gh
+    disabled: false
+    
+  - name: stackoverflow
+    engine: stackoverflow
+    shortcut: so
+    disabled: false
+    
+  # 知识搜索
+  - name: wikipedia
+    engine: wikipedia
+    shortcut: wp
+    disabled: true
+    
+  - name: wikidata
+    engine: wikidata
+    shortcut: wd
+    disabled: true
+
+# 搜索引擎设置
+outgoing:
+  request_timeout: 10.0
+  max_request_timeout: 15.0
+  pool_connections: 100
+  pool_maxsize: 100
+  enable_http2: true
+  retries: 1
+
+# 结果格式
+result_proxy:
+  url: ''
+  
+# 用户界面
+ui:
+  static_path: ''
+  templates_path: ''
+  default_theme: simple
+  
+# 插件
+plugins:
+  - 'Open Access DOI rewrite'
+  - 'Hash plugin'
+  - 'Self Informations'
+  - 'Tracker URL remover'
+  - 'Ahmia blacklist'
+
+# 语言设置
+locales:
+  zh: 简体中文
+  zh-TW: 繁體中文
+  en: English
+  ja: 日本語
+  ko: 한국어
