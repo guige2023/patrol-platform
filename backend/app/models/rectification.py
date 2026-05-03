@@ -35,6 +35,10 @@ class Rectification(Base):
     confirm_notes = Column(Text)  # 确认意见
     confirmed_at = Column(DateTime)  # 确认时间
     confirmed_by = Column(Guid)  # 确认人
+    rejection_reason = Column(Text)  # 驳回原因
+    rejected_at = Column(DateTime)  # 驳回时间
+    rejected_by = Column(Guid)  # 驳收人
+    evidence_file_ids = Column(JSON, default=list)  # 证据文件ID列表 [uuid, ...]
     is_active = Column(Boolean, default=True)
 
     unit = relationship("Unit")

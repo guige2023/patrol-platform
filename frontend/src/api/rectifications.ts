@@ -57,6 +57,23 @@ export const importRectifications = (file: File) => {
 export const confirmRectification = (id: string, isCompleted: boolean, notes?: string) =>
   api.post(`/rectifications/${id}/confirm`, { is_completed: isCompleted, notes });
 
+export const rejectRectification = (id: string, reason: string) =>
+  api.post(`/rectifications/${id}/reject`, { reason });
+
+export const getRectificationAttachments = (id: string) =>
+  api.get(`/rectifications/${id}/attachments`).then(res => res.data);
+
+export const uploadRectificationAttachment = (id: string, file: File) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return api.post(`/rectifications/${id}/attachments`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then(res => res.data);
+};
+
+export const deleteRectificationAttachment = (id: string, attachmentId: string) =>
+  api.delete(`/rectifications/${id}/attachments/${attachmentId}`);
+
 export const exportRectificationsByYear = (year?: number) => {
   return api.get('/rectifications/export', { 
     params: year ? { year } : {},

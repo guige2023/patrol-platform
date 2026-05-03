@@ -18,10 +18,12 @@ const PlanList = lazy(() => import('./pages/Plan/Plans/PlanList'))
 const PlanCreateWizard = lazy(() => import('./pages/Plan/Plans/PlanCreateWizard'))
 const GroupList = lazy(() => import('./pages/Plan/Groups/GroupList'))
 const GroupDetailPage = lazy(() => import('./pages/Plan/Groups/GroupDetailPage'))
+const Coverage = lazy(() => import('./pages/Analysis/Coverage'))
 const DraftList = lazy(() => import('./pages/Execution/Drafts/DraftList'))
 const ClueList = lazy(() => import('./pages/Execution/Clues/ClueList'))
 const RectificationList = lazy(() => import('./pages/Execution/Rectifications/RectificationList'))
 const RectificationDetail = lazy(() => import('./pages/Execution/Rectifications/RectificationDetail'))
+const RectificationKanban = lazy(() => import('./pages/Execution/Rectifications/RectificationKanban'))
 const ProgressPage = lazy(() => import('./pages/Execution/Progress/ProgressPage'))
 const DocumentList = lazy(() => import('./pages/Execution/Documents/DocumentList'))
 const UserList = lazy(() => import('./pages/Admin/Users/UserList'))
@@ -76,6 +78,8 @@ const router = createBrowserRouter([
       { path: 'execution/drafts', element: <Suspense fallback={<PageLoader />}><DraftList /></Suspense> },
       { path: 'execution/clues', element: <Suspense fallback={<PageLoader />}><ClueList /></Suspense> },
       { path: 'execution/rectifications', element: <Suspense fallback={<PageLoader />}><RectificationList /></Suspense> },
+      { path: 'execution/rectifications/kanban', element: <Suspense fallback={<PageLoader />}><RectificationKanban /></Suspense> },
+      { path: 'analysis/coverage', element: <Suspense fallback={<PageLoader />}><Coverage /></Suspense> },
       { path: 'execution/rectifications/:id', element: <Suspense fallback={<PageLoader />}><RectificationDetail /></Suspense> },
       { path: 'execution/progress', element: <Suspense fallback={<PageLoader />}><ProgressPage /></Suspense> },
       { path: 'documents', element: <Suspense fallback={<PageLoader />}><DocumentList /></Suspense> },

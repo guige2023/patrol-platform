@@ -9,6 +9,7 @@ import {
   FileTextOutlined,
   ExceptionOutlined,
   BarChartOutlined,
+  RiseOutlined,
 } from '@ant-design/icons'
 import { Link, useNavigate } from 'react-router-dom'
 import ReactECharts from 'echarts-for-react'
@@ -32,11 +33,16 @@ interface IssueProfile {
   drafts_by_category: { category: string; count: number }[]
   clues_by_source: { source: string; count: number }[]
   rectifications_by_alert_level: { level: string; count: number; type?: string }[]
+  rectifications_by_status?: { status: string; count: number }[]
   recent_activities?: { id: number; type: string; title: string; time: string }[]
   plan_progress?: { name: string; progress: number; status: string; days_elapsed?: number; days_total?: number }[]
   uninspected_units?: { id: string; name: string; last_inspected_year?: number }[]
   current_round_progress?: { plan_id: string; plan_name: string; days_elapsed: number; days_total: number; percentage: number }[]
   yearly_coverage?: { year: number; inspected_count: number; total_count: number; percentage: number }[]
+  rectification_deadlines?: { id: string; title: string; unit_name?: string; deadline: string; alert_level: string; progress: number }[]
+  top_problem_types?: { category: string; count: number }[]
+  unit_rankings?: { unit_name: string; rectification_count: number; completed_count: number; overdue_count: number }[]
+  rectification_trend?: { month: string; completed: number; submitted: number; rejected: number }[]
 }
 
 interface YearlyStats {
@@ -44,6 +50,35 @@ interface YearlyStats {
   months: number[]
   plan_counts: number[]
   group_counts: number[]
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  drafted: '#8c8c8c',
+  dispatched: '#1677ff',
+  signed: '#722ed1',
+  progressing: '#faad14',
+  completed: '#52c41a',
+  submitted: '#13c2c2',
+  verified: '#003eb3',
+  rejected: '#ff4d4f',
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  drafted: '草稿',
+  dispatched: '已派发',
+  signed: '已签收',
+  progressing: '整改中',
+  completed: '已完成',
+  submitted: '待验收',
+  verified: '已验收',
+  rejected: '已驳回',
+}
+
+const ALERT_COLORS: Record<string, string> = {
+  green: '#52c41a',
+  yellow: '#faad14',
+  orange: '#fa8c16',
+  red: '#ff4d4f',
 }
 
 export default function Dashboard() {
@@ -74,7 +109,6 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchData()
-    // Auto-refresh every 5 minutes
     const interval = setInterval(fetchData, 5 * 60 * 1000)
     return () => clearInterval(interval)
   }, [fetchData])
@@ -92,65 +126,56 @@ export default function Dashboard() {
     </div>
   )
 
-  // 获取当前日期
   const now = new Date()
   const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`
   const weekDays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
   const fullDateStr = `${dateStr} ${weekDays[now.getDay()]}`
 
-  // 核心指标卡片数据
   const statCards = [
-    { 
-      title: '巡察计划', 
-      value: overview?.plan_count ?? 0, 
-      icon: <ProjectOutlined />, 
-      color: '#9B1C1C', 
+    {
+      title: '巡察计划',
+      value: overview?.plan_count ?? 0,
+      icon: <ProjectOutlined />,
+      color: '#9B1C1C',
       path: '/plans',
       subTitle: `进行中${overview?.in_progress_plan_count ?? 0} / 待整改${overview?.pending_plan_count ?? 0}`,
     },
-    { 
-      title: '整改完成', 
-      value: `${overview?.completed_rectification ?? 0}/${overview?.rectification_count ?? 0}`, 
-      icon: <CheckCircleOutlined />, 
-      color: '#52c41a', 
+    {
+      title: '整改完成',
+      value: `${overview?.completed_rectification ?? 0}/${overview?.rectification_count ?? 0}`,
+      icon: <CheckCircleOutlined />,
+      color: '#52c41a',
       path: '/execution/rectifications',
       subTitle: '已完成/总整改数',
     },
-    { 
-      title: '超期整改', 
-      value: overview?.overdue_rectification ?? 0, 
-      icon: <WarningOutlined />, 
-      color: overview?.overdue_rectification ? '#C80000' : '#52c41a', 
+    {
+      title: '超期整改',
+      value: overview?.overdue_rectification ?? 0,
+      icon: <WarningOutlined />,
+      color: overview?.overdue_rectification ? '#C80000' : '#52c41a',
       path: '/execution/rectifications?filter=overdue',
       subTitle: '需重点关注',
     },
-    { 
-      title: '单位档案', 
-      value: overview?.unit_count ?? 0, 
-      icon: <BankOutlined />, 
-      color: '#C80000', 
+    {
+      title: '单位档案',
+      value: overview?.unit_count ?? 0,
+      icon: <BankOutlined />,
+      color: '#C80000',
       path: '/archive/units',
       subTitle: '已建档单位数量',
     },
   ]
 
-  // 当前轮次进度数据
   const currentRoundProgress = issues?.current_round_progress || []
-  
-  // 未巡察单位警告
   const uninspectedUnits = issues?.uninspected_units || []
-
-  // 年度覆盖率
   const yearlyCoverage = issues?.yearly_coverage || []
-
-  // 今日预警
   const todayWarnings = warnings
-
-  // 模拟进度数据（用于备用）
   const progressData = issues?.plan_progress || []
-
-  // 最新动态（时间线）
   const recentActivities = issues?.recent_activities || []
+  const rectByStatus = issues?.rectifications_by_status || []
+  const rectByLevel = issues?.rectifications_by_alert_level || []
+  const deadlines = issues?.rectification_deadlines || []
+  const topProblems = issues?.top_problem_types || []
 
   const getActivityIcon = (type: string) => {
     switch (type) {
@@ -167,6 +192,96 @@ export default function Dashboard() {
     if (percentage >= 70) return '#1677ff'
     if (percentage >= 30) return '#faad14'
     return '#ff4d4f'
+  }
+
+  // 整改状态环形图配置
+  const donutOption = {
+    tooltip: { trigger: 'item' as const },
+    legend: {
+      orient: 'vertical' as const,
+      right: 10,
+      top: 'middle',
+      itemWidth: 10,
+      itemHeight: 10,
+      textStyle: { fontSize: 11 },
+    },
+    series: [{
+      type: 'pie',
+      radius: ['45%', '70%'],
+      center: ['35%', '50%'],
+      avoidLabelOverlap: true,
+      itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 },
+      label: { show: false },
+      emphasis: {
+        label: { show: true, fontSize: 12, fontWeight: 'bold' },
+      },
+      data: rectByStatus.map((r: any) => ({
+        name: STATUS_LABELS[r.status] || r.status,
+        value: r.count,
+        itemStyle: { color: STATUS_COLORS[r.status] || '#d9d9d9' },
+      })),
+    }],
+  }
+
+  // 预警级别分布柱状图配置
+  const alertBarOption = {
+    tooltip: { trigger: 'axis' as const },
+    grid: { left: 50, right: 20, top: 10, bottom: 30 },
+    xAxis: {
+      type: 'category' as const,
+      data: rectByLevel.map((r: any) =>
+        r.level === 'green' ? '绿色' : r.level === 'yellow' ? '黄色' : r.level === 'orange' ? '橙色' : r.level === 'red' ? '红色' : r.level,
+      ),
+      axisLabel: { fontSize: 11 },
+    },
+    yAxis: { type: 'value' as const, axisLabel: { fontSize: 10 } },
+    series: [{
+      type: 'bar' as const,
+      data: rectByLevel.map((r: any) => ({
+        value: r.count,
+        itemStyle: {
+          color: ALERT_COLORS[r.level] || '#d9d9d9',
+          borderRadius: [4, 4, 0, 0],
+        },
+      })),
+      barMaxWidth: 40,
+    }],
+  }
+
+  // 甘特图配置（整改截止日期）
+  const ganttOption = {
+    tooltip: {
+      trigger: 'axis' as const,
+      axisPointer: { type: 'shadow' as const },
+      formatter: (params: any) => {
+        const d = params[0]
+        return `${d.name}<br/>截止: ${d.value}天`
+      },
+    },
+    grid: { left: 120, right: 30, top: 10, bottom: 30 },
+    xAxis: {
+      type: 'value' as const,
+      name: '剩余天数',
+      axisLabel: { fontSize: 10 },
+      max: (val: any) => Math.max(val.max, 1),
+    },
+    yAxis: {
+      type: 'category' as const,
+      data: deadlines.slice(0, 6).map((d: any) =>
+        d.title.length > 12 ? d.title.substring(0, 12) + '...' : d.title,
+      ),
+      axisLabel: { fontSize: 11 },
+    },
+    series: [{
+      type: 'bar' as const,
+      data: deadlines.slice(0, 6).map((d: any) => {
+        const days = Math.max(0, Math.ceil((new Date(d.deadline).getTime() - Date.now()) / 86400000))
+        const color = days <= 3 ? '#ff4d4f' : days <= 7 ? '#fa8c16' : days <= 14 ? '#faad14' : '#52c41a'
+        return { value: days, itemStyle: { color, borderRadius: [0, 4, 4, 0] } }
+      }),
+      barMaxWidth: 20,
+      label: { show: true, position: 'right', fontSize: 10, formatter: (p: any) => `${p.value}天` },
+    }],
   }
 
   return (
@@ -190,19 +305,12 @@ export default function Dashboard() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                   <div className="stat-card-title">{card.title}</div>
-                  <div
-                    className="stat-card-value"
-                    style={{ color: card.color }}
-                  >
+                  <div className="stat-card-value" style={{ color: card.color }}>
                     {card.value}
                   </div>
                   <div className="stat-card-sub">{card.subTitle}</div>
                 </div>
-                <div style={{
-                  fontSize: 32,
-                  color: card.color,
-                  opacity: 0.8,
-                }}>
+                <div style={{ fontSize: 32, color: card.color, opacity: 0.8 }}>
                   {card.icon}
                 </div>
               </div>
@@ -211,19 +319,125 @@ export default function Dashboard() {
         ))}
       </Row>
 
+      {/* 预警指示器 + 整改状态环形图 + 预警级别分布 */}
+      <Row gutter={16} style={{ marginBottom: 24 }}>
+        {/* 预警指示器 */}
+        <Col xs={24} md={6}>
+          <Card className="panel-card" title={
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <WarningOutlined style={{ color: '#ff4d4f' }} />
+              预警指示器
+            </span>
+          }>
+            {/* 超期 */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontSize: 13, color: '#333' }}>超期整改</span>
+                <Tag color={overview?.overdue_rectification ? 'red' : 'green'}>
+                  {overview?.overdue_rectification ?? 0} 条
+                </Tag>
+              </div>
+              <Progress
+                percent={overview?.rectification_count ? Math.min(100, (overview.overdue_rectification / overview.rectification_count) * 100) : 0}
+                strokeColor={overview?.overdue_rectification ? '#ff4d4f' : '#52c41a'}
+                showInfo={false}
+                size="small"
+              />
+            </div>
+            {/* 待处理 */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontSize: 13, color: '#333' }}>待处理整改</span>
+                <Tag color="orange">{overview?.pending_rectification ?? 0} 条</Tag>
+              </div>
+              <Progress
+                percent={overview?.rectification_count ? Math.min(100, (overview.pending_rectification / overview.rectification_count) * 100) : 0}
+                strokeColor="#fa8c16"
+                showInfo={false}
+                size="small"
+              />
+            </div>
+            {/* 今日到期 */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontSize: 13, color: '#333' }}>整改完成率</span>
+                <Tag color="blue">
+                  {overview?.rectification_count ? Math.round((overview.completed_rectification || 0) / overview.rectification_count * 100) : 0}%
+                </Tag>
+              </div>
+              <Progress
+                percent={overview?.rectification_count ? Math.min(100, ((overview.completed_rectification || 0) / overview.rectification_count) * 100) : 0}
+                strokeColor="#1677ff"
+                showInfo={false}
+                size="small"
+              />
+            </div>
+            {/* 快捷操作 */}
+            <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <Tag
+                color="red"
+                style={{ cursor: 'pointer' }}
+                onClick={() => navigate('/execution/rectifications')}
+              >
+                <WarningOutlined /> 整改督办
+              </Tag>
+              <Tag
+                color="purple"
+                style={{ cursor: 'pointer' }}
+                onClick={() => navigate('/execution/rectifications/kanban')}
+              >
+                整改看板
+              </Tag>
+            </div>
+          </Card>
+        </Col>
+
+        {/* 整改状态环形图 */}
+        <Col xs={24} md={9}>
+          <Card className="panel-card" title={
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <BarChartOutlined />
+              整改状态分布
+            </span>
+          } extra={
+            <Link to="/execution/rectifications/kanban">
+              <Tag color="purple">看板视图</Tag>
+            </Link>
+          }>
+            {rectByStatus.length > 0 ? (
+              <ReactECharts option={donutOption} style={{ height: 220 }} opts={{ renderer: 'canvas' }} />
+            ) : (
+              <Alert message="暂无整改数据" type="info" showIcon />
+            )}
+          </Card>
+        </Col>
+
+        {/* 预警级别分布 */}
+        <Col xs={24} md={9}>
+          <Card className="panel-card" title={
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <WarningOutlined style={{ color: '#faad14' }} />
+              预警级别分布
+            </span>
+          }>
+            {rectByLevel.length > 0 ? (
+              <ReactECharts option={alertBarOption} style={{ height: 220 }} opts={{ renderer: 'canvas' }} />
+            ) : (
+              <Alert message="暂无预警数据" type="info" showIcon />
+            )}
+          </Card>
+        </Col>
+      </Row>
+
       {/* 当前轮次进度 + 今日预警 */}
       <Row gutter={16} style={{ marginBottom: 24 }}>
-        {/* 左侧 - 当前轮次进度 */}
         <Col xs={24} md={14}>
-          <Card 
-            className="panel-card"
-            title={
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <ProjectOutlined />
-                当前轮次进度
-              </span>
-            }
-          >
+          <Card className="panel-card" title={
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <ProjectOutlined />
+              当前轮次进度
+            </span>
+          }>
             {currentRoundProgress.length > 0 ? (
               currentRoundProgress.map((item, index) => (
                 <div key={index} style={{ marginBottom: 20 }}>
@@ -233,8 +447,8 @@ export default function Dashboard() {
                       第{item.days_elapsed}天/共{item.days_total}天 ({item.percentage}%)
                     </span>
                   </div>
-                  <Progress 
-                    percent={item.percentage} 
+                  <Progress
+                    percent={item.percentage}
                     strokeColor={getProgressColor(item.percentage)}
                     trailColor="#FFE5E5"
                     size="small"
@@ -247,26 +461,22 @@ export default function Dashboard() {
           </Card>
         </Col>
 
-        {/* 右侧 - 今日预警 */}
         <Col xs={24} md={10}>
-          <Card 
-            className="panel-card"
-            title={
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <WarningOutlined style={{ color: '#ff4d4f' }} />
-                今日预警
-              </span>
-            }
-          >
+          <Card className="panel-card" title={
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <WarningOutlined style={{ color: '#ff4d4f' }} />
+              今日预警
+            </span>
+          }>
             <List
               dataSource={todayWarnings}
               renderItem={(item: any) => (
                 <List.Item style={{ padding: '12px 0', cursor: 'pointer' }}>
                   <List.Item.Meta
                     avatar={
-                      <WarningOutlined style={{ 
-                        color: item.type === 'danger' ? '#ff4d4f' : '#faad14', 
-                        fontSize: 20 
+                      <WarningOutlined style={{
+                        color: item.type === 'danger' ? '#ff4d4f' : '#faad14',
+                        fontSize: 20
                       }} />
                     }
                     title={<span style={{ fontSize: 14 }}>{item.title}</span>}
@@ -275,6 +485,55 @@ export default function Dashboard() {
                 </List.Item>
               )}
             />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* 整改甘特图 + 问题类型排行 */}
+      <Row gutter={16} style={{ marginBottom: 24 }}>
+        {/* 整改甘特图 */}
+        <Col xs={24} md={12}>
+          <Card className="panel-card" title={
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <ClockCircleOutlined />
+              整改截止日期（剩余天数）
+            </span>
+          }>
+            {deadlines.length > 0 ? (
+              <ReactECharts option={ganttOption} style={{ height: 220 }} opts={{ renderer: 'canvas' }} />
+            ) : (
+              <Alert message="暂无截止日期数据" type="info" showIcon />
+            )}
+          </Card>
+        </Col>
+
+        {/* 问题类型排行 */}
+        <Col xs={24} md={12}>
+          <Card className="panel-card" title={
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <RiseOutlined />
+              问题类型排行
+            </span>
+          }>
+            {topProblems.length > 0 ? (
+              topProblems.slice(0, 8).map((p: any, i: number) => (
+                <div key={i} style={{ marginBottom: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span style={{ fontSize: 13, color: '#333' }}>{p.category || '未分类'}</span>
+                    <span style={{ fontSize: 13, color: '#C80000', fontWeight: 600 }}>{p.count}条</span>
+                  </div>
+                  <Progress
+                    percent={topProblems[0]?.count ? Math.round(p.count / topProblems[0].count * 100) : 0}
+                    strokeColor="#C80000"
+                    trailColor="#FFE5E5"
+                    size="small"
+                    showInfo={false}
+                  />
+                </div>
+              ))
+            ) : (
+              <Alert message="暂无问题分类数据" type="info" showIcon />
+            )}
           </Card>
         </Col>
       </Row>
@@ -343,17 +602,13 @@ export default function Dashboard() {
 
       {/* 年度覆盖率 + 未巡察单位警告 */}
       <Row gutter={16} style={{ marginBottom: 24 }}>
-        {/* 年度覆盖率 */}
         <Col xs={24} md={12}>
-          <Card 
-            className="panel-card"
-            title={
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <CheckCircleOutlined />
-                年度覆盖率
-              </span>
-            }
-          >
+          <Card className="panel-card" title={
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <CheckCircleOutlined />
+              年度覆盖率
+            </span>
+          }>
             {yearlyCoverage.length > 0 ? (
               yearlyCoverage.map((item, index) => (
                 <div key={index} style={{ marginBottom: 16 }}>
@@ -363,8 +618,8 @@ export default function Dashboard() {
                       {item.percentage}%
                     </span>
                   </div>
-                  <Progress 
-                    percent={item.percentage} 
+                  <Progress
+                    percent={item.percentage}
                     strokeColor={item.percentage >= 100 ? '#52c41a' : '#C80000'}
                     trailColor="#FFE5E5"
                     size="small"
@@ -378,17 +633,13 @@ export default function Dashboard() {
           </Card>
         </Col>
 
-        {/* 未巡察单位警告 */}
         <Col xs={24} md={12}>
-          <Card 
-            className="panel-card"
-            title={
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <WarningOutlined style={{ color: '#ff4d4f' }} />
-                未巡察单位警告
-              </span>
-            }
-          >
+          <Card className="panel-card" title={
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <WarningOutlined style={{ color: '#ff4d4f' }} />
+              未巡察单位警告
+            </span>
+          }>
             <List
               size="small"
               dataSource={uninspectedUnits.slice(0, 5)}
@@ -407,17 +658,13 @@ export default function Dashboard() {
 
       {/* 巡察进度 + 最新动态 */}
       <Row gutter={16} style={{ marginBottom: 24 }}>
-        {/* 左侧 - 巡察进度概览 */}
         <Col xs={24} md={14}>
-          <Card 
-            className="panel-card"
-            title={
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <ProjectOutlined />
-                巡察进度概览
-              </span>
-            }
-          >
+          <Card className="panel-card" title={
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <ProjectOutlined />
+              巡察进度概览
+            </span>
+          }>
             <div style={{ padding: '8px 0' }}>
               {progressData.length > 0 ? progressData.map((item, index) => (
                 <div key={index} style={{ marginBottom: 20 }}>
@@ -427,8 +674,8 @@ export default function Dashboard() {
                       {item.status}
                     </Tag>
                   </div>
-                  <Progress 
-                    percent={item.progress} 
+                  <Progress
+                    percent={item.progress}
                     strokeColor={item.status === '已完成' ? '#52c41a' : '#C80000'}
                     trailColor="#FFE5E5"
                     size="small"
@@ -441,19 +688,15 @@ export default function Dashboard() {
           </Card>
         </Col>
 
-        {/* 右侧 - 最新动态 */}
         <Col xs={24} md={10}>
-          <Card 
-            className="panel-card"
-            title={
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <ClockCircleOutlined />
-                最新动态
-              </span>
-            }
-          >
+          <Card className="panel-card" title={
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <ClockCircleOutlined />
+              最新动态
+            </span>
+          }>
             {recentActivities.length > 0 ? (
-            <Timeline 
+            <Timeline
               items={recentActivities.map((activity) => ({
                 dot: getActivityIcon(activity.type),
                 children: (
@@ -471,16 +714,16 @@ export default function Dashboard() {
         </Col>
       </Row>
 
-      {/* 底部快捷入口 */}
+      {/* 快捷入口 */}
       <Row style={{ marginTop: 24 }}>
         <Col span={24}>
-          <Card 
-            styles={{ 
-              body: { 
+          <Card
+            styles={{
+              body: {
                 padding: '16px 24px',
                 background: 'linear-gradient(90deg, #FFF5F5 0%, #FFE5E5 100%)',
                 borderRadius: 12,
-              } 
+              }
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -488,6 +731,7 @@ export default function Dashboard() {
               <Link to="/plans"><Tag color="red" icon={<ProjectOutlined />}>巡察计划</Tag></Link>
               <Link to="/groups"><Tag color="red">巡察组</Tag></Link>
               <Link to="/execution/rectifications"><Tag color="red" icon={<WarningOutlined />}>整改督办</Tag></Link>
+              <Link to="/execution/rectifications/kanban"><Tag color="purple">整改看板</Tag></Link>
               <Link to="/progress"><Tag color="red" icon={<FileTextOutlined />}>进度管理</Tag></Link>
               <Link to="/documents"><Tag color="red">文档管理</Tag></Link>
               <Link to="/archive/cadres"><Tag color="red">干部人才</Tag></Link>

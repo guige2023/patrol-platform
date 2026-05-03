@@ -32,6 +32,8 @@ class RectificationUpdate(BaseModel):
     alert_level: Optional[str] = None
     confirmed_completed: Optional[bool] = None
     confirm_notes: Optional[str] = None
+    rejection_reason: Optional[str] = None
+    evidence_file_ids: Optional[List[str]] = None
 
 
 class RectificationResponse(RectificationBase):
@@ -54,6 +56,10 @@ class RectificationResponse(RectificationBase):
     confirm_notes: Optional[str] = None
     confirmed_at: Optional[datetime] = None
     confirmed_by: Optional[UUID] = None
+    rejection_reason: Optional[str] = None
+    rejected_at: Optional[datetime] = None
+    rejected_by: Optional[UUID] = None
+    evidence_file_ids: Optional[List[str]] = None
     is_active: bool
     created_by: UUID
     created_at: Optional[datetime] = None

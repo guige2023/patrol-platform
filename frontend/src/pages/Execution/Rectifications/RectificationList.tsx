@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Table, Button, Space, Tag, Progress, message, Popconfirm, Select, Input } from 'antd';
+import { Table, Button, Space, Tag, Progress, message, Popconfirm, Select, Input, Modal } from 'antd';
+const { TextArea } = Input;
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import type { Key } from 'antd/es/table/interface';
 import PageHeader from '@/components/common/PageHeader';
-import { getRectifications, signRectification, verifyRectification, exportRectifications, deleteRectification, submitRectification, batchDeleteRectifications, batchUpdateRectificationStatus } from '@/api/rectifications';
+import { getRectifications, signRectification, verifyRectification, exportRectifications, deleteRectification, submitRectification, batchDeleteRectifications, batchUpdateRectificationStatus, rejectRectification } from '@/api/rectifications';
 import RectificationModal from './RectificationModal';
 import type { ColumnsType } from 'antd/es/table';
 import { getErrorMessage } from '@/utils/error';
@@ -58,6 +59,10 @@ const RectificationList: React.FC = () => {
   const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([]);
   const [batchStatusVal, setBatchStatusVal] = useState<string | undefined>();
   const [searchText, setSearchText] = useState<string>('');
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectId, setRejectId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectLoading, setRejectLoading] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -109,6 +114,26 @@ const RectificationList: React.FC = () => {
       fetchData();
     } catch (e: any) {
       message.error(getErrorMessage(e) || '提交失败');
+    }
+  };
+
+  const handleReject = async () => {
+    if (!rejectId || !rejectReason.trim()) {
+      message.warning('请输入驳回原因');
+      return;
+    }
+    setRejectLoading(true);
+    try {
+      await rejectRectification(rejectId, rejectReason.trim());
+      message.success('整改已驳回');
+      setRejectModalOpen(false);
+      setRejectReason('');
+      setRejectId(null);
+      fetchData();
+    } catch (e: any) {
+      message.error(getErrorMessage(e) || '驳回失败');
+    } finally {
+      setRejectLoading(false);
     }
   };
 
@@ -168,6 +193,7 @@ const RectificationList: React.FC = () => {
           {record.status === 'dispatched' && <Button type="link" size="small" onClick={() => handleSign(record.id)}>签收</Button>}
           {record.status === 'completed' && <Button type="link" size="small" onClick={() => handleSubmit(record.id)}>提交验收</Button>}
           {record.status === 'submitted' && <Button type="link" size="small" onClick={() => handleVerify(record.id)}>审核验收</Button>}
+          {(record.status === 'submitted' || record.status === 'completed') && <Button type="link" size="small" danger onClick={() => { setRejectId(record.id); setRejectModalOpen(true); }}>驳回</Button>}
           <Button type="link" size="small" danger onClick={() => handleDelete(record.id)}>删除</Button>
         </Space>
       ),
@@ -231,6 +257,23 @@ const RectificationList: React.FC = () => {
         onClose={() => setModalOpen(false)}
         onSuccess={fetchData}
       />
+      <Modal
+        title="驳回整改"
+        open={rejectModalOpen}
+        onCancel={() => { setRejectModalOpen(false); setRejectReason(''); setRejectId(null); }}
+        onOk={handleReject}
+        confirmLoading={rejectLoading}
+        okText="确认驳回"
+        okButtonProps={{ danger: true }}
+      >
+        <div style={{ marginBottom: 8, color: '#ff4d4f' }}>请输入驳回原因（必填）：</div>
+        <TextArea
+          rows={4}
+          placeholder="请详细说明驳回原因，以便整改单位重新整改"
+          value={rejectReason}
+          onChange={e => setRejectReason((e as React.ChangeEvent<HTMLTextAreaElement>).target.value)}
+        />
+      </Modal>
     </div>
   );
 };

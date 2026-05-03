@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, extract, desc
+from sqlalchemy import select, func, extract, desc, case
 from datetime import date, datetime, timedelta
 from app.dependencies import get_uow, get_current_user
 from app.database import UnitOfWork
@@ -95,6 +95,13 @@ async def get_issue_profile(uow: UnitOfWork = Depends(get_uow), current_user: Us
         select(Rectification.alert_level, func.count(Rectification.id))
         .where(Rectification.is_active == True)
         .group_by(Rectification.alert_level)
+    )
+
+    # Rectifications by status
+    rect_by_status_result = await uow.execute(
+        select(Rectification.status, func.count(Rectification.id))
+        .where(Rectification.is_active == True)
+        .group_by(Rectification.status)
     )
 
     # Recent activities - combine recent plans, drafts, rectifications, clues
@@ -290,15 +297,130 @@ async def get_issue_profile(uow: UnitOfWork = Depends(get_uow), current_user: Us
             "percentage": percentage,
         })
 
+    # Rectification deadlines (top 10 with nearest deadline)
+    rect_deadlines_result = await uow.execute(
+        select(Rectification)
+        .where(
+            Rectification.is_active == True,
+            Rectification.deadline != None,
+            Rectification.status.in_(["dispatched", "signed", "progressing", "submitted"])
+        )
+        .order_by(Rectification.deadline)
+        .limit(10)
+    )
+    rectification_deadlines = []
+    for r in rect_deadlines_result.scalars().all():
+        unit_name = None
+        if r.unit_id:
+            unit_result = await uow.execute(select(Unit.name).where(Unit.id == r.unit_id))
+            unit_name = unit_result.scalar()
+        rectification_deadlines.append({
+            "id": str(r.id),
+            "title": r.title or "",
+            "unit_name": unit_name,
+            "deadline": r.deadline.isoformat() if r.deadline else None,
+            "alert_level": r.alert_level or "green",
+            "progress": r.progress or 0,
+        })
+
+    # Top problem types (from drafts)
+    top_problems_result = await uow.execute(
+        select(Draft.category, func.count(Draft.id))
+        .where(Draft.is_active == True, Draft.category != None)
+        .group_by(Draft.category)
+        .order_by(desc(func.count(Draft.id)))
+        .limit(10)
+    )
+    top_problem_types = [{"category": r[0], "count": r[1]} for r in top_problems_result.all()]
+
+    # Unit rankings by rectification performance
+    unit_rankings_result = await uow.execute(
+        select(
+            Unit.name,
+            func.count(Rectification.id).label("rect_count"),
+            func.sum(
+                case((Rectification.status.in_(["completed", "verified"]), 1), else_=0)
+            ).label("completed_count"),
+            func.sum(
+                case((Rectification.alert_level == "red", 1), else_=0)
+            ).label("overdue_count"),
+        )
+        .join_from(Rectification, Unit, Rectification.unit_id == Unit.id)
+        .where(Rectification.is_active == True)
+        .group_by(Unit.id, Unit.name)
+        .order_by(desc(func.count(Rectification.id)))
+        .limit(10)
+    )
+    unit_rankings = [
+        {
+            "unit_name": r[0],
+            "rectification_count": r[1] or 0,
+            "completed_count": r[2] or 0,
+            "overdue_count": r[3] or 0,
+        }
+        for r in unit_rankings_result.all()
+    ]
+
+    # Rectification trend (last 6 months)
+    rectification_trend = []
+    for i in range(5, -1, -1):
+        month_date = datetime(now.year, now.month, 1)
+        import calendar
+        if i > 0:
+            month_date = month_date.replace(day=1) - timedelta(days=1)
+            month_date = month_date.replace(day=1)
+        else:
+            month_date = month_date.replace(day=1)
+        _, last_day = calendar.monthrange(month_date.year, month_date.month)
+        month_end = month_date.replace(day=last_day, hour=23, minute=59, second=59)
+
+        completed_count = await uow.execute(
+            select(func.count()).select_from(Rectification).where(
+                Rectification.is_active == True,
+                Rectification.status.in_(["completed", "verified"]),
+                Rectification.updated_at >= month_date,
+                Rectification.updated_at <= month_end,
+            )
+        )
+        submitted_count = await uow.execute(
+            select(func.count()).select_from(Rectification).where(
+                Rectification.is_active == True,
+                Rectification.status == "submitted",
+                Rectification.updated_at >= month_date,
+                Rectification.updated_at <= month_end,
+            )
+        )
+        rejected_count = await uow.execute(
+            select(func.count()).select_from(Rectification).where(
+                Rectification.is_active == True,
+                Rectification.status == "rejected",
+                Rectification.updated_at >= month_date,
+                Rectification.updated_at <= month_end,
+            )
+        )
+
+        month_label = f"{month_date.year}年{month_date.month}月"
+        rectification_trend.append({
+            "month": month_label,
+            "completed": completed_count.scalar() or 0,
+            "submitted": submitted_count.scalar() or 0,
+            "rejected": rejected_count.scalar() or 0,
+        })
+
     return {
         "drafts_by_category": [{"category": r[0], "count": r[1]} for r in drafts_by_category.all()],
         "clues_by_source": [{"source": r[0], "count": r[1]} for r in clues_by_source.all()],
         "rectifications_by_alert_level": [{"level": r[0], "count": r[1]} for r in rect_by_level.all()],
+        "rectifications_by_status": [{"status": r[0], "count": r[1]} for r in rect_by_status_result.all()],
         "recent_activities": recent_activities,
         "plan_progress": plan_progress,
         "uninspected_units": uninspected_units,
         "current_round_progress": current_round_progress,
         "yearly_coverage": yearly_coverage,
+        "rectification_deadlines": rectification_deadlines,
+        "top_problem_types": top_problem_types,
+        "unit_rankings": unit_rankings,
+        "rectification_trend": rectification_trend,
     }
 
 
@@ -344,4 +466,58 @@ async def get_yearly_stats(
         "months": months,
         "plan_counts": plan_counts,
         "group_counts": group_counts,
+    }
+
+
+@router.get("/yearly-coverage")
+async def get_yearly_coverage(
+    year: int = date.today().year,
+    uow: UnitOfWork = Depends(get_uow),
+    current_user: User = Depends(get_current_user),
+):
+    """Unit inspection coverage for a given year — which units have been inspected and how many times."""
+    from app.models.plan import Plan
+    from app.models.inspection_group import InspectionGroup
+
+    # Total active units
+    total_units_result = await uow.execute(
+        select(func.count(Unit.id)).where(Unit.is_active == True)
+    )
+    total_units = total_units_result.scalar() or 0
+
+    # Units that have been assigned to at least one inspection group in this year
+    inspected_units_result = await uow.execute(
+        select(Unit.id, Unit.name, func.count(InspectionGroup.id).label("inspection_count"))
+        .join(InspectionGroup, InspectionGroup.target_unit_id == Unit.id)
+        .where(extract("year", InspectionGroup.created_at) == year)
+        .group_by(Unit.id, Unit.name)
+    )
+    inspected_units = [
+        {"unit_id": str(row[0]), "unit_name": row[1], "inspection_count": row[2]}
+        for row in inspected_units_result.all()
+    ]
+    inspected_unit_ids = {row[0] for row in inspected_units_result.all()}
+
+    # Units not yet inspected this year
+    all_units_result = await uow.execute(
+        select(Unit.id, Unit.name).where(Unit.is_active == True)
+    )
+    not_inspected_units = [
+        {"unit_id": str(row[0]), "unit_name": row[1], "inspection_count": 0}
+        for row in all_units_result.all()
+        if row[0] not in inspected_unit_ids
+    ]
+
+    # All units with their inspection counts (inspected first, then not inspected)
+    all_units_display = inspected_units + not_inspected_units
+
+    coverage_rate = round(len(inspected_unit_ids) / total_units * 100, 1) if total_units > 0 else 0
+
+    return {
+        "year": year,
+        "total_units": total_units,
+        "inspected_count": len(inspected_unit_ids),
+        "not_inspected_count": total_units - len(inspected_unit_ids),
+        "coverage_rate": coverage_rate,
+        "units": all_units_display,
     }

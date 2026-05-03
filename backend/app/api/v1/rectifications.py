@@ -465,6 +465,177 @@ async def verify_rectification(rect_id: UUID, comment: Optional[str] = None, uow
     return {"message": "Rectification verified"}
 
 
+@router.post("/{rect_id}/reject")
+async def reject_rectification(
+    rect_id: UUID,
+    body: dict,
+    uow: UnitOfWork = Depends(get_uow),
+    current_user: User = Depends(require_permission("rectification:write")),
+):
+    """Reject a submitted rectification with reason."""
+    result = await uow.execute(select(Rectification).where(Rectification.id == rect_id))
+    rect = result.scalar_one_or_none()
+    if not rect:
+        raise HTTPException(status_code=404, detail="Rectification not found")
+    if rect.status not in ("submitted", "completed"):
+        raise HTTPException(status_code=400, detail="Only submitted or completed rectifications can be rejected")
+    reason = body.get("reason", "")
+    if not reason:
+        raise HTTPException(status_code=400, detail="Rejection reason is required")
+    rect.status = "rejected"
+    rect.rejection_reason = reason
+    rect.rejected_at = datetime.utcnow()
+    rect.rejected_by = current_user.id
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "reject", "rectification", rect_id, {"reason": reason})
+    return {"message": "Rectification rejected"}
+
+
+@router.get("/{rect_id}/attachments")
+async def get_rectification_attachments(
+    rect_id: UUID,
+    uow: UnitOfWork = Depends(get_uow),
+    current_user: User = Depends(require_permission("rectification:write")),
+):
+    """Get evidence file attachments for a rectification."""
+    from app.models.attachment import Attachment
+    result = await uow.execute(
+        select(Attachment).where(
+            Attachment.entity_type == "rectification",
+            Attachment.entity_id == rect_id,
+        ).order_by(Attachment.created_at.desc())
+    )
+    attachments = result.scalars().all()
+    return [
+        {
+            "id": str(a.id),
+            "file_name": a.file_name,
+            "file_size": a.file_size,
+            "mime_type": a.mime_type,
+            "created_at": a.created_at.isoformat() if a.created_at else None,
+        }
+        for a in attachments
+    ]
+
+
+@router.post("/{rect_id}/attachments")
+async def upload_rectification_attachment(
+    rect_id: UUID,
+    file: UploadFile = File(...),
+    uow: UnitOfWork = Depends(get_uow),
+    current_user: User = Depends(require_permission("rectification:write")),
+):
+    """Upload an evidence file for a rectification."""
+    from app.models.attachment import Attachment as AttachmentModel
+
+    result = await uow.execute(select(Rectification).where(Rectification.id == rect_id))
+    rect = result.scalar_one_or_none()
+    if not rect:
+        raise HTTPException(status_code=404, detail="Rectification not found")
+
+    # Reuse the file upload logic from files.py (stream, size limit, mime check)
+    MAX_FILE_SIZE = 50 * 1024 * 1024
+    content = b""
+    while chunk := await file.read(65536):
+        if len(content) + len(chunk) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=413, detail="文件大小超过限制（最大 50MB）")
+        content += chunk
+
+    allowed_mime_types = {
+        "image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml",
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/msword",
+        "application/vnd.ms-excel",
+        "text/plain", "text/csv",
+    }
+    mime_type = file.content_type or "application/octet-stream"
+    if mime_type not in allowed_mime_types and not mime_type.startswith("text/"):
+        raise HTTPException(status_code=415, detail=f"不支持的文件类型: {mime_type}")
+
+    from uuid import uuid4
+    from pathlib import Path
+    from app.config import settings
+    from app.models.attachment import Attachment
+
+    file_id = uuid4()
+    suffix = Path(file.filename).suffix if file.filename else ""
+    upload_dir = Path(settings.RUNTIME_DIR) / "uploads"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    file_path = upload_dir / f"{file_id}{suffix}"
+
+    import aiofiles
+    async with aiofiles.open(file_path, "wb") as f:
+        await f.write(content)
+
+    attachment = Attachment(
+        entity_type="rectification",
+        entity_id=rect_id,
+        file_name=file.filename or "unnamed",
+        file_path=str(file_path),
+        file_size=len(content),
+        mime_type=mime_type,
+        uploaded_by=current_user.id,
+    )
+    uow.add(attachment)
+    await uow.flush()
+
+    # Track in evidence_file_ids
+    if not rect.evidence_file_ids:
+        rect.evidence_file_ids = []
+    rect.evidence_file_ids = rect.evidence_file_ids + [str(attachment.id)]
+
+    await uow.commit()
+    await uow.refresh(attachment)
+    await write_audit_log(uow.session, current_user.id, "upload_attachment", "rectification", rect_id, {"file_name": file.filename})
+    return {"id": str(attachment.id), "file_name": attachment.file_name}
+
+
+@router.delete("/{rect_id}/attachments/{attachment_id}")
+async def delete_rectification_attachment(
+    rect_id: UUID,
+    attachment_id: UUID,
+    uow: UnitOfWork = Depends(get_uow),
+    current_user: User = Depends(require_permission("rectification:write")),
+):
+    """Delete an evidence file attachment from a rectification."""
+    from app.models.attachment import Attachment as AttachmentModel
+
+    result = await uow.execute(select(Rectification).where(Rectification.id == rect_id))
+    rect = result.scalar_one_or_none()
+    if not rect:
+        raise HTTPException(status_code=404, detail="Rectification not found")
+
+    att_result = await uow.execute(
+        select(AttachmentModel).where(
+            AttachmentModel.id == attachment_id,
+            AttachmentModel.entity_type == "rectification",
+            AttachmentModel.entity_id == rect_id,
+        )
+    )
+    att = att_result.scalar_one_or_none()
+    if not att:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+
+    # Remove from disk
+    from pathlib import Path
+    p = Path(att.file_path)
+    if p.is_file():
+        p.unlink()
+
+    uow.session.delete(att)
+
+    # Remove from evidence_file_ids
+    if rect.evidence_file_ids and str(attachment_id) in rect.evidence_file_ids:
+        rect.evidence_file_ids = [fid for fid in rect.evidence_file_ids if fid != str(attachment_id)]
+
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "delete_attachment", "rectification", rect_id, {"attachment_id": str(attachment_id)})
+    return {"message": "Attachment deleted"}
+
+
 @router.post("/{rect_id}/confirm")
 async def confirm_rectification(
     rect_id: UUID,
