@@ -5,8 +5,9 @@ import type { Knowledge, PaginationParams } from '@/types/api';
 export const getKnowledgeList = (params?: PaginationParams & { title?: string; category?: string }) =>
   api.get('/knowledge/', { params }).then(res => res.data);
 
+// Interceptor now unwraps {data: {...}} → {...}, so just res.data
 export const getKnowledge = (id: string) =>
-  api.get(`/knowledge/${id}`).then(res => res.data.data);
+  api.get(`/knowledge/${id}`).then(res => res.data);
 
 export const getKnowledgeDetail = getKnowledge;
 

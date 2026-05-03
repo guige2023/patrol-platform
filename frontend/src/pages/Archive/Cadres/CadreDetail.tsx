@@ -30,7 +30,7 @@ const CadreDetail: React.FC = () => {
   const [groupsData, setGroupsData] = useState<any[]>([]);
 
   useEffect(() => {
-    getUnits({ page: 1, page_size: 999 }).then(res => {
+    getUnits({ page: 1, page_size: 100 }).then(res => {
       setUnitOptions(res.items.map((u: any) => ({ label: u.name, value: u.id })));
     }).catch(console.error);
   }, []);

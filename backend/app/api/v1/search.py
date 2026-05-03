@@ -18,7 +18,7 @@ router = APIRouter()
 async def search(
     q: str = Query(..., min_length=1),
     type: Optional[str] = None,
-    current_user: User = Depends(require_permission("search:write")),
+    current_user: User = Depends(require_permission("search:read")),
 ):
     """
     全局全文搜索（基于 Meilisearch）
@@ -170,7 +170,7 @@ async def rebuild_search_index(
 
 
 @router.get("/status")
-async def search_status(current_user: User = Depends(require_permission("search:write"))):
+async def search_status(current_user: User = Depends(require_permission("search:read"))):
     """获取搜索服务状态"""
     try:
         client = SearchService.get_client()

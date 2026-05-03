@@ -77,7 +77,7 @@ const router = createBrowserRouter([
       { path: 'execution/clues', element: <Suspense fallback={<PageLoader />}><ClueList /></Suspense> },
       { path: 'execution/rectifications', element: <Suspense fallback={<PageLoader />}><RectificationList /></Suspense> },
       { path: 'execution/rectifications/:id', element: <Suspense fallback={<PageLoader />}><RectificationDetail /></Suspense> },
-      { path: 'progress', element: <Suspense fallback={<PageLoader />}><ProgressPage /></Suspense> },
+      { path: 'execution/progress', element: <Suspense fallback={<PageLoader />}><ProgressPage /></Suspense> },
       { path: 'documents', element: <Suspense fallback={<PageLoader />}><DocumentList /></Suspense> },
       // 系统管理
       { path: 'admin/users', element: <Suspense fallback={<PageLoader />}><UserList /></Suspense> },

@@ -989,10 +989,11 @@ async def publish_plan(plan_id: UUID, uow: UnitOfWork = Depends(get_uow), curren
     plan.status = PlanStatus.PUBLISHED.value
 
     # 自动更新被巡察单位的巡察年份和历史
+    # target_units 存储的是单位名称，不是 UUID
     current_year = datetime.now().year
     updated_units = []
-    for unit_id in (plan.target_units or []):
-        unit_result = await uow.execute(select(Unit).where(Unit.id == unit_id))
+    for unit_name in (plan.target_units or []):
+        unit_result = await uow.execute(select(Unit).where(Unit.name == unit_name))
         unit = unit_result.scalar_one_or_none()
         if unit:
             unit.last_inspection_year = current_year

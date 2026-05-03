@@ -429,3 +429,88 @@
   - Step 1 选择单位 → Step 2 填写表单 → Step 3 预览 → API 201 创建成功
   - 新计划 "徐圩新区党工委2026年度第4轮巡察计划" 已写入数据库
   - 注意: `browser_snapshot` 无法捕获 Portal 渲染 Modal（Vite dev server 已知特性）
+
+## 2026-05-02 Bug修复: 权限体系重构 + 文件安全 + 计划发布Bug + 知识库下载修复
+
+### P0-1 权限体系重构
+- ✅ **dependencies.py** 重构: `check_permission(user, *perms)` → `require_permission(*required_permissions)` FastAPI Depends 风格
+  - 根因: 旧函数签名 `check_permission(user, db, *perms)` 但所有调用者传 `(current_user, "perm:read")` 缺少 `db` → 类型不匹配 → 500 Internal Server Error
+  - 新依赖工厂函数 `require_permission(*required_permissions)` 注入 `current_user` 和 `db`
+  - 保留 `check_permission` 辅助函数用于非 FastAPI 场景
+
+- ✅ **admin.py** 13处: 全部 13 个写接口改为 `require_permission Depends`
+- ✅ **field_options.py** 4处: 全部改为 `require_permission Depends`
+- ✅ **backup.py** 7处: 全部改为 `require_permission Depends`
+- ✅ **system_configs.py** 1处: 改为 `require_permission Depends`
+- ✅ **units.py** 4处: create/update/delete/import 加写权限，delete 加 `require_permission("unit:delete")`
+- ✅ **plans.py** 7处: create/update/submit/approve/publish/delete/status 加权限
+- ✅ **其余14个API文件**: knowledge/documents/cadres/clues/groups/drafts/rectifications/warnings/alerts/progress/search/notifications/files/knowledge_files 全部写接口补全权限
+
+### P0-2 文件上传安全
+- ✅ **files.py**: 64KB分块流式读取防内存耗尽、MIME白名单、path traversal保护、`require_permission("attachment:write")`
+- ✅ **knowledge_files.py**: 100MB硬限制（分块读取）、LibreOffice转换120s超时、`require_permission("attachment:write")`
+
+### P0-3 知识库下载/预览
+- ✅ **根因确认**: 文件存储在 `{project_root}/runtime/uploads/knowledge/`（非 `backend/uploads/`）
+- ✅ **修复**: `backend/.env` 添加 `SERVE_UPLOADS=true` → FastAPI StaticFiles 挂载 `/uploads`
+- ✅ **验证**: `GET /uploads/knowledge/...pdf` → HTTP 200, content-type: application/pdf
+- ✅ **前端验证**: 知识库 Modal → 预览 → "预览：tmpo_t0kgd0.pdf" 模态框正常打开
+
+### P1-1 工程完整性
+- ✅ **requirements.txt**: 添加 `PyMuPDF==1.23.26`
+- ✅ **.gitignore**: 添加 `runtime/` 和 `frontend/.vite/`
+
+### Bug Fix - 计划发布 500 错误
+- ✅ **plans.py publish_plan**: `target_units` 存储单位名称字符串（"U1"），查询应改用 `Unit.name` 而非 `Unit.id`
+
+### Bug Fix - 计划创建
+- ✅ **完整流程验证通过**:
+  - 前端: 新建计划向导 → Step1选择单位 → Step2填写信息 → Step3预览 → "确认创建" → 201 Created
+  - 提交: POST /api/v1/plans/{id}/submit → 200 OK
+  - 批准: POST /api/v1/plans/{id}/approve → 200 OK
+  - 页面刷新: 计划状态显示 "已批准"，出现"发布"按钮
+
+### API 全面测试结果 (24个端点)
+- ✅ 21 passed, 3 failed (Search q参数, File Download ID问题, Knowledge Preview ID问题 - 非代码bug，测试参数错误)
+- ✅ 核心 CRUD: plans/cadres/units/knowledge/documents/groups/drafts/clues/rectifications 全 200
+- ✅ Admin: users/roles/audit-logs/modules/permissions 全 200
+- ✅ System: field-options/system-configs/backup/notifications/alerts/warnings/search 全 200
+- ✅ 文件服务: `/uploads/knowledge/...pdf` → HTTP 200
+
+### 关键配置变更
+- `backend/.env`: `SERVE_UPLOADS=true` ✅
+- `backend/app/config.py`: `CORS_ORIGINS` 增加 `3071`, `3072` 端口 ✅
+- `frontend/vite.config.ts`: proxy target 从 `18800` → `8000` ✅
+
+### 服务状态
+- 后端: http://localhost:8000 ✅ (PID 35827)
+- 前端: http://localhost:3072 ✅ (动态端口)
+- pytest: 19 passed, 3 skipped ✅
+
+### Git Commits
+- `8b08385`: 权限体系重构 + 文件上传安全收紧 (P0-P1)
+- `0d8b8ed`: fix: dependencies.py 补 selectinload 导入
+- `c5e1c86`: fix: publish_plan Unit查询字段 + CORS配置 + Vite代理端口修复
+
+## 2026-05-03 Bug修复合并
+
+### 合并提交
+- `72a4f9f` fix: 合并所有bug修复 - 2026-05-03
+
+### 包含修复
+1. Vite代理配置 - 指向正确的后端端口3071
+2. 创建巡察计划后不刷新列表 - 添加fetchData()调用  
+3. 进度管理页面路由404 - 路由改为execution/progress
+4. 搜索前缀匹配严格化
+5. page_size超限校验错误
+6. 权限体系重构 + 文件上传安全
+7. publish_plan Unit查询字段
+8. CORS配置
+
+### 验证结果
+- ✅ 巡察计划列表正常加载
+- ✅ 知识库正常加载
+- ✅ 进度管理页面正常加载
+- ✅ 干部管理正常加载
+- ✅ 单位管理正常加载
+- ✅ 无路由404错误

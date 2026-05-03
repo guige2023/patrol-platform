@@ -58,7 +58,7 @@ const UnitList: React.FC = () => {
   // Build parent name lookup from ALL units (not just current page)
   const [parentNameMap, setParentNameMap] = useState<Record<string, string>>({});
   useEffect(() => {
-    getUnits({ page: 1, page_size: 9999 }).then((res: any) => {
+    getUnits({ page: 1, page_size: 100 }).then((res: any) => {
       const map: Record<string, string> = {};
       res.items?.forEach((u: Unit) => { if (u.id && u.name) map[u.id] = u.name; });
       setParentNameMap(map);

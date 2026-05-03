@@ -186,9 +186,18 @@ class SearchService:
 
     # ==================== 搜索操作 ====================
 
+    # 名称字段映射：索引 -> 名称字段名
+    NAME_FIELDS = {
+        INDEX_UNITS: "name",
+        INDEX_CADRES: "name",
+        INDEX_KNOWLEDGE: "title",
+        INDEX_DRAFTS: "title",
+        INDEX_ATTACHMENTS: "filename",
+    }
+
     @classmethod
     def search(cls, query: str, limit: int = 20) -> Dict[str, List[Dict[str, Any]]]:
-        """全局搜索所有索引"""
+        """全局搜索所有索引（严格前缀匹配）"""
         if not query.strip():
             return {}
 
@@ -207,11 +216,22 @@ class SearchService:
                     }
                 )
                 if search_result["hits"]:
-                    # 转换结果格式
+                    # 严格前缀过滤：名称必须以搜索词为前缀（忽略大小写/全半角）
+                    name_field = cls.NAME_FIELDS.get(index_name, "name")
+
+                    def normalize(s: str) -> str:
+                        """统一全角转半角、小写转大写，用于前缀比较"""
+                        import unicodedata
+                        return unicodedata.normalize("NFKC", s).lower()
+
+                    q_norm = normalize(query)
                     index_results = []
                     for hit in search_result["hits"]:
-                        index_results.append(hit)
-                    results[index_name] = index_results
+                        name_val = hit.get(name_field, "") or ""
+                        if normalize(name_val).startswith(q_norm):
+                            index_results.append(hit)
+                    if index_results:
+                        results[index_name] = index_results
             except Exception as e:
                 print(f"[SEARCH] Error searching {index_name}: {e}")
 
@@ -219,10 +239,21 @@ class SearchService:
 
     @classmethod
     def search_index(cls, index_name: str, query: str, limit: int = 20) -> List[Dict[str, Any]]:
-        """搜索指定索引"""
+        """搜索指定索引（严格前缀匹配）"""
         try:
+            import unicodedata
+
+            def normalize(s: str) -> str:
+                return unicodedata.normalize("NFKC", s).lower()
+
             result = cls.get_client().index(index_name).search(query, {"limit": limit})
-            return result["hits"]
+            hits = result["hits"]
+            name_field = cls.NAME_FIELDS.get(index_name, "name")
+            q_norm = normalize(query)
+            return [
+                hit for hit in hits
+                if normalize(hit.get(name_field, "") or "").startswith(q_norm)
+            ]
         except Exception as e:
             print(f"[SEARCH] Error searching {index_name}: {e}")
             return []

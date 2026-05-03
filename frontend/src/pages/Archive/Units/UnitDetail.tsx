@@ -74,7 +74,7 @@ const UnitDetail: React.FC = () => {
 
   useEffect(() => {
     // Load all units for parent dropdown
-    getUnits({ page: 1, page_size: 999 }).then(res => {
+    getUnits({ page: 1, page_size: 100 }).then(res => {
       setParentOptions(
         res.items
           .filter((u: Unit) => u.id !== id)
@@ -88,7 +88,7 @@ const UnitDetail: React.FC = () => {
     if (!id) return;
     setCadresLoading(true);
     try {
-      const res = await getCadres({ unit_id: id as string, page: 1, page_size: 999 });
+      const res = await getCadres({ unit_id: id as string, page: 1, page_size: 100 });
       setCadres(res.items || []);
     } catch {
       message.error('加载干部列表失败');

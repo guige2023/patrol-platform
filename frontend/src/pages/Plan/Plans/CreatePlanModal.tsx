@@ -271,14 +271,13 @@ const CreatePlanModal: React.FC<CreatePlanModalProps> = ({ open, onClose, onSucc
         </Text>
       </div>
 
-      <div style={{ maxHeight: 420, overflowY: 'auto', border: '1px solid #f0f0f0', borderRadius: 6, padding: 12 }}>
+      <div style={{ height: 420, overflow: 'auto', border: '1px solid #f0f0f0', borderRadius: 6, padding: 12 }}>
         {filteredPendingUnits.length > 0 && (
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontWeight: 600, marginBottom: 8, color: '#1677ff' }}>待巡察单位（可选）</div>
             <Checkbox.Group
               value={selectedUnitIds}
               onChange={(vals) => setSelectedUnitIds(vals as string[])}
-              style={{ display: 'block' }}
             >
               <Row gutter={[8, 8]}>
                 {filteredPendingUnits.map((u) => (

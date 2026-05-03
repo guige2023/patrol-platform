@@ -53,12 +53,19 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
   const [internalMode, setInternalMode] = useState<'view' | 'edit'>(() => mode as 'view' | 'edit');
 
   // 加载被巡察单位名称
+  // target_units 可能是 UUID 数组（CreatePlanModal）或名称数组（PlanCreateWizard），两边都匹配
   useEffect(() => {
     if (planData?.target_units?.length) {
-      getUnits({ page: 1, page_size: 999 }).then((res: any) => {
+      getUnits({ page: 1, page_size: 100 }).then((res: any) => {
         const units = res.items || [];
         const names = (planData.target_units || [])
-          .map((id: string) => units.find((u: any) => u.id === id)?.name)
+          .map((val: string) => {
+            // 优先按名称匹配（PlanCreateWizard）
+            const byName = units.find((u: any) => u.name === val)?.name;
+            if (byName) return byName;
+            // 其次按 UUID 匹配（CreatePlanModal）
+            return units.find((u: any) => u.id === val)?.name;
+          })
           .filter(Boolean);
         setTargetUnitNames(names);
       }).catch(() => {});
@@ -86,19 +93,21 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
     if (open && planId && (mode === 'edit' || mode === 'view')) {
       setPlanData(null);
       getPlan(planId).then((res: any) => {
-        setPlanData(res);
-        const formData: any = { ...res };
-        if (res.planned_start_date && res.planned_end_date) {
-          formData.planned_date_range = [dayjs(res.planned_start_date), dayjs(res.planned_end_date)];
+        // client.ts 拦截器不解包单个 plan {data: {...}}，需手动取 res.data
+        const planData = res?.data ?? res;
+        setPlanData(planData);
+        const formData: any = { ...planData };
+        if (planData.planned_start_date && planData.planned_end_date) {
+          formData.planned_date_range = [dayjs(planData.planned_start_date), dayjs(planData.planned_end_date)];
         }
-        if (res.actual_start_date && res.actual_end_date) {
-          formData.actual_date_range = [dayjs(res.actual_start_date), dayjs(res.actual_end_date)];
+        if (planData.actual_start_date && planData.actual_end_date) {
+          formData.actual_date_range = [dayjs(planData.actual_start_date), dayjs(planData.actual_end_date)];
         }
-        if (Array.isArray(res.focus_areas)) {
-          formData.focus_areas = res.focus_areas.join('、');
+        if (Array.isArray(planData.focus_areas)) {
+          formData.focus_areas = planData.focus_areas.join('、');
         }
-        if (res.authorization_date) {
-          formData.authorization_date = dayjs(res.authorization_date);
+        if (planData.authorization_date) {
+          formData.authorization_date = dayjs(planData.authorization_date);
         }
         form.setFieldsValue(formData);
       }).catch(() => {

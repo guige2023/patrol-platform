@@ -5,7 +5,7 @@ import { SearchOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import { createPlan } from '@/api/plans';
 import { getUnits } from '@/api/units';
-import { getAvailableCadres } from '@/api/groups';
+import { getAvailableCadres, createGroup, addMember } from '@/api/groups';
 import type { ColumnsType } from 'antd/es/table';
 
 const { TextArea } = Input;
@@ -62,7 +62,7 @@ const PlanCreateWizard: React.FC = () => {
 
   useEffect(() => {
     // Load units for step 2
-    getUnits({ page: 1, page_size: 999 }).then(res => {
+    getUnits({ page: 1, page_size: 100 }).then(res => {
       setAllUnits(res.items || []);
     }).catch(() => {});
   }, []);
@@ -201,21 +201,43 @@ const PlanCreateWizard: React.FC = () => {
       }
       setCurrentStep(3);
     } else if (currentStep === 3) {
-      // Submit and create
+      // Submit and create plan + inspection group
       setSubmitting(true);
       try {
+        // 1. Create the plan
         const planData = {
           ...basicInfo,
-          target_units: selectedUnits.map(u => u.id),
-          group_leader_id: selectedLeader,
-          deputy_leader_ids: selectedDeputyLeaders,
-          excluded_cadre_ids: manuallyExcluded,
+          target_units: selectedUnits.map(u => u.name || u.id),
         };
-        await createPlan(planData);
+        const planResult = await createPlan(planData);
+        const planId = planResult?.data?.id || planResult?.id;
+        if (!planId) {
+          throw new Error('计划创建失败：未返回计划ID');
+        }
+
+        // 2. Create inspection group
+        const groupName = `${basicInfo.round || ''}${basicInfo.year}巡察第${selectedUnits[0]?.name || '1'}组`.trim();
+        const groupResult = await createGroup({
+          name: groupName,
+          plan_id: planId,
+          unit_ids: selectedUnits.map(u => u.id),
+        });
+        const groupId = groupResult?.data?.id || groupResult?.id;
+        if (!groupId) {
+          throw new Error('巡察组创建失败：未返回组ID');
+        }
+
+        // 3. Add all members (组长/副组长/组员)
+        await Promise.all(
+          groupMembers.map(member =>
+            addMember(groupId, member.cadre_id, member.role)
+          )
+        );
+
         message.success('计划创建成功');
         navigate('/plans');
       } catch (e: any) {
-        message.error(e?.response?.data?.detail || '创建失败');
+        message.error(e?.response?.data?.detail || e.message || '创建失败');
       } finally {
         setSubmitting(false);
       }
