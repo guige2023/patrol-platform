@@ -10,6 +10,7 @@ import {
   ExceptionOutlined,
   BarChartOutlined,
   RiseOutlined,
+  LineChartOutlined,
 } from '@ant-design/icons'
 import { Link, useNavigate } from 'react-router-dom'
 import ReactECharts from 'echarts-for-react'
@@ -176,6 +177,8 @@ export default function Dashboard() {
   const rectByLevel = issues?.rectifications_by_alert_level || []
   const deadlines = issues?.rectification_deadlines || []
   const topProblems = issues?.top_problem_types || []
+  const unitRankings = issues?.unit_rankings || []
+  const rectificationTrend = issues?.rectification_trend || []
 
   const getActivityIcon = (type: string) => {
     switch (type) {
@@ -282,6 +285,45 @@ export default function Dashboard() {
       barMaxWidth: 20,
       label: { show: true, position: 'right', fontSize: 10, formatter: (p: any) => `${p.value}天` },
     }],
+  }
+
+  // 整改趋势折线图配置
+  const trendOption = {
+    tooltip: { trigger: 'axis' as const },
+    legend: {
+      data: ['已完成', '已提交', '已驳回'],
+      bottom: 0,
+    },
+    grid: { left: 40, right: 20, top: 10, bottom: 50 },
+    xAxis: {
+      type: 'category' as const,
+      data: rectificationTrend.map((t: any) => t.month),
+      axisLabel: { fontSize: 11 },
+    },
+    yAxis: { type: 'value' as const, minInterval: 1, axisLabel: { fontSize: 11 } },
+    series: [
+      {
+        name: '已完成',
+        type: 'line',
+        itemStyle: { color: '#52c41a' },
+        data: rectificationTrend.map((t: any) => t.completed),
+        smooth: true,
+      },
+      {
+        name: '已提交',
+        type: 'line',
+        itemStyle: { color: '#1677ff' },
+        data: rectificationTrend.map((t: any) => t.submitted),
+        smooth: true,
+      },
+      {
+        name: '已驳回',
+        type: 'line',
+        itemStyle: { color: '#ff4d4f' },
+        data: rectificationTrend.map((t: any) => t.rejected),
+        smooth: true,
+      },
+    ],
   }
 
   return (
@@ -533,6 +575,61 @@ export default function Dashboard() {
               ))
             ) : (
               <Alert message="暂无问题分类数据" type="info" showIcon />
+            )}
+          </Card>
+        </Col>
+      </Row>
+
+      {/* 单位排名 + 整改趋势 */}
+      <Row gutter={16} style={{ marginBottom: 24 }}>
+        {/* 单位排名 */}
+        <Col xs={24} md={12}>
+          <Card className="panel-card" title={
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <BarChartOutlined />
+              整改单位排名
+            </span>
+          }>
+            {unitRankings.length > 0 ? (
+              <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+                {unitRankings.map((r: any, i: number) => (
+                  <div key={i} style={{ marginBottom: 14 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                      <span style={{ fontSize: 13, color: '#333', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {i + 1}. {r.unit_name || '未知单位'}
+                      </span>
+                      <span style={{ fontSize: 12, color: '#888' }}>
+                        {r.completed_count}/{r.rectification_count} 完成
+                        {r.overdue_count > 0 && <Tag color="red" style={{ marginLeft: 6 }}>{r.overdue_count}超期</Tag>}
+                      </span>
+                    </div>
+                    <Progress
+                      percent={r.rectification_count > 0 ? Math.round(r.completed_count / r.rectification_count * 100) : 0}
+                      strokeColor="#52c41a"
+                      size="small"
+                      format={(p) => `${p}%`}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Alert message="暂无单位排名数据" type="info" showIcon />
+            )}
+          </Card>
+        </Col>
+
+        {/* 整改趋势 */}
+        <Col xs={24} md={12}>
+          <Card className="panel-card" title={
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <LineChartOutlined />
+              整改趋势
+            </span>
+          }>
+            {rectificationTrend.length > 0 ? (
+              <ReactECharts option={trendOption} style={{ height: 260 }} opts={{ renderer: 'canvas' }} />
+            ) : (
+              <Alert message="暂无整改趋势数据" type="info" showIcon />
             )}
           </Card>
         </Col>

@@ -625,7 +625,12 @@ async def delete_rectification_attachment(
     if p.is_file():
         p.unlink()
 
-    uow.session.delete(att)
+    # Use raw SQL to ensure deletion works (ORM session.delete may not flush correctly)
+    from sqlalchemy import text
+    raw_result = await uow.execute(
+        text("DELETE FROM attachments WHERE id = :id AND entity_type = :entity_type AND entity_id = :entity_id"),
+        {"id": str(attachment_id), "entity_type": "rectification", "entity_id": str(rect_id)}
+    )
 
     # Remove from evidence_file_ids
     if rect.evidence_file_ids and str(attachment_id) in rect.evidence_file_ids:
