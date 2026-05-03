@@ -369,3 +369,154 @@ async def list_permissions(
         {"id": p.id, "code": p.code, "name": p.name, "description": p.description}
         for p in perms
     ]
+
+
+# ============================================================
+# Admin 路由别名 - 包装其他模块的端点，使前端 /admin/* 路由可用
+# 注意：由于依赖注入的限制，这些端点直接实现而不是调用原始函数
+# ============================================================
+
+from app.models.field_option import FieldOption
+from app.schemas.field_option import FieldOptionResponse
+from app.models.system_config import SystemConfig
+from pydantic import BaseModel
+from typing import Optional
+import os
+from pathlib import Path
+import json
+from datetime import datetime
+
+# 备份目录
+BACKUPS_DIR = Path(__file__).parent.parent.parent.parent / "backups"
+
+class FieldOptionCreate(BaseModel):
+    field_key: str
+    option_value: str
+    option_label: str
+    sort_order: Optional[int] = 0
+    is_active: Optional[bool] = True
+
+class FieldOptionUpdate(BaseModel):
+    option_label: Optional[str] = None
+    sort_order: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
+@router.get("/field-options")
+async def list_field_options_proxy(
+    uow: UnitOfWork = Depends(get_uow),
+    current_user: User = Depends(require_permission("field_option:read")),
+):
+    """获取所有字段选项配置"""
+    result = await uow.execute(select(FieldOption).order_by(FieldOption.sort_order, FieldOption.field_key))
+    options = result.scalars().all()
+    return [FieldOptionResponse.from_model(o) for o in options]
+
+
+@router.put("/field-options/{field_key}")
+async def update_field_options_proxy(
+    field_key: str,
+    data: dict,
+    uow: UnitOfWork = Depends(get_uow),
+    current_user: User = Depends(require_permission("field_option:write")),
+):
+    """更新字段选项"""
+    result = await uow.execute(select(FieldOption).where(FieldOption.field_key == field_key))
+    option = result.scalars().first()
+    if not option:
+        raise HTTPException(status_code=404, detail="Field option not found")
+    
+    if 'option_label' in data:
+        option.option_label = data['option_label']
+    if 'sort_order' in data:
+        option.sort_order = data['sort_order']
+    if 'is_active' in data:
+        option.is_active = data['is_active']
+    
+    await uow.commit()
+    await uow.refresh(option)
+    return FieldOptionResponse.from_model(option)
+
+
+@router.get("/system-configs")
+async def get_system_configs_proxy(
+    uow: UnitOfWork = Depends(get_uow),
+    current_user: User = Depends(require_permission("system_config:read")),
+):
+    """获取所有系统配置"""
+    result = await uow.execute(select(SystemConfig))
+    configs = result.scalars().all()
+    return {c.key: c.value for c in configs}
+
+
+@router.put("/system-configs/{config_key}")
+async def update_system_config_proxy(
+    config_key: str,
+    data: dict,
+    uow: UnitOfWork = Depends(get_uow),
+    current_user: User = Depends(require_permission("system_config:write")),
+):
+    """更新系统配置"""
+    result = await uow.execute(select(SystemConfig).where(SystemConfig.key == config_key))
+    config = result.scalars().first()
+    if not config:
+        raise HTTPException(status_code=404, detail="Config not found")
+
+    if 'value' in data:
+        config.value = data['value']
+
+    await uow.commit()
+    await uow.refresh(config)
+    return {"key": config.key, "value": config.value}
+
+
+@router.get("/backup")
+async def list_backups_proxy(
+    current_user: User = Depends(require_permission("backup:read")),
+):
+    """获取备份列表"""
+    backups = []
+    if not BACKUPS_DIR.exists():
+        return {"backups": []}
+
+    for fname in sorted(BACKUPS_DIR.iterdir()):
+        if fname.suffix == ".zip":
+            stat = fname.stat()
+            meta_file = fname.with_suffix(".meta.json")
+            if meta_file.exists():
+                with open(meta_file, "r", encoding="utf-8") as f:
+                    meta = json.load(f)
+                meta["size"] = stat.st_size
+            else:
+                meta = {
+                    "filename": fname.name,
+                    "timestamp": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                    "type": "unknown",
+                    "size": stat.st_size,
+                }
+            backups.append(meta)
+
+    return {"backups": sorted(backups, key=lambda x: x.get("timestamp", ""), reverse=True)}
+
+
+@router.get("/backup/settings")
+async def get_backup_settings_proxy(
+    current_user: User = Depends(require_permission("backup:read")),
+):
+    """获取备份设置"""
+    return {
+        "auto_backup_enabled": False,
+        "auto_backup_interval_hours": 24,
+        "max_backups_to_keep": 10,
+        "backup_types": ["manual", "auto"],
+    }
+
+
+@router.put("/backup/settings")
+async def update_backup_settings_proxy(
+    settings_update: dict,
+    current_user: User = Depends(require_permission("backup:write")),
+):
+    """更新备份设置"""
+    await write_audit_log(uow.session, current_user.id, "update", "backup_settings", None, settings_update)
+    return {"message": "Settings updated"}
