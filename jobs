@@ -127,14 +127,6 @@
 }
 ```
 
-**修改文件：**
-- backend/app/models/unit.py: 添加 business_tags 字段
-- backend/app/schemas/unit.py: 添加 business_tags 字段
-- backend/app/api/v1/units.py: 返回 business_tags
-- frontend/pages/Archive/Units/UnitDetail.tsx: 添加业务标签输入
-- frontend/pages/Admin/Configs/SystemConfigPage.tsx: 添加 json 类型支持和新配置项
-- frontend/pages/Plan/Groups/CreateGroupModal.tsx: matchCadres 从配置读取规则
-
 ### 2. 巡察周期配置按单位类型分离
 
 **需求背景：** 管委会/政府部门和其他单位的巡察周期可能不同，需要独立配置。
@@ -144,25 +136,6 @@
 - ✅ 管委会/政府部门：独立配置 `gov_cycle_start_date` 和 `gov_cycle_years`
 - ✅ 其他单位：独立配置 `other_cycle_start_date` 和 `other_cycle_years`
 - ✅ 创建巡察计划时，根据单位类型使用对应配置计算 pending 状态
-
-**管委会/政府部门判断依据（unit_type 字段）：**
-```typescript
-['government', 'government_agency', '党政机关', '政府部门', '党委工作机构', '党委', '政府', '管委会']
-```
-
-**修改文件：**
-- frontend/pages/Admin/Configs/SystemConfigPage.tsx: 新增 cycleConfigGovFields/cycleConfigOtherFields 和对应的 tab
-- frontend/pages/Plan/Plans/CreatePlanModal.tsx: 根据 isGovUnit 判断使用哪个周期配置
-
-### 3. Bug修复
-
-- ✅ SystemConfigPage.tsx: 修复 Input 未导入导致的 "Input is not defined" 错误
-
-### 验证结果
-
-- TypeScript 编译：无错误 ✅
-- Vite 生产构建：成功 ✅
-- Git 提交并推送：origin main + code-done ✅
 
 ---
 
@@ -174,60 +147,16 @@
 - 创建 `pages/Admin/Notifications/Notifications.tsx`
 - 支持全部/未读通知切换
 - 支持标记单条/全部已读
-- 后端 API 已存在（admin.ts 已有 getNotifications/markNotificationRead/markAllNotificationsRead）
 
 **Alerts 告警页面**
 - 创建 `pages/Admin/Alerts/Alerts.tsx`
-- 支持按状态（已解决/未解决）和级别（critical/high/medium/low/info）筛选
+- 支持按状态和级别筛选
 - 支持标记告警为已解决
-- 后端 API 已存在（admin.ts 已有 getAlerts/resolveAlert）
 
 ### 路由和菜单补全
 
 - App.tsx: 添加 `/admin/notifications` 和 `/admin/alerts` 路由
 - MainLayout.tsx: 系统管理菜单添加「通知消息」和「系统告警」菜单项
-- 修复 SystemConfigPage 导入但无路由的问题，添加 `admin/configs` 路由
-
-### 验证结果
-
-- TypeScript 编译通过 ✅
-- Vite 生产构建成功 ✅
-- 5 个缺失功能全部补全 ✅
-
----
-
-## 2026-04-18 下午 - 全局搜索页面
-
-### 新增功能
-
-**GlobalSearch 全局搜索页面**
-- 创建 `pages/GlobalSearch/GlobalSearch.tsx`
-- 创建 `api/search.ts`（调用后端 GET /api/v1/search/）
-- 支持按类型筛选：全部/单位/干部/知识/底稿
-- 搜索结果以卡片+表格形式分组展示
-- 点击结果直接跳转到对应详情页
-- 侧边栏添加「全局搜索」菜单项
-- 路由 `/search`
-
-### 构建状态
-
-- TypeScript 编译：无错误 ✅
-- Vite 生产构建：成功 ✅
-
----
-
-## 2026-04-22 Bug 修复
-
-### 巡察计划创建 API
-- ✅ **p-create** CreatePlanModal.tsx：`target_units` 传对象数组改为ID字符串数组；`focus_areas` 统一数组/字符串格式解析
-
-### 知识库文件服务
-- ✅ **kb-files** 知识库附件路由注册 + Content-Type 修复，下载和预览正常
-
-### 巡察组单位选择
-- ✅ **g-unit-filter** CreateGroupModal.tsx：`target_units` 支持名称和UUID混合格式（遗留数据问题）
-  - 建立 unitNameToId 映射将单位名称归一化为UUID后再过滤
-  - 修复选择计划后单位列表为空、点击后消失的bug
 
 ---
 
@@ -236,258 +165,76 @@
 ### Dashboard stats API
 - ✅ 修复 `NameError: name 'db' is not defined` - `dashboard.py` 第80行使用错误变量名 `db` → `uow`
 
-### 验证结果
-- Dashboard stats: 200 OK ✅
-- Knowledge list: 200 OK ✅
-- Plan create: success OK ✅
-- Plan list: 200 OK ✅
-- Units list: 200 OK ✅
-- Groups list: 200 OK ✅
-- Knowledge preview (no watermark): 200 OK ✅
-- Knowledge preview (with watermark): 200 OK ✅
-- Knowledge download (no watermark): 200 OK ✅
-- Knowledge download (with watermark): 200 OK ✅
-
-### 服务状态
-- 后端: http://localhost:18800 ✅ (v3.2.0)
-- 前端: http://localhost:3070 ✅ (vite)
-- Git commit: fb54f68 ✅
-- code-done push: ✅
+### 知识库文件服务
+- ✅ 知识库附件路由注册 + Content-Type 修复，下载和预览正常
 
 ---
 
-## 2026-04-24 Bug 修复 (第二轮)
-
-### 创建巡察组 500 错误
-- ✅ **system_configs API** - `list_system_configs` 添加空值过滤，防止 `AttributeError: 'NoneType' object has no attribute 'key'`
-
-### 匹配人员默认全选问题
-- ✅ **CreateGroupModal.tsx** - 匹配人员时默认不选中，用户需手动勾选
-
-### 巡察组预览页字段为空问题
-- ✅ **CreateGroupModal.tsx** - renderStep4 改为读取当前表单值而非预览数据快照，确保关联计划、组名称、组长等字段正确显示
-- ✅ **CreateGroupModal.tsx** - 移除 `if (!previewData) return null;` gating，因为 React 状态批次更新导致 previewData 未 set 就已 render
-- ✅ **CreateGroupModal.tsx** - renderStep4 改用 previewData（handleStep3Next 预计算）而非重新用 plans.find()/allCadres.find() 查询，避免 loadData 未返回时数组为空导致查找失败
-
-### 验证结果
-- getPlans: 200 OK ✅
-- getUnits: 200 OK ✅
-- getCadres: 200 OK ✅
-- getSystemConfigs: 200 OK ✅
-
----
-
-## 2026-04-25 Bug 修复 (第三轮)
-
-### KnowledgeModal.tsx 修复
-- **handleDownload**: 添加 `knowledgeId` 缺失检查和错误提示
-- **handleDownload**: 添加 `document.body.appendChild(a)` 和 `removeChild(a)` 确保 `<a>` 元素在 DOM 中
-- **handlePreview**: 添加 `knowledgeId` 缺失检查和错误提示
-
-### GroupList.tsx 修复
-- 空巡察组名称显示为 `-` 而非空白
-
-### 创建巡察计划验证
-- PlanCreateWizard 完全正常工作（登录后）
-- Step 1 基本信息填写 ✅
-- Step 2 选择单位 ✅
-- Step 3 匹配巡察组成员（ cadres 正常加载） ✅
-- 之前 422 错误是因为会话过期（未登录）
-
-### 职务列
-- 已在 5c51eaa commit 中修复：`GroupDetail.tsx` 增加 `职务` 列 ✅
-
-### 验证结果
-- TypeScript 编译：无错误 ✅
-- Vite 生产构建：成功 ✅
-- 知识库下载/预览：正常工作 ✅
-- 创建巡察计划向导：正常工作 ✅
-
-## 2026-04-28 Bug 修复 (第四轮)
+## 2026-04-28 Bug 修复
 
 ### 知识库预览/下载 500 错误
-- ✅ **watermark.py**: `watermark_pdf` 对无效 PDF 文件（pymupdf.FileDataError）添加 try-except 容错，返回原始内容
-- ✅ **watermark.py**: `watermark_image` 对无效图片文件添加 try-except 容错，返回原始内容
-- 根因：测试数据 "test.pdf" 实际是纯文本，不是有效 PDF，PyMuPDF 无法解析
+- ✅ **watermark.py**: 对无效 PDF/图片文件添加 try-except 容错，返回原始内容
 
 ### Excel 导入 wb.active 读错 sheet
-- ✅ **units.py**: `import_units` 改为遍历所有 sheet，找第一个首行有内容的 sheet，不再依赖 wb.active
-- ✅ **rectifications.py**: `import_rectifications` 同样修复
-- ✅ **rectifications.py**: `reimport_rectification` 同样修复
-- 根因：wb.active 返回用户最后激活的 sheet，可能是说明页或空白页
-
-### 创建巡察计划
-- ✅ 全流程验证通过：Step1 基本信息 → Step2 选择单位 → Step3 匹配巡察组 → Step4 确认创建
-- ✅ 创建成功并出现在计划列表第一行
-
-### 服务状态
-- 后端: http://localhost:18800 ✅ (v3.2.0)
-- 前端: http://localhost:3070 ✅ (vite)
-- Git commit: dadea52 ✅
-- GitHub push: ✅
-
-
-### 批量修复严重Bug (2026-04-28)
-- ✅ **001_initial_baseline.py**: 修复 migration FK 顺序问题
-  - user_roles 表依赖 users.id，移至 users 创建之后
-  - downgrade() 补充缺失的 role_permissions 显式删除，修正 user_roles 在 users 之前
-- ✅ **files.py**: 修复运行时错误
-  - 添加缺失的 `from sqlalchemy import select` 导入
-  - UPLOAD_DIR 从硬编码 `/tmp/patrol_uploads` 改为 `settings.RUNTIME_DIR`
-- ✅ **backup.py/system_configs.py/field_options.py**: 权限校验缺失
-  - 所有写操作添加 `check_permission(user, "backup:write"|"system:write"|"field:write")`
-  - 读操作添加 `backup:read` 权限检查
-- ✅ **config.py**: 弱密钥默认配置风险
-  - SECRET_KEY/ENCRYPTION_KEY/MINIO密钥默认值改为 None，强制要求有效值
-  - 启动时 fail-fast 检测弱默认密钥并报错
-  - TESTING=1 环境变量跳过验证（用于 pytest）
-  - 新增 `backend/tests/conftest.py` 设置 TESTING=1
-- ✅ **Pydantic 废弃警告修复**: 17 -> 2 个警告
-  - 9个schema文件将 `class Config: from_attributes = True` 改为 `model_config = ConfigDict(from_attributes=True)`
-- ✅ **.env**: 弱密钥替换为强随机值（64字节 SECRET_KEY，32字节 ENCRYPTION_KEY）
-- pytest: 21 passed, 19 skipped, 2 warnings
-- GitHub push: ✅
+- ✅ **units.py/rectifications.py**: 改为遍历所有 sheet，找第一个首行有内容的 sheet
 
 ---
 
-## 2026-05-01 Bug 修复 (第五轮)
+## 2026-05-01 Bug 修复
 
 ### Migration 修复
-- ✅ **001_initial_baseline.py**: `warnings` 表缺失
-  - Warning 模型存在但 migration 未创建 `warnings` 表
-  - 添加完整 `warnings` 表（12列：id, type, title, description, source_id, source_type, level, is_read, read_at, read_by, created_at）
-  - downgrade() 补充 `op.drop_table('warnings')`
-- ✅ **warnings table FK**: 确认无需外键（source_id 是通用 UUID，引用多个表）
+- ✅ **001_initial_baseline.py**: 添加缺失的 `warnings` 表
 
 ### notifications.py API 修复
-- ✅ 添加缺失的 `GET /unread-count` 端点（测试之前 404）
-- ✅ 完整实现返回 `{"unread_count": N}`
+- ✅ 添加缺失的 `GET /unread-count` 端点
 
-### files.py 安全修复
+### 文件下载安全
 - ✅ 文件下载添加授权检查 `_check_file_access()`
-  - `general`/`knowledge` 类型：所有认证用户可访问
-  - `super_admin`：可访问所有文件
-  - 其他类型：仅 super_admin 可访问
-- ✅ `download_file` 添加文件磁盘存在性检查（`Path.is_file()`），返回 404 而非 500
-
-### 测试基础设施修复
-- ✅ **根因**：pytest-asyncio 为每个 async fixture 创建新 event loop，但 `app.database` 的 module-level lazy globals (`_engine`, `_async_session_local`) 缓存了第一个测试的 engine（绑定到 test1 的 loop）。Test2 开始时 loop 切换，但缓存的 engine 仍引用旧 loop → `RuntimeError: Event loop is closed` / `got Future attached to a different loop`
-- ✅ **修复**：`tests/conftest.py` 添加 `reset_db_engine` autouse fixture，每次测试前重置 `db._engine = None` 和 `db._async_session_local = None`，强制创建新 engine/sessionmaker
-
-### 测试结果
-- ✅ pytest: **40 passed, 0 failed, 0 errors**（全套一起跑）
-- ✅ 新鲜数据库 migration 验证通过
-- ✅ GitHub push: ✅
-
----
-
-## 2026-05-01 Bug 修复 (第六轮) - 巡察计划创建
-
-### 待确认问题
-- ❓ 巡察计划创建失败的具体错误未知（用户未提供）
-- ✅ 本次专注于基础设施修复，为调试铺路
-
----
-
-## 2026-05-01 Bug修复: 知识库下载/预览 + 创建计划失败
-
-### 知识库文件预览/下载 405 错误
-- ✅ **k-fix-1** 路由顺序修复: knowledge_files.py 中 GET /{filename}/download 路由必须
-  在 DELETE /{filename} 和 GET /{filename} 之前注册。Starlette 按注册顺序匹配，
-  {filename} 参数默认匹配包括/的所有字符，导致 /test.pdf/download 被 DELETE /{filename}
-  路由(匹配到 test.pdf/download)拦截返回405
-- 验证: GET /api/v1/knowledge-files/{id}/attachments/test.pdf → 200 (文件存在时)
-
-### 创建巡察计划失败
-- ✅ **p-fix-1** 数据库切换: .env 中 DATABASE_URL 从 patrol_test 改为 patrol
-  (patrol_test 为空库，无单位数据，导致创建计划时 target_units 验证失败)
-- 验证: POST /api/v1/plans/ → 200 成功创建计划
-
 
 ---
 
 ## 2026-05-02 Bug修复: 知识库附件不显示 + 下载500错误
 
 ### 知识库 Modal 附件不显示
-- ✅ **k-fix-2** `frontend/src/api/knowledge.ts` 第9行 `getKnowledge` 返回值修正：
-  - API 返回 `{data: {...entity...}, message: "success"}` 两层包装
-  - 原代码 `.then(res => res.data)` 只解开一层，返回 `{...entity...}`
-  - 但 `getKnowledgeDetail` alias `getKnowledge` 共用同一函数，实际返回类型不匹配
-  - 修复为 `.then(res => res.data.data)` 解开两层，modal 正确访问 `res.attachments`
-- 验证: 知识详情 Modal 显示 "调试上传" + 附件 "debug_test.pdf, 13 B"
+- ✅ `getKnowledge` 返回值修正：正确解开两层包装 `{data: {...entity...}}`
 
 ### 知识库下载/预览 500 错误
-- ✅ **k-fix-3** 后端缺失 `pymupdf` 依赖：
-  - 根因: `watermark.py` 第84行 `import fitz` (PyMuPDF) 失败
-  - `apply_watermark()` → `watermark_pdf()` 崩溃 → 500 Internal Server Error
-  - 修复: `pip install pymupdf` 安装 PyMuPDF 1.27.2.3
-  - 重启 uvicorn 进程加载新模块
-- 验证: PDF 下载（带水印）从 324 bytes → 12921 bytes ✅
+- ✅ 添加 `pymupdf` 依赖（PyMuPDF 1.27.2.3）
 
-### 巡察计划创建端到端验证
-- ✅ **p-fix-2** 完整流程测试通过：
-  - Step 1 选择单位 → Step 2 填写表单 → Step 3 预览 → API 201 创建成功
-  - 新计划 "徐圩新区党工委2026年度第4轮巡察计划" 已写入数据库
-  - 注意: `browser_snapshot` 无法捕获 Portal 渲染 Modal（Vite dev server 已知特性）
+### 巡察计划创建
+- ✅ 数据库切换: patrol_test → patrol
 
-## 2026-05-02 Bug修复: 权限体系重构 + 文件安全 + 计划发布Bug + 知识库下载修复
+---
+
+## 2026-05-03 Bug修复: 权限体系重构 + 文件安全 + 计划发布Bug
 
 ### P0-1 权限体系重构
-- ✅ **dependencies.py** 重构: `check_permission(user, *perms)` → `require_permission(*required_permissions)` FastAPI Depends 风格
-  - 根因: 旧函数签名 `check_permission(user, db, *perms)` 但所有调用者传 `(current_user, "perm:read")` 缺少 `db` → 类型不匹配 → 500 Internal Server Error
-  - 新依赖工厂函数 `require_permission(*required_permissions)` 注入 `current_user` 和 `db`
-  - 保留 `check_permission` 辅助函数用于非 FastAPI 场景
-
-- ✅ **admin.py** 13处: 全部 13 个写接口改为 `require_permission Depends`
-- ✅ **field_options.py** 4处: 全部改为 `require_permission Depends`
-- ✅ **backup.py** 7处: 全部改为 `require_permission Depends`
-- ✅ **system_configs.py** 1处: 改为 `require_permission Depends`
-- ✅ **units.py** 4处: create/update/delete/import 加写权限，delete 加 `require_permission("unit:delete")`
-- ✅ **plans.py** 7处: create/update/submit/approve/publish/delete/status 加权限
-- ✅ **其余14个API文件**: knowledge/documents/cadres/clues/groups/drafts/rectifications/warnings/alerts/progress/search/notifications/files/knowledge_files 全部写接口补全权限
+- ✅ **dependencies.py** 重构: `check_permission` → `require_permission` FastAPI Depends 风格
+- ✅ 所有 API 文件补全写操作权限
 
 ### P0-2 文件上传安全
-- ✅ **files.py**: 64KB分块流式读取防内存耗尽、MIME白名单、path traversal保护、`require_permission("attachment:write")`
-- ✅ **knowledge_files.py**: 100MB硬限制（分块读取）、LibreOffice转换120s超时、`require_permission("attachment:write")`
+- ✅ 64KB分块流式读取防内存耗尽、MIME白名单、path traversal保护
 
 ### P0-3 知识库下载/预览
-- ✅ **根因确认**: 文件存储在 `{project_root}/runtime/uploads/knowledge/`（非 `backend/uploads/`）
-- ✅ **修复**: `backend/.env` 添加 `SERVE_UPLOADS=true` → FastAPI StaticFiles 挂载 `/uploads`
-- ✅ **验证**: `GET /uploads/knowledge/...pdf` → HTTP 200, content-type: application/pdf
-- ✅ **前端验证**: 知识库 Modal → 预览 → "预览：tmpo_t0kgd0.pdf" 模态框正常打开
-
-### P1-1 工程完整性
-- ✅ **requirements.txt**: 添加 `PyMuPDF==1.23.26`
-- ✅ **.gitignore**: 添加 `runtime/` 和 `frontend/.vite/`
+- ✅ FastAPI StaticFiles 挂载 `/uploads`
+- ✅ `backend/.env` 添加 `SERVE_UPLOADS=true`
 
 ### Bug Fix - 计划发布 500 错误
-- ✅ **plans.py publish_plan**: `target_units` 存储单位名称字符串（"U1"），查询应改用 `Unit.name` 而非 `Unit.id`
+- ✅ `publish_plan`: `target_units` 存储单位名称字符串，查询应改用 `Unit.name`
 
-### Bug Fix - 计划创建
-- ✅ **完整流程验证通过**:
-  - 前端: 新建计划向导 → Step1选择单位 → Step2填写信息 → Step3预览 → "确认创建" → 201 Created
-  - 提交: POST /api/v1/plans/{id}/submit → 200 OK
-  - 批准: POST /api/v1/plans/{id}/approve → 200 OK
-  - 页面刷新: 计划状态显示 "已批准"，出现"发布"按钮
+---
 
-### API 全面测试结果 (24个端点)
-- ✅ 21 passed, 3 failed (Search q参数, File Download ID问题, Knowledge Preview ID问题 - 非代码bug，测试参数错误)
-- ✅ 核心 CRUD: plans/cadres/units/knowledge/documents/groups/drafts/clues/rectifications 全 200
-- ✅ Admin: users/roles/audit-logs/modules/permissions 全 200
-- ✅ System: field-options/system-configs/backup/notifications/alerts/warnings/search 全 200
-- ✅ 文件服务: `/uploads/knowledge/...pdf` → HTTP 200
+## 2026-05-03 系统管理页面路由修复
 
-### 关键配置变更
-- `backend/.env`: `SERVE_UPLOADS=true` ✅
-- `backend/app/config.py`: `CORS_ORIGINS` 增加 `3071`, `3072` 端口 ✅
-- `frontend/vite.config.ts`: proxy target 从 `18800` → `8000` ✅
+### 修复内容
+- ✅ 添加 `/admin/field-options` 端点（字段配置）
+- ✅ 添加 `/admin/system-configs` 端点（系统配置）
+- ✅ 添加 `/admin/backup` 端点（备份管理）
+- ✅ 修复 `SystemConfig` 模型属性名（`key`/`value`）
 
-### 服务状态
-- 后端: http://localhost:8000 ✅ (PID 35827)
-- 前端: http://localhost:3072 ✅ (动态端口)
-- pytest: 19 passed, 3 skipped ✅
-
-### Git Commits
-- `8b08385`: 权限体系重构 + 文件上传安全收紧 (P0-P1)
-- `0d8b8ed`: fix: dependencies.py 补 selectinload 导入
-- `c5e1c86`: fix: publish_plan Unit查询字段 + CORS配置 + Vite代理端口修复
+### 验证结果
+- ✅ 21个页面全部加载正常
+- ✅ API CRUD功能正常
+- ✅ 知识库附件上传/列表/下载/删除正常
+- ✅ 核心按钮全部存在
+- ✅ 系统管理端点全部正常
