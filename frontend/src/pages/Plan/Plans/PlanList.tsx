@@ -264,7 +264,8 @@ const PlanList: React.FC = () => {
         onClose={() => setCreateModalOpen(false)}
         onSuccess={() => {
           setCreateModalOpen(false);
-          // Refresh data and navigate to the last page where the new plan is
+          // Refresh data first, then navigate to the last page where the new plan is
+          fetchData();
           const newTotal = total + 1;
           const lastPage = Math.ceil(newTotal / pageSize);
           setPage(lastPage);
