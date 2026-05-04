@@ -91,7 +91,7 @@ const MainLayout: React.FC = () => {
       { key: '/execution/rectifications', label: '整改督办' },
       { key: '/execution/rectifications/kanban', label: '整改看板' },
       { key: '/analysis/coverage', label: '覆盖率统计' },
-      { key: '/progress', label: '进度管理' },
+      { key: '/execution/progress', label: '进度管理' },
       { key: '/documents', label: '文档管理' },
     ]},
     { key: '/admin', icon: <SettingOutlined />, label: '系统管理', children: [

@@ -829,7 +829,7 @@ export default function Dashboard() {
               <Link to="/groups"><Tag color="red">巡察组</Tag></Link>
               <Link to="/execution/rectifications"><Tag color="red" icon={<WarningOutlined />}>整改督办</Tag></Link>
               <Link to="/execution/rectifications/kanban"><Tag color="purple">整改看板</Tag></Link>
-              <Link to="/progress"><Tag color="red" icon={<FileTextOutlined />}>进度管理</Tag></Link>
+              <Link to="/execution/progress"><Tag color="red" icon={<FileTextOutlined />}>进度管理</Tag></Link>
               <Link to="/documents"><Tag color="red">文档管理</Tag></Link>
               <Link to="/archive/cadres"><Tag color="red">干部人才</Tag></Link>
               <Link to="/archive/units"><Tag color="red" icon={<BankOutlined />}>单位档案</Tag></Link>
