@@ -14,5 +14,5 @@ class ModuleConfig(Base):
     module_name = Column(String(128), nullable=False)
     is_enabled = Column(Boolean, default=True)
     config = Column(JSON, default=dict)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)

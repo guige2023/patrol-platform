@@ -15,7 +15,7 @@ class GroupMember(Base):
     cadre_id = Column(Guid, ForeignKey("cadres.id", ondelete="CASCADE"), nullable=False)
     role = Column(String(32))  # 组长/副组长/联络员/成员
     is_leader = Column(Boolean, default=False)
-    assigned_at = Column(DateTime, default=datetime.utcnow)
+    assigned_at = Column(DateTime, default=datetime.now)
 
     group = relationship("InspectionGroup", back_populates="members")
     cadre = relationship("Cadre")
@@ -33,8 +33,8 @@ class InspectionGroup(Base):
     authorization_date = Column(DateTime)
     is_active = Column(Boolean, default=True)
     created_by = Column(Guid, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     members = relationship("GroupMember", back_populates="group", cascade="all, delete-orphan")
     plan = relationship("Plan")

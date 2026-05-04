@@ -19,4 +19,4 @@ class Attachment(Base):
     file_hash = Column(String(64))
     version = Column(Integer, default=1)
     uploaded_by = Column(Guid, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)

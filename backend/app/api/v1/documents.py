@@ -139,7 +139,7 @@ async def generate_document(
         raise HTTPException(status_code=400, detail="Invalid document type")
 
     # Build document content
-    now = datetime.utcnow()
+    now = datetime.now()
     doc_title = f"{plan.name or '巡察'}_{doc_type}_{now.strftime('%Y%m%d')}"
 
     # Generate a simple Excel file as document placeholder
@@ -202,7 +202,7 @@ async def generate_rectification_notice(
     if not rect:
         raise HTTPException(status_code=404, detail="Rectification not found")
 
-    now = datetime.utcnow()
+    now = datetime.now()
     doc_title = f"整改通知书_{rect.title[:20] if rect.title else '未知'}_{now.strftime('%Y%m%d')}"
 
     # Generate Excel document

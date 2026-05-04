@@ -30,8 +30,8 @@ class Draft(Base):
     approved_at = Column(DateTime)
     is_active = Column(Boolean, default=True)
     created_by = Column(Guid, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     attachments = relationship("DraftAttachment", back_populates="draft", cascade="all, delete-orphan")
     group = relationship("InspectionGroup")
@@ -48,6 +48,6 @@ class DraftAttachment(Base):
     mime_type = Column(String(128))
     file_hash = Column(String(64))
     uploaded_by = Column(Guid, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
 
     draft = relationship("Draft", back_populates="attachments")

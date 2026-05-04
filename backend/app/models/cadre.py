@@ -30,7 +30,7 @@ class Cadre(Base):
     achievements = Column(JSON, default=list)  # 表彰奖励
     is_available = Column(Boolean, default=True)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     unit = relationship("Unit", back_populates="cadres")

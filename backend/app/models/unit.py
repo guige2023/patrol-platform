@@ -25,8 +25,8 @@ class Unit(Base):
     last_inspection_year = Column(Integer, nullable=True)  # 最近一次巡察年份
     inspection_history = Column(String(1000), nullable=True)  # 巡察历史备注
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     parent = relationship("Unit", remote_side=[id], back_populates="children")
     children = relationship("Unit", back_populates="parent")

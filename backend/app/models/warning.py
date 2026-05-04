@@ -20,4 +20,4 @@ class Warning(Base):
     is_read = Column(Boolean, default=False, index=True)
     read_at = Column(DateTime)
     read_by = Column(Guid)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)

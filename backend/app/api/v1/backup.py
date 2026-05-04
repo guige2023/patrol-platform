@@ -120,7 +120,7 @@ async def create_backup(
     current_user: User = Depends(require_permission("backup:write")),
 ):
     """Create a full database backup, returns zip file download."""
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_name = f"backup_{type}_{timestamp}"
     zip_path = BACKUPS_DIR / f"{backup_name}.zip"
     meta_path = BACKUPS_DIR / f"{backup_name}.meta.json"
@@ -153,7 +153,7 @@ async def create_backup(
         "type": type,
         "created_by": current_user.username if current_user else "system",
         "tables": list(table_data.keys()),
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now().isoformat(),
     }
 
     # Create zip

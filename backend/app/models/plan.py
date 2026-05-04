@@ -41,8 +41,8 @@ class Plan(Base):
     approved_by = Column(Guid)
     is_active = Column(Boolean, default=True)
     created_by = Column(Guid, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
 
 class PlanVersion(Base):
@@ -53,4 +53,4 @@ class PlanVersion(Base):
     version = Column(Integer, nullable=False)
     data = Column(JSON, nullable=False)
     created_by = Column(Guid, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)

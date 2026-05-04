@@ -17,4 +17,4 @@ class AuditLog(Base):
     detail = Column(JSON, default=dict)
     ip_address = Column(String(45))
     user_agent = Column(String(256))
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)

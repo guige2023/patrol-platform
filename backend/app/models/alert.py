@@ -19,4 +19,4 @@ class Alert(Base):
     is_resolved = Column(Boolean, default=False, index=True)
     resolved_by = Column(Guid)
     resolved_at = Column(DateTime)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)

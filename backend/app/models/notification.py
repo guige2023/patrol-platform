@@ -16,4 +16,4 @@ class Notification(Base):
     content = Column(String(2048), nullable=False)
     link = Column(String(512))
     is_read = Column(Boolean, default=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)

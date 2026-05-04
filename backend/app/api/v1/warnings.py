@@ -98,7 +98,7 @@ async def mark_as_read(
         return {"message": "Warning not found"}
 
     warning.is_read = True
-    warning.read_at = datetime.utcnow()
+    warning.read_at = datetime.now()
     warning.read_by = current_user.id
     await uow.commit()
     return {"message": "Marked as read"}
@@ -113,7 +113,7 @@ async def mark_all_as_read(
     await uow.execute(
         update(Warning)
         .where(Warning.is_read == False)
-        .values(is_read=True, read_at=datetime.utcnow(), read_by=current_user.id)
+        .values(is_read=True, read_at=datetime.now(), read_by=current_user.id)
     )
     await uow.commit()
     return {"message": "All warnings marked as read"}

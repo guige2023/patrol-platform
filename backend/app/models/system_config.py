@@ -12,5 +12,5 @@ class SystemConfig(Base):
     key = Column(String(100), unique=True, nullable=False, index=True)
     value = Column(Text, nullable=False)
     description = Column(String(500))
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)

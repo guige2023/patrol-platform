@@ -22,5 +22,5 @@ class Knowledge(Base):
     is_active = Column(Boolean, default=True)
     attachments = Column(JSON, nullable=True)  # [{"filename": "...", "url": "...", "size": 123, "upload_time": "..."}]
     created_by = Column(Guid, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)

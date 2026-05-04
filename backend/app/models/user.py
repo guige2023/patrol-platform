@@ -35,8 +35,8 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     role = Column(String(64), default="操作员")  # Simple role field (not using RBAC relation)
     unit_id = Column(Guid, ForeignKey("units.id", ondelete="SET NULL"))
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     unit = relationship("Unit", back_populates="users")
     roles = relationship("Role", secondary=user_roles, back_populates="users")
@@ -51,7 +51,7 @@ class Role(Base):
     description = Column(String(256))
     is_active = Column(Boolean, default=True)
     permissions = Column(JSON, default=list)  # ["unit:read", "cadre:write", ...]
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
 
     users = relationship("User", secondary=user_roles, back_populates="roles")
 
@@ -63,4 +63,4 @@ class Permission(Base):
     code = Column(String(64), unique=True, nullable=False, index=True)
     name = Column(String(128), nullable=False)
     description = Column(String(256))
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)

@@ -155,7 +155,7 @@ async def upload_attachment(
         "url": attachment_url(str(knowledge_id), safe_filename),
         "size": len(content),
         "file_type": final_ext,  # 存储类型（pdf 或原类型）
-        "upload_time": datetime.utcnow().isoformat(),
+        "upload_time": datetime.now().isoformat(),
     }
     # 移除 None 值
     attachment_info = {k: v for k, v in attachment_info.items() if v is not None}

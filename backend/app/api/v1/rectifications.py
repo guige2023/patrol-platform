@@ -415,7 +415,7 @@ async def update_progress(rect_id: UUID, progress: int, details: Optional[List[d
         rect.progress_details = details
     if rect.progress >= 100:
         rect.status = "completed"
-        rect.completion_date = datetime.utcnow()
+        rect.completion_date = datetime.now()
     await uow.commit()
     await write_audit_log(uow.session, current_user.id, "update_progress", "rectification", rect_id, {"progress": progress})
     return {"message": "Progress updated"}
@@ -428,7 +428,7 @@ async def sign_rectification(rect_id: UUID, uow: UnitOfWork = Depends(get_uow), 
     if not rect:
         raise HTTPException(status_code=404, detail="Rectification not found")
     rect.status = "progressing"
-    rect.sign_date = datetime.utcnow()
+    rect.sign_date = datetime.now()
     rect.sign_by = current_user.id
     await uow.commit()
     await write_audit_log(uow.session, current_user.id, "sign", "rectification", rect_id, {})
@@ -458,7 +458,7 @@ async def verify_rectification(rect_id: UUID, comment: Optional[str] = None, uow
         raise HTTPException(status_code=404, detail="Rectification not found")
     rect.status = "verified"
     rect.verified_by = current_user.id
-    rect.verified_at = datetime.utcnow()
+    rect.verified_at = datetime.now()
     rect.verification_comment = comment
     await uow.commit()
     await write_audit_log(uow.session, current_user.id, "verify", "rectification", rect_id, {})
@@ -484,7 +484,7 @@ async def reject_rectification(
         raise HTTPException(status_code=400, detail="Rejection reason is required")
     rect.status = "rejected"
     rect.rejection_reason = reason
-    rect.rejected_at = datetime.utcnow()
+    rect.rejected_at = datetime.now()
     rect.rejected_by = current_user.id
     await uow.commit()
     await write_audit_log(uow.session, current_user.id, "reject", "rectification", rect_id, {"reason": reason})
@@ -657,7 +657,7 @@ async def confirm_rectification(
     notes = body.get("notes")
     rect.confirmed_completed = is_completed
     rect.confirm_notes = notes
-    rect.confirmed_at = datetime.utcnow()
+    rect.confirmed_at = datetime.now()
     rect.confirmed_by = current_user.id
     await uow.commit()
     await write_audit_log(uow.session, current_user.id, "confirm", "rectification", rect_id,

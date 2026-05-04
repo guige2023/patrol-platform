@@ -54,6 +54,6 @@ async def resolve_alert(alert_id: UUID, uow: UnitOfWork = Depends(get_uow), curr
     alert.is_resolved = True
     alert.resolved_by = current_user.id
     from datetime import datetime
-    alert.resolved_at = datetime.utcnow()
+    alert.resolved_at = datetime.now()
     await uow.commit()
     return {"message": "Alert resolved"}

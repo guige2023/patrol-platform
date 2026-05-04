@@ -31,8 +31,8 @@ class Document(Base):
     plan_id = Column(Guid, ForeignKey("plans.id", ondelete="SET NULL"), nullable=True, index=True)
     rectification_id = Column(Guid, ForeignKey("rectifications.id", ondelete="SET NULL"), nullable=True, index=True)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     plan = relationship("Plan")
     rectification = relationship("Rectification")
