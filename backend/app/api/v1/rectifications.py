@@ -17,6 +17,12 @@ from app.models.unit import Unit
 from app.schemas.rectification import RectificationCreate, RectificationUpdate, RectificationResponse
 from app.schemas.common import PaginatedResponse, PageResult
 from app.core.audit import write_audit_log
+from app.services.notification_service import (
+    notify_rectification_created,
+    notify_rectification_rejected,
+    notify_rectification_verified,
+    notify_rectification_confirmed,
+)
 
 router = APIRouter()
 
@@ -375,6 +381,14 @@ async def batch_update_rectification_status(
 async def create_rectification(rect_data: RectificationCreate, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("rectification:write"))):
     rect = Rectification(**rect_data.model_dump(), created_by=current_user.id)
     uow.add(rect)
+    await uow.flush()  # 获取 rect.id
+    await notify_rectification_created(
+        uow,
+        rect_id=rect.id,
+        rect_title=rect.title,
+        created_by_id=current_user.id,
+        sign_by_id=getattr(rect, 'sign_by', None),
+    )
     await uow.commit()
     await uow.refresh(rect)
     await write_audit_log(uow.session, current_user.id, "create", "rectification", rect.id, {"title": rect.title})
@@ -430,6 +444,13 @@ async def sign_rectification(rect_id: UUID, uow: UnitOfWork = Depends(get_uow), 
     rect.status = "progressing"
     rect.sign_date = datetime.now()
     rect.sign_by = current_user.id
+    # 通知创建人已签收
+    from app.services.notification_service import notify
+    if rect.created_by and rect.created_by != current_user.id:
+        await notify(uow, user_id=rect.created_by, notif_type="rectification",
+                     title="【整改已签收】",
+                     content=f"您创建的整改「{rect.title}」已被签收，整改工作开始。",
+                     link="/execution/rectifications")
     await uow.commit()
     await write_audit_log(uow.session, current_user.id, "sign", "rectification", rect_id, {})
     return {"message": "Rectification signed"}
@@ -445,6 +466,13 @@ async def submit_rectification(rect_id: UUID, uow: UnitOfWork = Depends(get_uow)
     if rect.status != "completed":
         raise HTTPException(status_code=400, detail="Only completed rectifications can be submitted")
     rect.status = "submitted"
+    # 通知创建人已提交，等待验收
+    from app.services.notification_service import notify
+    if rect.created_by and rect.created_by != current_user.id:
+        await notify(uow, user_id=rect.created_by, notif_type="rectification",
+                     title="【整改已提交】",
+                     content=f"您的整改「{rect.title}」已提交，等待管理员验收。",
+                     link="/execution/rectifications")
     await uow.commit()
     await write_audit_log(uow.session, current_user.id, "submit", "rectification", rect_id, {})
     return {"message": "Rectification submitted for approval"}
@@ -452,6 +480,7 @@ async def submit_rectification(rect_id: UUID, uow: UnitOfWork = Depends(get_uow)
 
 @router.post("/{rect_id}/verify")
 async def verify_rectification(rect_id: UUID, comment: Optional[str] = None, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("rectification:write"))):
+    """Verify a rectification as completed."""
     result = await uow.execute(select(Rectification).where(Rectification.id == rect_id))
     rect = result.scalar_one_or_none()
     if not rect:
@@ -460,6 +489,9 @@ async def verify_rectification(rect_id: UUID, comment: Optional[str] = None, uow
     rect.verified_by = current_user.id
     rect.verified_at = datetime.now()
     rect.verification_comment = comment
+    await notify_rectification_verified(
+        uow, rect_id=rect.id, rect_title=rect.title, created_by_id=rect.created_by,
+    )
     await uow.commit()
     await write_audit_log(uow.session, current_user.id, "verify", "rectification", rect_id, {})
     return {"message": "Rectification verified"}
@@ -486,6 +518,10 @@ async def reject_rectification(
     rect.rejection_reason = reason
     rect.rejected_at = datetime.now()
     rect.rejected_by = current_user.id
+    await notify_rectification_rejected(
+        uow, rect_id=rect.id, rect_title=rect.title,
+        created_by_id=rect.created_by, reason=reason,
+    )
     await uow.commit()
     await write_audit_log(uow.session, current_user.id, "reject", "rectification", rect_id, {"reason": reason})
     return {"message": "Rectification rejected"}
@@ -659,6 +695,10 @@ async def confirm_rectification(
     rect.confirm_notes = notes
     rect.confirmed_at = datetime.now()
     rect.confirmed_by = current_user.id
+    if is_completed:
+        await notify_rectification_confirmed(
+            uow, rect_id=rect.id, rect_title=rect.title, created_by_id=rect.created_by,
+        )
     await uow.commit()
     await write_audit_log(uow.session, current_user.id, "confirm", "rectification", rect_id,
                           {"is_completed": is_completed, "notes": notes})

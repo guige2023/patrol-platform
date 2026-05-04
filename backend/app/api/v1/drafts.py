@@ -16,6 +16,7 @@ from app.models.unit import Unit
 from app.schemas.draft import DraftCreate, DraftUpdate, DraftResponse, DraftSubmitRequest
 from app.schemas.common import PaginatedResponse, PageResult
 from app.core.audit import write_audit_log
+from app.services.notification_service import notify_draft_action
 
 router = APIRouter()
 
@@ -205,6 +206,10 @@ async def submit_draft_action(draft_id: UUID, request: DraftSubmitRequest, uow: 
         if draft.status != "draft":
             raise HTTPException(status_code=400, detail="Only draft can be submitted")
         draft.status = "preliminary_review"
+        # 通知创建者已提交初审
+        if draft.created_by and draft.created_by != current_user.id:
+            await notify_draft_action(uow, draft.id, draft.title, draft.created_by, action="submit",
+                                      comment=request.comment)
     elif action == "preliminary_review":
         if draft.status != "preliminary_review":
             raise HTTPException(status_code=400, detail="Wrong status")
@@ -212,6 +217,9 @@ async def submit_draft_action(draft_id: UUID, request: DraftSubmitRequest, uow: 
         draft.preliminary_review_comment = request.comment
         draft.preliminary_review_at = func.now()
         draft.status = "final_review"
+        if draft.created_by and draft.created_by != current_user.id:
+            await notify_draft_action(uow, draft.id, draft.title, draft.created_by, action=action,
+                                      comment=request.comment)
     elif action == "final_review":
         if draft.status != "final_review":
             raise HTTPException(status_code=400, detail="Wrong status")
@@ -219,13 +227,22 @@ async def submit_draft_action(draft_id: UUID, request: DraftSubmitRequest, uow: 
         draft.final_review_comment = request.comment
         draft.final_review_at = func.now()
         draft.status = "approved"
+        if draft.created_by and draft.created_by != current_user.id:
+            await notify_draft_action(uow, draft.id, draft.title, draft.created_by, action=action,
+                                      comment=request.comment)
     elif action == "approve":
         draft.approved_by = current_user.id
         draft.approved_at = func.now()
         draft.status = "approved"
+        if draft.created_by and draft.created_by != current_user.id:
+            await notify_draft_action(uow, draft.id, draft.title, draft.created_by, action="approve",
+                                      comment=request.comment)
     elif action == "reject":
         draft.status = "rejected"
-    
+        if draft.created_by and draft.created_by != current_user.id:
+            await notify_draft_action(uow, draft.id, draft.title, draft.created_by, action="reject",
+                                      comment=request.comment)
+
     await uow.commit()
     await write_audit_log(uow.session, current_user.id, f"draft_{action}", "draft", draft_id, {})
     return {"message": f"Draft {action} success", "status": draft.status}
