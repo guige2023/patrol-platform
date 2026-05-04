@@ -13,8 +13,13 @@ export const createDraft = (data: Partial<Draft>) =>
 export const updateDraft = (id: string, data: Partial<Draft>) =>
   api.put(`/drafts/${id}`, data).then(res => res.data);
 
-export const submitDraft = (id: string, action: string, comment?: string) =>
-  api.post(`/drafts/${id}/submit`, { action, comment });
+// 底稿操作
+// - action === "submit"：提交草稿（操作员权限 draft:write）
+// - 其他 action（preliminary_review/final_review/approve/reject）：审批动作（审批员权限 draft:approve）
+export const submitDraft = (id: string, action: string, comment?: string) => {
+  const endpoint = action === "submit" ? `/drafts/${id}/submit` : `/drafts/${id}/approve`;
+  return api.post(endpoint, { action, comment });
+};
 
 export const deleteDraft = (id: string) =>
   api.delete(`/drafts/${id}`);

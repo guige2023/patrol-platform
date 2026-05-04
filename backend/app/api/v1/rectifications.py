@@ -479,7 +479,7 @@ async def submit_rectification(rect_id: UUID, uow: UnitOfWork = Depends(get_uow)
 
 
 @router.post("/{rect_id}/verify")
-async def verify_rectification(rect_id: UUID, comment: Optional[str] = None, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("rectification:write"))):
+async def verify_rectification(rect_id: UUID, comment: Optional[str] = None, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("rectification:approve"))):
     """Verify a rectification as completed."""
     result = await uow.execute(select(Rectification).where(Rectification.id == rect_id))
     rect = result.scalar_one_or_none()
@@ -502,7 +502,7 @@ async def reject_rectification(
     rect_id: UUID,
     body: dict,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(require_permission("rectification:write")),
+    current_user: User = Depends(require_permission("rectification:approve")),
 ):
     """Reject a submitted rectification with reason."""
     result = await uow.execute(select(Rectification).where(Rectification.id == rect_id))
@@ -682,7 +682,7 @@ async def confirm_rectification(
     rect_id: UUID,
     body: dict,
     uow: UnitOfWork = Depends(get_uow),
-    current_user: User = Depends(require_permission("rectification:write")),
+    current_user: User = Depends(require_permission("rectification:approve")),
 ):
     """Confirm a rectification as completed or rejected."""
     result = await uow.execute(select(Rectification).where(Rectification.id == rect_id))

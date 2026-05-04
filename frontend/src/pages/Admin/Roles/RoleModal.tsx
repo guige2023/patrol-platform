@@ -14,25 +14,39 @@ interface Role {
 
 // Predefined permission options for display
 const PERMISSION_OPTIONS: { code: string; name: string }[] = [
+  // 用户/角色/审计
   { code: 'user:read', name: '查看用户' },
   { code: 'user:write', name: '管理用户' },
-  { code: 'unit:read', name: '查看单位' },
-  { code: 'unit:write', name: '管理单位' },
-  { code: 'cadre:read', name: '查看干部' },
-  { code: 'cadre:write', name: '管理干部' },
-  { code: 'clue:read', name: '查看线索' },
-  { code: 'clue:write', name: '管理线索' },
-  { code: 'plan:read', name: '查看计划' },
-  { code: 'plan:write', name: '管理计划' },
-  { code: 'draft:read', name: '查看底稿' },
-  { code: 'draft:write', name: '管理底稿' },
-  { code: 'rectification:read', name: '查看整改' },
-  { code: 'rectification:write', name: '管理整改' },
-  { code: 'knowledge:read', name: '查看知识库' },
-  { code: 'knowledge:write', name: '管理知识库' },
-  { code: 'audit:read', name: '查看审计日志' },
   { code: 'role:read', name: '查看角色' },
   { code: 'role:write', name: '管理角色' },
+  { code: 'audit:read', name: '查看审计日志' },
+  // 单位
+  { code: 'unit:read', name: '查看单位' },
+  { code: 'unit:write', name: '管理单位' },
+  { code: 'unit:approve', name: '审批单位' },
+  // 干部
+  { code: 'cadre:read', name: '查看干部' },
+  { code: 'cadre:write', name: '管理干部' },
+  { code: 'cadre:approve', name: '审批干部' },
+  // 线索
+  { code: 'clue:read', name: '查看线索' },
+  { code: 'clue:write', name: '管理线索' },
+  { code: 'clue:approve', name: '审批线索' },
+  // 巡察计划
+  { code: 'plan:read', name: '查看计划' },
+  { code: 'plan:write', name: '管理计划' },
+  { code: 'plan:approve', name: '审批计划' },
+  // 底稿
+  { code: 'draft:read', name: '查看底稿' },
+  { code: 'draft:write', name: '管理底稿（提交）' },
+  { code: 'draft:approve', name: '审批底稿（初审/终审/驳回）' },
+  // 整改
+  { code: 'rectification:read', name: '查看整改' },
+  { code: 'rectification:write', name: '管理整改（签收/提交）' },
+  { code: 'rectification:approve', name: '审批整改（验收/确认/驳回）' },
+  // 知识库
+  { code: 'knowledge:read', name: '查看知识库' },
+  { code: 'knowledge:write', name: '管理知识库' },
 ];
 
 interface RoleModalProps {
@@ -80,8 +94,10 @@ const RoleModal: React.FC<RoleModalProps> = ({ open, role, onClose, onSuccess })
 
   // Handle individual permission checkbox
   const handlePermChange = (checkedValues: string[]) => {
-    // If user manually checks/unchecks individual perms, remove '*' if present
-    const filtered = checkedValues.filter(v => v !== '*');
+    // If user checks "全部权限" (*), keep it; otherwise filter it out
+    const filtered = checkedValues.includes('*')
+      ? ['*']
+      : checkedValues.filter(v => v !== '*');
     setSelectedPerms(filtered);
   };
 

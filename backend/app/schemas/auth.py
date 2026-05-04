@@ -15,6 +15,7 @@ class UserInfo(BaseModel):
     email: str
     full_name: str
     unit_id: Optional[UUID] = None
+    permissions: list[str] = []  # 合并所有角色的权限
 
     model_config = ConfigDict(from_attributes=True)
 

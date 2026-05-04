@@ -8,7 +8,22 @@ interface User {
   email: string;
   full_name: string;
   unit_id?: string;
+  permissions: string[];  // 合并所有角色的权限
 }
+
+// 权限检查工具函数
+export const hasPermission = (user: User | null, permission: string): boolean => {
+  if (!user) return false;
+  const { permissions } = user;
+  if (permissions.includes("*")) return true;
+  return permissions.includes(permission);
+};
+
+export const hasAnyPermission = (user: User | null, perms: string[]): boolean => {
+  if (!user) return false;
+  if (user.permissions.includes("*")) return true;
+  return perms.some(p => user.permissions.includes(p));
+};
 
 interface AuthState {
   user: User | null;

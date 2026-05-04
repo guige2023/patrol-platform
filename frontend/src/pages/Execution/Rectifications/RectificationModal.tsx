@@ -8,6 +8,7 @@ import { createRectification, updateRectification, getRectification, updateRecti
 import DraftDetail from '@/pages/Execution/Drafts/DraftDetail';
 import dayjs from 'dayjs';
 import { getErrorMessage } from '@/utils/error';
+import { useAuthStore, hasPermission } from '@/store/auth';
 
 const { TextArea } = Input;
 
@@ -61,6 +62,11 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
   const [rejectReason, setRejectReason] = useState('');
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
+
+  // 权限检查
+  const { user } = useAuthStore();
+  const canApprove = hasPermission(user, 'rectification:approve');
+  const canWrite = hasPermission(user, 'rectification:write');
 
   useEffect(() => {
     if (open) {
@@ -360,8 +366,8 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
         </div>
       )}
 
-      {/* 驳回操作区（仅 submitted/completed 状态显示驳回按钮） */}
-      {rectificationData?.status === 'submitted' || rectificationData?.status === 'completed' ? (
+      {/* 驳回操作区（仅 submitted/completed 状态 + 有审批权限的用户显示驳回按钮） */}
+      {canApprove && (rectificationData?.status === 'submitted' || rectificationData?.status === 'completed') ? (
         <div style={{ marginTop: 16, padding: '12px 16px', background: '#fff2e6', borderRadius: 4, border: '1px solid #ffbb80' }}>
           <div style={{ color: '#d46b08', marginBottom: 8 }}>对整改结果有异议？</div>
           <Button

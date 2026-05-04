@@ -195,31 +195,57 @@ async def update_draft(draft_id: UUID, draft_data: DraftUpdate, uow: UnitOfWork 
 
 
 @router.post("/{draft_id}/submit")
-async def submit_draft_action(draft_id: UUID, request: DraftSubmitRequest, uow: UnitOfWork = Depends(get_uow), current_user: User = Depends(require_permission("draft:write"))):
+async def submit_draft(
+    draft_id: UUID,
+    request: DraftSubmitRequest,
+    uow: UnitOfWork = Depends(get_uow),
+    current_user: User = Depends(require_permission("draft:write")),
+):
+    """
+    底稿提交（操作员动作：将草稿提交给初审）。
+    权限：draft:write
+    """
     result = await uow.execute(select(Draft).where(Draft.id == draft_id))
     draft = result.scalar_one_or_none()
     if not draft:
         raise HTTPException(status_code=404, detail="Draft not found")
-    
+    if draft.status != "draft":
+        raise HTTPException(status_code=400, detail="Only draft can be submitted")
+    draft.status = "preliminary_review"
+    if draft.created_by and draft.created_by != current_user.id:
+        await notify_draft_action(uow, draft.id, draft.title, draft.created_by, action="submit",
+                                  comment=request.comment)
+    await uow.commit()
+    await write_audit_log(uow.session, current_user.id, "draft_submit", "draft", draft_id, {})
+    return {"message": "Draft submitted for preliminary review", "status": draft.status}
+
+
+@router.post("/{draft_id}/approve")
+async def approve_draft(
+    draft_id: UUID,
+    request: DraftSubmitRequest,
+    uow: UnitOfWork = Depends(get_uow),
+    current_user: User = Depends(require_permission("draft:approve")),
+):
+    """
+    底稿审批（审批员动作：初审通过/终审通过/审批通过/驳回）。
+    权限：draft:approve
+
+    action: preliminary_review（初审通过）| final_review（终审通过）| approve（直接审批）| reject（驳回）
+    """
+    result = await uow.execute(select(Draft).where(Draft.id == draft_id))
+    draft = result.scalar_one_or_none()
+    if not draft:
+        raise HTTPException(status_code=404, detail="Draft not found")
+
     action = request.action
-    if action == "submit":
-        if draft.status != "draft":
-            raise HTTPException(status_code=400, detail="Only draft can be submitted")
-        draft.status = "preliminary_review"
-        # 通知创建者已提交初审
-        if draft.created_by and draft.created_by != current_user.id:
-            await notify_draft_action(uow, draft.id, draft.title, draft.created_by, action="submit",
-                                      comment=request.comment)
-    elif action == "preliminary_review":
+    if action == "preliminary_review":
         if draft.status != "preliminary_review":
             raise HTTPException(status_code=400, detail="Wrong status")
         draft.preliminary_reviewer = current_user.id
         draft.preliminary_review_comment = request.comment
         draft.preliminary_review_at = func.now()
         draft.status = "final_review"
-        if draft.created_by and draft.created_by != current_user.id:
-            await notify_draft_action(uow, draft.id, draft.title, draft.created_by, action=action,
-                                      comment=request.comment)
     elif action == "final_review":
         if draft.status != "final_review":
             raise HTTPException(status_code=400, detail="Wrong status")
@@ -227,22 +253,20 @@ async def submit_draft_action(draft_id: UUID, request: DraftSubmitRequest, uow: 
         draft.final_review_comment = request.comment
         draft.final_review_at = func.now()
         draft.status = "approved"
-        if draft.created_by and draft.created_by != current_user.id:
-            await notify_draft_action(uow, draft.id, draft.title, draft.created_by, action=action,
-                                      comment=request.comment)
     elif action == "approve":
+        if draft.status not in ("draft", "preliminary_review", "final_review"):
+            raise HTTPException(status_code=400, detail="Wrong status for direct approval")
         draft.approved_by = current_user.id
         draft.approved_at = func.now()
         draft.status = "approved"
-        if draft.created_by and draft.created_by != current_user.id:
-            await notify_draft_action(uow, draft.id, draft.title, draft.created_by, action="approve",
-                                      comment=request.comment)
     elif action == "reject":
         draft.status = "rejected"
-        if draft.created_by and draft.created_by != current_user.id:
-            await notify_draft_action(uow, draft.id, draft.title, draft.created_by, action="reject",
-                                      comment=request.comment)
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown action: {action}")
 
+    if draft.created_by and draft.created_by != current_user.id:
+        await notify_draft_action(uow, draft.id, draft.title, draft.created_by, action=action,
+                                  comment=request.comment)
     await uow.commit()
     await write_audit_log(uow.session, current_user.id, f"draft_{action}", "draft", draft_id, {})
     return {"message": f"Draft {action} success", "status": draft.status}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Tag, Modal, message, Popconfirm } from 'antd';
+import { Table, Button, Space, Tag, Modal, message, Popconfirm, Input } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import type { Key } from 'antd/es/table/interface';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -9,6 +9,9 @@ import { getDrafts, submitDraft, deleteDraft, exportDrafts, batchDeleteDrafts } 
 import DraftDetail from './DraftDetail';
 import type { ColumnsType } from 'antd/es/table';
 import { getErrorMessage } from '@/utils/error';
+import { useAuthStore, hasPermission } from '@/store/auth';
+
+const { TextArea } = Input;
 
 interface Draft {
   id: string;
@@ -39,6 +42,9 @@ const statusLabels: Record<string, string> = {
 const DraftList: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const canApprove = hasPermission(user, 'draft:approve');
+  const canWrite = hasPermission(user, 'draft:write');
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<Draft[]>([]);
   const [total, setTotal] = useState(0);
@@ -48,6 +54,13 @@ const DraftList: React.FC = () => {
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([]);
+
+  // 审批评论弹窗
+  const [approveModalOpen, setApproveModalOpen] = useState(false);
+  const [approveAction, setApproveAction] = useState<string>('');
+  const [approveDraftId, setApproveDraftId] = useState<string>('');
+  const [approveComment, setApproveComment] = useState<string>('');
+  const [approveLoading, setApproveLoading] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -80,6 +93,29 @@ const DraftList: React.FC = () => {
       fetchData();
     } catch (e: any) {
       message.error(getErrorMessage(e) || '提交失败');
+    }
+  };
+
+  // 审批操作（初审通过/终审通过/审批通过/驳回）
+  const openApproveModal = (draftId: string, action: string) => {
+    setApproveDraftId(draftId);
+    setApproveAction(action);
+    setApproveComment('');
+    setApproveModalOpen(true);
+  };
+
+  const handleApprove = async () => {
+    if (!approveDraftId) return;
+    setApproveLoading(true);
+    try {
+      await submitDraft(approveDraftId, approveAction, approveComment);
+      message.success('审批成功');
+      setApproveModalOpen(false);
+      fetchData();
+    } catch (e: any) {
+      message.error(getErrorMessage(e) || '审批失败');
+    } finally {
+      setApproveLoading(false);
     }
   };
 
@@ -134,7 +170,22 @@ const DraftList: React.FC = () => {
         <Space>
           <Button type="link" size="small" onClick={() => openEditModal(record.id)}>查看</Button>
           <Button type="link" size="small" onClick={() => openEditModal(record.id)}>编辑</Button>
-          {record.status === 'draft' && <Button type="link" size="small" onClick={() => handleSubmit(record.id)}>提交</Button>}
+          {record.status === 'draft' && canWrite && (
+            <Button type="link" size="small" onClick={() => handleSubmit(record.id)}>提交</Button>
+          )}
+          {/* 审批操作按钮（有 draft:approve 权限可见） */}
+          {canApprove && record.status === 'preliminary_review' && (
+            <Button type="link" size="small" onClick={() => openApproveModal(record.id, 'preliminary_review')}>初审通过</Button>
+          )}
+          {canApprove && record.status === 'final_review' && (
+            <Button type="link" size="small" onClick={() => openApproveModal(record.id, 'final_review')}>终审通过</Button>
+          )}
+          {canApprove && (record.status === 'preliminary_review' || record.status === 'final_review') && (
+            <>
+              <Button type="link" size="small" onClick={() => openApproveModal(record.id, 'approve')}>审批通过</Button>
+              <Button type="link" size="small" danger onClick={() => openApproveModal(record.id, 'reject')}>驳回</Button>
+            </>
+          )}
           <Button type="link" size="small" danger onClick={() => handleDelete(record.id)}>删除</Button>
         </Space>
       ),
@@ -181,6 +232,32 @@ const DraftList: React.FC = () => {
           if (id) navigate('/execution/drafts', { replace: true });
         }}
       />
+
+      {/* 审批评论弹窗 */}
+      <Modal
+        title={{
+          preliminary_review: '初审通过',
+          final_review: '终审通过',
+          approve: '审批通过',
+          reject: '驳回底稿',
+        }[approveAction] || '审批'}
+        open={approveModalOpen}
+        onOk={handleApprove}
+        onCancel={() => setApproveModalOpen(false)}
+        confirmLoading={approveLoading}
+        okText="确认"
+        cancelText="取消"
+        okButtonProps={approveAction === 'reject' ? { danger: true } : undefined}
+      >
+        <div style={{ padding: '8px 0' }}>
+          <TextArea
+            rows={3}
+            placeholder="可填写审批意见（可选）"
+            value={approveComment}
+            onChange={(e) => setApproveComment(e.target.value)}
+          />
+        </div>
+      </Modal>
     </div>
   );
 };
