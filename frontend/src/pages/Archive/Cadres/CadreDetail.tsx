@@ -67,9 +67,11 @@ const CadreDetail: React.FC = () => {
       if (payload.tags && Array.isArray(payload.tags)) {
         payload.tags = { "熟悉领域": payload.tags.join("、") };
       }
-      // achievements text -> list
-      if (payload.achievements && typeof payload.achievements === 'string') {
-        payload.achievements = [{ "content": payload.achievements }];
+      // achievements text -> list (空字符串也转空列表)
+      if (typeof payload.achievements === 'string') {
+        payload.achievements = payload.achievements.trim()
+          ? [{ "content": payload.achievements.trim() }]
+          : [];
       }
       await updateCadre(id!, payload);
       message.success('保存成功');

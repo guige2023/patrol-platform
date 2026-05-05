@@ -43,6 +43,7 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

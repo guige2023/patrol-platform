@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { setAuthToken, clearAuthToken } from '@/api/client';
 import { getMe } from '@/api/auth';
 
@@ -33,7 +34,9 @@ interface AuthState {
   checkAuth: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
   user: null,
   token: localStorage.getItem('token'),
 
@@ -61,4 +64,11 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ user: null, token: null });
     }
   },
-}));
+}),
+    {
+      name: 'auth-storage',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({ user: state.user, token: state.token }),
+    }
+  )
+);
