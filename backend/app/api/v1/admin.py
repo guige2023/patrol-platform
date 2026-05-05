@@ -1,14 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, or_, cast, String
+from sqlalchemy import select, func, or_, cast, String, insert, delete
 from uuid import UUID
 import io
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from app.dependencies import get_uow, get_current_user, require_permission
 from app.database import UnitOfWork
-from app.models.user import User, Role, Permission
+from app.models.user import User, Role, Permission, user_roles
 from app.models.unit import Unit
 from app.models.module_config import ModuleConfig
 from app.models.rule_config import RuleConfig
@@ -52,6 +52,19 @@ async def create_user(
         is_active=user_data.is_active,
     )
     uow.add(user)
+    await uow.flush()
+
+    # 同步 user_roles 关联表（直接操作关联表，避免 ORM relationship 的 greenlet 问题）
+    if user_data.role:
+        role_result = await uow.execute(
+            select(Role).where((Role.name == user_data.role) | (Role.code == user_data.role))
+        )
+        role = role_result.scalar_one_or_none()
+        if role:
+            await uow.execute(
+                insert(user_roles).values(user_id=user.id, role_id=role.id)
+            )
+
     await uow.commit()
     await uow.refresh(user)
     await write_audit_log(uow.session, current_user.id, "create", "user", user.id, {"username": user.username})
@@ -74,6 +87,21 @@ async def update_user(
         user.hashed_password = get_password_hash(update_data.pop("password"))
     for key, value in update_data.items():
         setattr(user, key, value)
+
+    # 同步 user_roles 关联表
+    if "role" in update_data:
+        # 先删除旧关联
+        await uow.execute(delete(user_roles).where(user_roles.c.user_id == user.id))
+        if update_data["role"]:
+            role_result = await uow.execute(
+                select(Role).where((Role.name == update_data["role"]) | (Role.code == update_data["role"]))
+            )
+            role = role_result.scalar_one_or_none()
+            if role:
+                await uow.execute(
+                    insert(user_roles).values(user_id=user.id, role_id=role.id)
+                )
+
     await uow.commit()
     await write_audit_log(uow.session, current_user.id, "update", "user", user.id, {"username": user.username})
     return {"id": user.id, "username": user.username}

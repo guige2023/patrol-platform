@@ -36,6 +36,7 @@ const BackupPage = lazy(() => import('./pages/Admin/Backup/BackupPage'))
 const Notifications = lazy(() => import('./pages/Admin/Notifications/Notifications'))
 const Alerts = lazy(() => import('./pages/Admin/Alerts/Alerts'))
 const InitWizard = lazy(() => import('./pages/Init/InitWizard'))
+const Settings = lazy(() => import('./pages/Settings'))
 
 // Loading fallback component
 const PageLoader = () => (
@@ -93,6 +94,7 @@ const router = createBrowserRouter([
       { path: 'admin/backup', element: <Suspense fallback={<PageLoader />}><BackupPage /></Suspense> },
       { path: 'admin/notifications', element: <Suspense fallback={<PageLoader />}><Notifications /></Suspense> },
       { path: 'admin/alerts', element: <Suspense fallback={<PageLoader />}><Alerts /></Suspense> },
+      { path: 'settings', element: <Suspense fallback={<PageLoader />}><Settings /></Suspense> },
     ],
   },
 ])

@@ -10,14 +10,14 @@ import {
 } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import {
-  getFieldOptions, getFieldsByEntity, getEntityTypes,
+  getFieldOptions, getFieldsByEntity,
   discoverFields, syncFields, updateFieldOption, deleteFieldOption,
   FieldOption, FieldOptionSummary, DiscoveredField,
 } from '@/api/fieldOptions';
 import { getErrorMessage } from '@/utils/error';
 import { useFieldOptions as useGlobalFieldOptions } from '@/hooks/useFieldOptions';
 
-const { TextArea } = Input;
+
 
 // ---------------------------------------------------------------------------
 // 常量
@@ -330,7 +330,7 @@ const FieldOptionsConfig: React.FC = () => {
   const [syncDrawerOpen, setSyncDrawerOpen] = useState(false);
   const [inlineEditKey, setInlineEditKey] = useState<string | null>(null);
   const [inlineEditValue, setInlineEditValue] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [_saving, setSaving] = useState(false);
   const { refresh } = useGlobalFieldOptions();
 
   const fetchFields = useCallback(async () => {

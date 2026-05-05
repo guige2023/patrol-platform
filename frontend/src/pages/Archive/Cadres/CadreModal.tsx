@@ -89,9 +89,13 @@ const CadreModal: React.FC<CadreModalProps> = ({ open, cadreId, onClose, onSucce
       if (payload.tags && Array.isArray(payload.tags)) {
         payload.tags = { "熟悉领域": payload.tags.join("、") };
       }
-      // achievements 处理：如果有文本内容，转换为 [{"content": ...}] 格式
-      if (payload.achievements && typeof payload.achievements === 'string') {
-        payload.achievements = [{ "content": payload.achievements }];
+      // achievements 处理：文本转列表，空字符串转空列表
+      if (typeof payload.achievements === 'string') {
+        payload.achievements = payload.achievements.trim()
+          ? [{ "content": payload.achievements.trim() }]
+          : [];
+      } else if (!payload.achievements) {
+        payload.achievements = [];
       }
       setLoading(true);
       if (cadreId) {

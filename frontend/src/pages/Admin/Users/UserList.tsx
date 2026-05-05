@@ -107,9 +107,13 @@ const UserList: React.FC = () => {
           <Form.Item name="email" label="邮箱" rules={[{ required: true, type: 'email' }]}>
             <Input />
           </Form.Item>
-          {!editingUser && (
+          {!editingUser ? (
             <Form.Item name="password" label="密码" rules={[{ required: true }]}>
               <Input.Password />
+            </Form.Item>
+          ) : (
+            <Form.Item name="password" label="重置密码" help="留空则不变更密码">
+              <Input.Password placeholder="输入新密码可重置" />
             </Form.Item>
           )}
           <Form.Item name="full_name" label="姓名" rules={[{ required: true }]}>

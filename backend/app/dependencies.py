@@ -53,7 +53,10 @@ async def _check_user_permissions(
     if role_code == 'super_admin' or role_code == '*':
         return user
 
-    role_result = await db.execute(select(Role).where(Role.code == role_code))
+    # user.role 存的是 Role.name，fallback 也尝试 Role.code
+    role_result = await db.execute(
+        select(Role).where((Role.name == role_code) | (Role.code == role_code))
+    )
     role = role_result.scalar_one_or_none()
 
     if not role:

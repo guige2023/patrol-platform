@@ -66,7 +66,6 @@ const RectificationModal: React.FC<RectificationModalProps> = ({ open, rectifica
   // 权限检查
   const { user } = useAuthStore();
   const canApprove = hasPermission(user, 'rectification:approve');
-  const canWrite = hasPermission(user, 'rectification:write');
 
   useEffect(() => {
     if (open) {

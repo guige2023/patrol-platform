@@ -113,10 +113,7 @@ const MainLayout: React.FC = () => {
         key: 'change-password',
         icon: <SafetyOutlined />,
         label: '修改密码',
-        onClick: () => {
-          // TODO: Implement change password modal
-          navigate('/admin/users');
-        },
+        onClick: () => navigate('/settings'),
       },
       { type: 'divider' as const },
       { key: 'logout', icon: <LogoutOutlined />, label: '退出登录' },
