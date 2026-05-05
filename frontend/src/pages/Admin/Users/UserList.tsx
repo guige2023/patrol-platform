@@ -4,6 +4,7 @@ import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
 import { getUsers, createUser, updateUser, getRoles } from '@/api/admin';
 import { getErrorMessage } from '@/utils/error';
+import { useAuthStore, hasPermission } from '@/store/auth';
 
 const UserList: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -14,6 +15,8 @@ const UserList: React.FC = () => {
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [form] = Form.useForm();
   const [searchText, setSearchText] = useState('');
+  const { user } = useAuthStore();
+  const canWrite = hasPermission(user, 'user:write');
 
   const fetchData = async () => {
     setLoading(true);
@@ -96,7 +99,7 @@ const UserList: React.FC = () => {
           allowClear
           enterButton={<Button icon={<SearchOutlined />}>搜索</Button>}
         />
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalVisible(true)}>新建用户</Button>
+        {canWrite && <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalVisible(true)}>新建用户</Button>}
       </div>
       <Table columns={columns} dataSource={filteredData} rowKey="id" loading={loading} pagination={false} />
       <Modal title={editingUser ? '编辑用户' : '新建用户'} open={modalVisible} onCancel={handleModalClose} footer={null}>

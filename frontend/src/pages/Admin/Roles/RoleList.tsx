@@ -5,6 +5,7 @@ import PageHeader from '@/components/common/PageHeader';
 import RoleModal from './RoleModal';
 import { getRoles, deleteRole } from '@/api/admin';
 import { getErrorMessage } from '@/utils/error';
+import { useAuthStore, hasPermission } from '@/store/auth';
 
 interface Role {
   id: string;
@@ -43,6 +44,8 @@ const RoleList: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<Role[]>([]);
   const [filteredData, setFilteredData] = useState<Role[]>([]);
+  const { user } = useAuthStore();
+  const canWrite = hasPermission(user, 'role:write');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [searchText, setSearchText] = useState('');
@@ -138,13 +141,15 @@ const RoleList: React.FC = () => {
           allowClear
           enterButton={<Button icon={<SearchOutlined />}>搜索</Button>}
         />
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => { setEditingRole(null); setModalOpen(true); }}
-        >
-          新建角色
-        </Button>
+        {canWrite && (
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => { setEditingRole(null); setModalOpen(true); }}
+          >
+            新建角色
+          </Button>
+        )}
       </div>
       <Table
         columns={columns}
