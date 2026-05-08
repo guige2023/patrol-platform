@@ -104,6 +104,7 @@ const UnitDetail: React.FC = () => {
   }, [activeTab, id]);
 
   const handleSubmit = async (values: any) => {
+    if (!id) return;
     setLoading(true);
     try {
       // Reconstruct complex fields
@@ -138,7 +139,7 @@ const UnitDetail: React.FC = () => {
       });
       if (Object.keys(contactFields).length > 0) result.contact = contactFields;
 
-      await updateUnit(id!, result);
+      await updateUnit(id, result);
       message.success('保存成功');
       navigate('/archive/units');
     } catch (e: any) {

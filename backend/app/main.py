@@ -4,14 +4,19 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 from app.api.v1 import router as v1_router
+from app.api.v1.auth import limiter
 from app.config import settings
 from app.core.security import verify_token
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 app = FastAPI(
     title="巡察工作管理平台",
     version=settings.VERSION,
     description="FastAPI + React 18 + TypeScript",
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,

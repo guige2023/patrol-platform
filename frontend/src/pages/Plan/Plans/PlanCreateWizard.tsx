@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Steps, Form, Input, Select, Button, Card, Table, Space, message, Modal, Tag, Alert, Descriptions } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
 import PageHeader from '@/components/common/PageHeader';
-import { createPlan } from '@/api/plans';
+import { createPlan, deletePlan } from '@/api/plans';
 import { getUnits } from '@/api/units';
 import { getAvailableCadres, createGroup, addMember } from '@/api/groups';
 import type { ColumnsType } from 'antd/es/table';
@@ -203,6 +203,7 @@ const PlanCreateWizard: React.FC = () => {
     } else if (currentStep === 3) {
       // Submit and create plan + inspection group
       setSubmitting(true);
+      let planId: string | null = null;
       try {
         // 1. Create the plan
         const planData = {
@@ -210,7 +211,7 @@ const PlanCreateWizard: React.FC = () => {
           target_units: selectedUnits.map(u => u.name || u.id),
         };
         const planResult = await createPlan(planData);
-        const planId = planResult?.data?.id || planResult?.id;
+        planId = planResult?.data?.id || planResult?.id;
         if (!planId) {
           throw new Error('计划创建失败：未返回计划ID');
         }
@@ -237,6 +238,11 @@ const PlanCreateWizard: React.FC = () => {
         message.success('计划创建成功');
         navigate('/plans');
       } catch (e: any) {
+        // Rollback: if plan was created but group/member creation failed, delete the plan
+        if (planId) {
+          deletePlan(planId).catch(() => {});
+          message.warning('创建失败，计划已撤销');
+        }
         message.error(e?.response?.data?.detail || e.message || '创建失败');
       } finally {
         setSubmitting(false);

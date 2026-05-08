@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Descriptions, Table, Button, Space, Radio, Input, message, Modal, Upload } from 'antd';
 import { ArrowLeftOutlined, CheckCircleOutlined, UploadOutlined, ReloadOutlined } from '@ant-design/icons';
@@ -43,11 +43,14 @@ const RectificationDetail: React.FC = () => {
   const [confirmCompleted, setConfirmCompleted] = useState<boolean | null>(null);
   const [confirmNotes, setConfirmNotes] = useState('');
   const [reimportModalVisible, setReimportModalVisible] = useState(false);
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
+    isMountedRef.current = true;
     if (id) {
       fetchData();
     }
+    return () => { isMountedRef.current = false; };
   }, [id]);
 
   const fetchData = async () => {
@@ -55,24 +58,31 @@ const RectificationDetail: React.FC = () => {
     setLoading(true);
     try {
       const res = await getRectification(id);
-      setData(res);
-      setConfirmCompleted(res.confirmed_completed ?? null);
-      setConfirmNotes(res.confirm_notes || '');
+      if (isMountedRef.current) {
+        setData(res);
+        setConfirmCompleted(res.confirmed_completed ?? null);
+        setConfirmNotes(res.confirm_notes || '');
+      }
     } catch {
-      message.error('获取详情失败');
+      if (isMountedRef.current) {
+        message.error('获取详情失败');
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   const handleConfirm = async () => {
+    if (!id) return;
     if (confirmCompleted === null) {
       message.error('请选择完成状态');
       return;
     }
     setConfirmLoading(true);
     try {
-      await confirmRectification(id!, confirmCompleted, confirmNotes);
+      await confirmRectification(id, confirmCompleted, confirmNotes);
       message.success('确认成功');
       fetchData();
     } catch (e: any) {
@@ -83,8 +93,9 @@ const RectificationDetail: React.FC = () => {
   };
 
   const handleReimport = async (file: File) => {
+    if (!id) return false;
     try {
-      await reimportRectification(id!, file);
+      await reimportRectification(id, file);
       message.success('重新导入成功');
       setReimportModalVisible(false);
       fetchData();

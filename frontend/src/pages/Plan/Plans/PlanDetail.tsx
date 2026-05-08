@@ -226,10 +226,10 @@ const PlanDetail: React.FC<PlanDetailProps> = ({ open, planId, mode, onClose, on
           <Space>
             <Button onClick={onClose}>关闭</Button>
             <Button onClick={switchToEdit}>编辑</Button>
-            <Button onClick={() => exportPlanChecklist(planData?.id!, planData?.name)}>
+            <Button onClick={() => planData?.id && exportPlanChecklist(planData.id, planData.name)}>
               导出检查清单 PDF
             </Button>
-            <Button type="primary" onClick={() => exportPlanReport(planData?.id!, planData?.name)}>
+            <Button type="primary" onClick={() => planData?.id && exportPlanReport(planData.id, planData.name)}>
               导出完整报告
             </Button>
           </Space>

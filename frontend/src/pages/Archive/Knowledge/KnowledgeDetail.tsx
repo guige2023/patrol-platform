@@ -25,9 +25,10 @@ const KnowledgeDetail: React.FC = () => {
   }, [id]);
 
   const handleSubmit = async (values: any) => {
+    if (!id) return;
     setLoading(true);
     try {
-      await updateKnowledge(id!, values);
+      await updateKnowledge(id, values);
       message.success('保存成功');
       navigate('/archive/knowledge');
     } catch (e: any) {

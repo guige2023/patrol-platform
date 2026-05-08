@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+limiter = Limiter(key_func=get_remote_address)
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -28,12 +31,13 @@ router = APIRouter()
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(request: LoginRequest, uow: UnitOfWork = Depends(get_uow)):
+@limiter.limit("5/minute")
+async def login(request: Request, login_request: LoginRequest, uow: UnitOfWork = Depends(get_uow)):
     result = await uow.execute(
-        select(User).where(User.username == request.username).options(selectinload(User.roles))
+        select(User).where(User.username == login_request.username).options(selectinload(User.roles))
     )
     user = result.scalar_one_or_none()
-    if not user or not verify_password(request.password, user.hashed_password):
+    if not user or not verify_password(login_request.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="用户名或密码错误")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is inactive")

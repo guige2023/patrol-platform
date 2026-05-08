@@ -59,6 +59,7 @@ const CadreDetail: React.FC = () => {
   }, [id]);
 
   const handleSubmit = async (values: any) => {
+    if (!id) return;
     setLoading(true);
     try {
       const payload: any = { ...values };
@@ -73,7 +74,7 @@ const CadreDetail: React.FC = () => {
           ? [{ "content": payload.achievements.trim() }]
           : [];
       }
-      await updateCadre(id!, payload);
+      await updateCadre(id, payload);
       message.success('保存成功');
       navigate('/archive/cadres');
     } catch (e: any) {
