@@ -38,14 +38,16 @@ const InitWizard = lazy(() => import('./pages/Init/InitWizard'))
 const Settings = lazy(() => import('./pages/Settings'))
 
 // Loading fallback component
+const PAGE_LOADER_STYLE: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+  height: '100vh',
+  color: '#1890ff',
+}
+
 const PageLoader = () => (
-  <div style={{
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    height: '100vh',
-    color: '#1890ff'
-  }}>
+  <div style={PAGE_LOADER_STYLE}>
     加载中...
   </div>
 )

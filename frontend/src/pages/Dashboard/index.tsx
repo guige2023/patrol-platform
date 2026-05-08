@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Card, Row, Col, Spin, message, Timeline, Progress, Tag, Select, List, Alert } from 'antd'
+import { Card, Row, Col, Spin, message, Timeline, Progress, Tag, List, Alert } from 'antd'
 import {
   BankOutlined,
   ProjectOutlined,
@@ -16,6 +16,14 @@ import { Link, useNavigate } from 'react-router-dom'
 import ReactECharts from 'echarts-for-react'
 import { getOverview, getIssueProfile, getYearlyStats } from '../../api/dashboard'
 import { getWarnings } from '../../api/warnings'
+import {
+  buildDonutOption,
+  buildAlertBarOption,
+  buildGanttOption,
+  buildTrendOption,
+  buildYearlyBarOption,
+  getProgressColor,
+} from './chartOptions'
 
 interface Overview {
   unit_count: number
@@ -36,11 +44,11 @@ interface IssueProfile {
   rectifications_by_alert_level: { level: string; count: number; type?: string }[]
   rectifications_by_status?: { status: string; count: number }[]
   recent_activities?: { id: number; type: string; title: string; time: string }[]
-  plan_progress?: { name: string; progress: number; status: string; days_elapsed?: number; days_total?: number }[]
+  plan_progress?: { name: string; progress: number; status: string }[]
   uninspected_units?: { id: string; name: string; last_inspected_year?: number }[]
-  current_round_progress?: { plan_id: string; plan_name: string; days_elapsed: number; days_total: number; percentage: number }[]
+  current_round_progress?: { plan_name: string; days_elapsed: number; days_total: number; percentage: number }[]
   yearly_coverage?: { year: number; inspected_count: number; total_count: number; percentage: number }[]
-  rectification_deadlines?: { id: string; title: string; unit_name?: string; deadline: string; alert_level: string; progress: number }[]
+  rectification_deadlines?: { id: string; title: string; unit_name?: string; deadline: string }[]
   top_problem_types?: { category: string; count: number }[]
   unit_rankings?: { unit_name: string; rectification_count: number; completed_count: number; overdue_count: number }[]
   rectification_trend?: { month: string; completed: number; submitted: number; rejected: number }[]
@@ -51,35 +59,6 @@ interface YearlyStats {
   months: number[]
   plan_counts: number[]
   group_counts: number[]
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  drafted: '#8c8c8c',
-  dispatched: '#1677ff',
-  signed: '#722ed1',
-  progressing: '#faad14',
-  completed: '#52c41a',
-  submitted: '#13c2c2',
-  verified: '#003eb3',
-  rejected: '#ff4d4f',
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  drafted: '草稿',
-  dispatched: '已派发',
-  signed: '已签收',
-  progressing: '整改中',
-  completed: '已完成',
-  submitted: '待验收',
-  verified: '已验收',
-  rejected: '已驳回',
-}
-
-const ALERT_COLORS: Record<string, string> = {
-  green: '#52c41a',
-  yellow: '#faad14',
-  orange: '#fa8c16',
-  red: '#ff4d4f',
 }
 
 export default function Dashboard() {
@@ -190,142 +169,6 @@ export default function Dashboard() {
     }
   }
 
-  const getProgressColor = (percentage: number) => {
-    if (percentage >= 100) return '#52c41a'
-    if (percentage >= 70) return '#1677ff'
-    if (percentage >= 30) return '#faad14'
-    return '#ff4d4f'
-  }
-
-  // 整改状态环形图配置
-  const donutOption = {
-    tooltip: { trigger: 'item' as const },
-    legend: {
-      orient: 'vertical' as const,
-      right: 10,
-      top: 'middle',
-      itemWidth: 10,
-      itemHeight: 10,
-      textStyle: { fontSize: 11 },
-    },
-    series: [{
-      type: 'pie',
-      radius: ['45%', '70%'],
-      center: ['35%', '50%'],
-      avoidLabelOverlap: true,
-      itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 },
-      label: { show: false },
-      emphasis: {
-        label: { show: true, fontSize: 12, fontWeight: 'bold' },
-      },
-      data: rectByStatus.map((r: any) => ({
-        name: STATUS_LABELS[r.status] || r.status,
-        value: r.count,
-        itemStyle: { color: STATUS_COLORS[r.status] || '#d9d9d9' },
-      })),
-    }],
-  }
-
-  // 预警级别分布柱状图配置
-  const alertBarOption = {
-    tooltip: { trigger: 'axis' as const },
-    grid: { left: 50, right: 20, top: 10, bottom: 30 },
-    xAxis: {
-      type: 'category' as const,
-      data: rectByLevel.map((r: any) =>
-        r.level === 'green' ? '绿色' : r.level === 'yellow' ? '黄色' : r.level === 'orange' ? '橙色' : r.level === 'red' ? '红色' : r.level,
-      ),
-      axisLabel: { fontSize: 11 },
-    },
-    yAxis: { type: 'value' as const, axisLabel: { fontSize: 10 } },
-    series: [{
-      type: 'bar' as const,
-      data: rectByLevel.map((r: any) => ({
-        value: r.count,
-        itemStyle: {
-          color: ALERT_COLORS[r.level] || '#d9d9d9',
-          borderRadius: [4, 4, 0, 0],
-        },
-      })),
-      barMaxWidth: 40,
-    }],
-  }
-
-  // 甘特图配置（整改截止日期）
-  const ganttOption = {
-    tooltip: {
-      trigger: 'axis' as const,
-      axisPointer: { type: 'shadow' as const },
-      formatter: (params: any) => {
-        const d = params[0]
-        return `${d.name}<br/>截止: ${d.value}天`
-      },
-    },
-    grid: { left: 120, right: 30, top: 10, bottom: 30 },
-    xAxis: {
-      type: 'value' as const,
-      name: '剩余天数',
-      axisLabel: { fontSize: 10 },
-      max: (val: any) => Math.max(val.max, 1),
-    },
-    yAxis: {
-      type: 'category' as const,
-      data: deadlines.slice(0, 6).map((d: any) =>
-        d.title.length > 12 ? d.title.substring(0, 12) + '...' : d.title,
-      ),
-      axisLabel: { fontSize: 11 },
-    },
-    series: [{
-      type: 'bar' as const,
-      data: deadlines.slice(0, 6).map((d: any) => {
-        const days = Math.max(0, Math.ceil((new Date(d.deadline).getTime() - Date.now()) / 86400000))
-        const color = days <= 3 ? '#ff4d4f' : days <= 7 ? '#fa8c16' : days <= 14 ? '#faad14' : '#52c41a'
-        return { value: days, itemStyle: { color, borderRadius: [0, 4, 4, 0] } }
-      }),
-      barMaxWidth: 20,
-      label: { show: true, position: 'right', fontSize: 10, formatter: (p: any) => `${p.value}天` },
-    }],
-  }
-
-  // 整改趋势折线图配置
-  const trendOption = {
-    tooltip: { trigger: 'axis' as const },
-    legend: {
-      data: ['已完成', '已提交', '已驳回'],
-      bottom: 0,
-    },
-    grid: { left: 40, right: 20, top: 10, bottom: 50 },
-    xAxis: {
-      type: 'category' as const,
-      data: rectificationTrend.map((t: any) => t.month),
-      axisLabel: { fontSize: 11 },
-    },
-    yAxis: { type: 'value' as const, minInterval: 1, axisLabel: { fontSize: 11 } },
-    series: [
-      {
-        name: '已完成',
-        type: 'line',
-        itemStyle: { color: '#52c41a' },
-        data: rectificationTrend.map((t: any) => t.completed),
-        smooth: true,
-      },
-      {
-        name: '已提交',
-        type: 'line',
-        itemStyle: { color: '#1677ff' },
-        data: rectificationTrend.map((t: any) => t.submitted),
-        smooth: true,
-      },
-      {
-        name: '已驳回',
-        type: 'line',
-        itemStyle: { color: '#ff4d4f' },
-        data: rectificationTrend.map((t: any) => t.rejected),
-        smooth: true,
-      },
-    ],
-  }
-
   return (
     <div style={{ padding: 0 }}>
       {/* 欢迎语区域 */}
@@ -363,7 +206,6 @@ export default function Dashboard() {
 
       {/* 预警指示器 + 整改状态环形图 + 预警级别分布 */}
       <Row gutter={16} style={{ marginBottom: 24 }}>
-        {/* 预警指示器 */}
         <Col xs={24} md={6}>
           <Card className="panel-card" title={
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -371,7 +213,6 @@ export default function Dashboard() {
               预警指示器
             </span>
           }>
-            {/* 超期 */}
             <div style={{ marginBottom: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                 <span style={{ fontSize: 13, color: '#333' }}>超期整改</span>
@@ -386,7 +227,6 @@ export default function Dashboard() {
                 size="small"
               />
             </div>
-            {/* 待处理 */}
             <div style={{ marginBottom: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                 <span style={{ fontSize: 13, color: '#333' }}>待处理整改</span>
@@ -399,7 +239,6 @@ export default function Dashboard() {
                 size="small"
               />
             </div>
-            {/* 今日到期 */}
             <div style={{ marginBottom: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                 <span style={{ fontSize: 13, color: '#333' }}>整改完成率</span>
@@ -414,27 +253,17 @@ export default function Dashboard() {
                 size="small"
               />
             </div>
-            {/* 快捷操作 */}
             <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <Tag
-                color="red"
-                style={{ cursor: 'pointer' }}
-                onClick={() => navigate('/execution/rectifications')}
-              >
+              <Tag color="red" style={{ cursor: 'pointer' }} onClick={() => navigate('/execution/rectifications')}>
                 <WarningOutlined /> 整改督办
               </Tag>
-              <Tag
-                color="purple"
-                style={{ cursor: 'pointer' }}
-                onClick={() => navigate('/execution/rectifications/kanban')}
-              >
+              <Tag color="purple" style={{ cursor: 'pointer' }} onClick={() => navigate('/execution/rectifications/kanban')}>
                 整改看板
               </Tag>
             </div>
           </Card>
         </Col>
 
-        {/* 整改状态环形图 */}
         <Col xs={24} md={9}>
           <Card className="panel-card" title={
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -447,14 +276,13 @@ export default function Dashboard() {
             </Link>
           }>
             {rectByStatus.length > 0 ? (
-              <ReactECharts option={donutOption} style={{ height: 220 }} opts={{ renderer: 'canvas' }} />
+              <ReactECharts option={buildDonutOption(rectByStatus)} style={{ height: 220 }} opts={{ renderer: 'canvas' }} />
             ) : (
               <Alert message="暂无整改数据" type="info" showIcon />
             )}
           </Card>
         </Col>
 
-        {/* 预警级别分布 */}
         <Col xs={24} md={9}>
           <Card className="panel-card" title={
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -463,7 +291,7 @@ export default function Dashboard() {
             </span>
           }>
             {rectByLevel.length > 0 ? (
-              <ReactECharts option={alertBarOption} style={{ height: 220 }} opts={{ renderer: 'canvas' }} />
+              <ReactECharts option={buildAlertBarOption(rectByLevel)} style={{ height: 220 }} opts={{ renderer: 'canvas' }} />
             ) : (
               <Alert message="暂无预警数据" type="info" showIcon />
             )}
@@ -533,7 +361,6 @@ export default function Dashboard() {
 
       {/* 整改甘特图 + 问题类型排行 */}
       <Row gutter={16} style={{ marginBottom: 24 }}>
-        {/* 整改甘特图 */}
         <Col xs={24} md={12}>
           <Card className="panel-card" title={
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -542,14 +369,13 @@ export default function Dashboard() {
             </span>
           }>
             {deadlines.length > 0 ? (
-              <ReactECharts option={ganttOption} style={{ height: 220 }} opts={{ renderer: 'canvas' }} />
+              <ReactECharts option={buildGanttOption(deadlines)} style={{ height: 220 }} opts={{ renderer: 'canvas' }} />
             ) : (
               <Alert message="暂无截止日期数据" type="info" showIcon />
             )}
           </Card>
         </Col>
 
-        {/* 问题类型排行 */}
         <Col xs={24} md={12}>
           <Card className="panel-card" title={
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -582,7 +408,6 @@ export default function Dashboard() {
 
       {/* 单位排名 + 整改趋势 */}
       <Row gutter={16} style={{ marginBottom: 24 }}>
-        {/* 单位排名 */}
         <Col xs={24} md={12}>
           <Card className="panel-card" title={
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -618,7 +443,6 @@ export default function Dashboard() {
           </Card>
         </Col>
 
-        {/* 整改趋势 */}
         <Col xs={24} md={12}>
           <Card className="panel-card" title={
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -627,7 +451,7 @@ export default function Dashboard() {
             </span>
           }>
             {rectificationTrend.length > 0 ? (
-              <ReactECharts option={trendOption} style={{ height: 260 }} opts={{ renderer: 'canvas' }} />
+              <ReactECharts option={buildTrendOption(rectificationTrend)} style={{ height: 260 }} opts={{ renderer: 'canvas' }} />
             ) : (
               <Alert message="暂无整改趋势数据" type="info" showIcon />
             )}
@@ -647,49 +471,19 @@ export default function Dashboard() {
               </span>
             }
             extra={
-              <Select
+              <select
                 value={statsYear}
-                onChange={setStatsYear}
+                onChange={(e) => setStatsYear(Number(e.target.value))}
                 style={{ width: 120 }}
-                options={[
-                  { value: new Date().getFullYear(), label: String(new Date().getFullYear()) },
-                  { value: new Date().getFullYear() - 1, label: String(new Date().getFullYear() - 1) },
-                  { value: new Date().getFullYear() - 2, label: String(new Date().getFullYear() - 2) },
-                ]}
-              />
+              >
+                <option value={new Date().getFullYear()}>{new Date().getFullYear()}年</option>
+                <option value={new Date().getFullYear() - 1}>{new Date().getFullYear() - 1}年</option>
+                <option value={new Date().getFullYear() - 2}>{new Date().getFullYear() - 2}年</option>
+              </select>
             }
           >
             <ReactECharts
-              option={{
-                tooltip: { trigger: 'axis' },
-                legend: {
-                  data: ['巡察计划', '巡察组'],
-                  bottom: 0,
-                },
-                grid: { left: 40, right: 20, top: 20, bottom: 50 },
-                xAxis: {
-                  type: 'category',
-                  data: ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
-                  axisLabel: { fontSize: 11 },
-                },
-                yAxis: { type: 'value', minInterval: 1, axisLabel: { fontSize: 11 } },
-                series: [
-                  {
-                    name: '巡察计划',
-                    type: 'bar',
-                    itemStyle: { color: '#C80000', borderRadius: [4, 4, 0, 0] },
-                    barMaxWidth: 36,
-                    data: yearlyStats?.plan_counts || Array(12).fill(0),
-                  },
-                  {
-                    name: '巡察组',
-                    type: 'bar',
-                    itemStyle: { color: '#1677FF', borderRadius: [4, 4, 0, 0] },
-                    barMaxWidth: 36,
-                    data: yearlyStats?.group_counts || Array(12).fill(0),
-                  },
-                ],
-              }}
+              option={buildYearlyBarOption(yearlyStats)}
               style={{ height: 280 }}
               opts={{ renderer: 'canvas' }}
             />

@@ -1,6 +1,30 @@
 import type { ApiError, ValidationError } from '@/types/api';
 
 /**
+ * Notification interface — allows swapping the underlying notification
+ * implementation (antd message, notification, custom toast, etc.).
+ */
+export interface NotificationService {
+  error(content: string): void;
+  success(content: string): void;
+  warning(content: string): void;
+  info(content: string): void;
+}
+
+/** Default: antd message */
+let _notifier: NotificationService = {
+  error: (content) => import('antd').then(({ message }) => message.error(content)),
+  success: (content) => import('antd').then(({ message }) => message.success(content)),
+  warning: (content) => import('antd').then(({ message }) => message.warning(content)),
+  info: (content) => import('antd').then(({ message }) => message.info(content)),
+}
+
+/** Override notifier for testing or custom UI */
+export function setNotificationService(ns: NotificationService): void {
+  _notifier = ns
+}
+
+/**
  * Extract human-readable error message from Axios error response.
  * FastAPI/Pydantic validation errors (422) have detail as an array.
  */
@@ -30,13 +54,14 @@ export function getErrorMessage(error: unknown): string {
 }
 
 /**
- * Show error message from Axios error safely.
- * NOTE: Toast is now handled by the client interceptor — use this only
+ * Show error notification.
+ * NOTE: Automatic toast is handled by the client interceptor — use this only
  * when you need to suppress the automatic toast (e.g., background requests).
  */
 export function showError(error: unknown, fallback?: string): void {
-  // Dynamically import antd to avoid coupling at module level
-  import('antd').then(({ message }) => {
-    message.error(getErrorMessage(error) || fallback || '请求失败');
-  });
+  _notifier.error(getErrorMessage(error) || fallback || '请求失败');
+}
+
+export function showSuccess(message: string): void {
+  _notifier.success(message);
 }

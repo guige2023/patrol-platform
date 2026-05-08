@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 limiter = Limiter(key_func=get_remote_address)
@@ -32,7 +32,7 @@ router = APIRouter()
 
 @router.post("/login", response_model=LoginResponse)
 @limiter.limit("5/minute")
-async def login(request: Request, login_request: LoginRequest, uow: UnitOfWork = Depends(get_uow)):
+async def login(request: Request, login_request: LoginRequest, response: Response, uow: UnitOfWork = Depends(get_uow)):
     result = await uow.execute(
         select(User).where(User.username == login_request.username).options(selectinload(User.roles))
     )
@@ -42,6 +42,17 @@ async def login(request: Request, login_request: LoginRequest, uow: UnitOfWork =
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is inactive")
     access_token = create_access_token(data={"sub": str(user.id)})
+
+    # Set httpOnly cookie for XSS protection (token no longer stored in localStorage)
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=False,  # True in production with HTTPS
+        samesite="lax",
+        max_age=3600,  # 1 hour
+    )
+
     return LoginResponse(
         access_token=access_token,
         user=UserInfo(

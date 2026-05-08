@@ -33,7 +33,9 @@ class User(Base):
     phone = Column(String(32))
     id_card_encrypted = Column(String(512))  # Encrypted ID card number
     is_active = Column(Boolean, default=True)
-    role = Column(String(64), default="操作员")  # Simple role field (not using RBAC relation)
+    # Deprecated: use roles relationship instead. Kept for backward compat only.
+    # TODO: remove after data migration (populate user_roles table for all users)
+    role = Column(String(64), default="操作员")
     unit_id = Column(Guid, ForeignKey("units.id", ondelete="SET NULL"))
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)

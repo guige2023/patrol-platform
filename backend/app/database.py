@@ -75,13 +75,26 @@ class _LazyProxy:
 
 
 class _LazySessionLocalProxy:
-    """Proxy that lazily creates AsyncSessionLocal on first attribute access."""
+    """
+    Proxy that lazily creates AsyncSessionLocal on first attribute access.
+
+    Lifecycle: singleton created on first access, persists for app lifetime.
+    For test isolation, call reset_for_testing() between test runs.
+    """
     _instance = None
 
     def __getattr__(self, name):
         if _LazySessionLocalProxy._instance is None:
             _LazySessionLocalProxy._instance = _get_async_session_local()
         return getattr(_LazySessionLocalProxy._instance, name)
+
+
+def reset_for_testing() -> None:
+    """Reset lazy singletons between test runs to avoid state pollution."""
+    global _engine, _async_session_local
+    _engine = None
+    _async_session_local = None
+    _LazySessionLocalProxy._instance = None
 
 
 engine = _LazyProxy()  # type: ignore

@@ -1,5 +1,5 @@
-from typing import Annotated, Callable
-from fastapi import Depends, HTTPException, status
+from typing import Annotated, Callable, Optional
+from fastapi import Depends, HTTPException, status, Request, Cookie
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -9,14 +9,21 @@ from app.core.security import verify_token
 from app.models.user import User, Role
 from functools import wraps
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
-    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
+    credentials: Annotated[Optional[HTTPAuthorizationCredentials], Depends(security)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    request: Request,
 ) -> User:
-    token = credentials.credentials
+    # Try Authorization header first, then fall back to httpOnly cookie
+    token: Optional[str] = None
+    if credentials and credentials.credentials:
+        token = credentials.credentials
+    else:
+        # Fallback: read from httpOnly cookie set by login
+        token = request.cookies.get("access_token")
     payload = verify_token(token)
     if payload is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
@@ -40,33 +47,46 @@ async def _check_user_permissions(
     db: AsyncSession,
     required_permissions: tuple,
 ) -> User:
-    """Shared permission check logic used by both require_permission and check_permission."""
+    """
+    Shared permission check logic used by both require_permission and check_permission.
+
+    Uses in-memory user.roles (pre-loaded by get_current_user via selectinload) to avoid N+1.
+    Falls back to legacy user.role string field only when user.roles is empty (backward compat).
+    """
     if user is None:
         raise HTTPException(status_code=401, detail="未认证")
 
-    role_code = getattr(user, 'role', None)
+    # Build permission set from pre-loaded user.roles relationship (no extra DB query)
+    permissions: set = set()
+    is_super_admin = False
+    has_roles = False
 
-    if not role_code and hasattr(user, 'roles') and user.roles:
-        role_code = getattr(user.roles[0], 'code', None)
+    if hasattr(user, 'roles') and user.roles:
+        has_roles = True
+        for role in user.roles:
+            role_perms = role.permissions or []
+            if '*' in role_perms or role.code == 'super_admin':
+                is_super_admin = True
+                break
+            permissions.update(role_perms)
 
-    if not role_code:
-        raise HTTPException(status_code=403, detail="用户没有角色")
+    # Backward compat: if no roles loaded, fall back to legacy user.role string field
+    if not has_roles:
+        role_code = getattr(user, 'role', None)
+        if not role_code:
+            raise HTTPException(status_code=403, detail="用户没有角色")
+        if role_code == 'super_admin' or role_code == '*':
+            return user
+        role_result = await db.execute(
+            select(Role).where((Role.name == role_code) | (Role.code == role_code))
+        )
+        role = role_result.scalar_one_or_none()
+        if not role:
+            raise HTTPException(status_code=403, detail=f"角色{role_code}不存在")
+        permissions = set(role.permissions or [])
+        is_super_admin = role.code == 'super_admin' or '*' in (role.permissions or [])
 
-    if role_code == 'super_admin' or role_code == '*':
-        return user
-
-    # user.role 存的是 Role.name，fallback 也尝试 Role.code
-    role_result = await db.execute(
-        select(Role).where((Role.name == role_code) | (Role.code == role_code))
-    )
-    role = role_result.scalar_one_or_none()
-
-    if not role:
-        raise HTTPException(status_code=403, detail=f"角色{role_code}不存在")
-
-    permissions = role.permissions or []
-
-    if '*' in permissions or role.code == 'super_admin':
+    if is_super_admin or '*' in permissions:
         return user
 
     for required in required_permissions:

@@ -76,6 +76,12 @@ class Settings(BaseSettings):
                     f"SECURITY WARNING: {field} is set to a known-weak default value. "
                     f"Please set a strong value in your .env file before running in production."
                 )
+        # MEILISEARCH_KEY: only validate when not using localhost (localhost dev is fine without key)
+        if self.MEILISEARCH_KEY == "" and not self.MEILISEARCH_URL.startswith("http://localhost") and not self.MEILISEARCH_URL.startswith("http://127.0.0.1"):
+            raise ValueError(
+                "MEILISEARCH_KEY is empty but MEILISEARCH_URL is not localhost. "
+                "Set MEILISEARCH_KEY in your .env file for non-localhost MeiliSearch instances."
+            )
 
     @property
     def cors_origin_list(self) -> list[str]:

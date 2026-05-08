@@ -3,6 +3,7 @@ import axios, { AxiosError } from 'axios';
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
   timeout: Number(import.meta.env.VITE_API_TIMEOUT) || 30000,
+  withCredentials: true,  // Send httpOnly cookies to backend for XSS protection
 });
 
 api.interceptors.request.use((config) => {

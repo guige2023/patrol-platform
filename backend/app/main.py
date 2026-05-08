@@ -63,17 +63,20 @@ if settings.SERVE_UPLOADS:
     uploads_files = StaticFiles(directory=settings.upload_path)
 
     @app.get("/uploads/{path:path}")
-    async def serve_upload(path: str, authorization: Optional[str] = Header(None)):
-        """Serve uploaded files only with a valid Bearer token."""
-        if not authorization or not authorization.startswith("Bearer "):
-            raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
-        token = authorization[7:]
-        if not verify_token(token):
-            raise HTTPException(status_code=401, detail="Invalid or expired token")
+    async def serve_upload(request: Request, path: str, authorization: Optional[str] = Header(None)):
+        """Serve uploaded files with valid Bearer token OR httpOnly cookie."""
+        # Try Authorization header first, then fall back to httpOnly cookie
+        token: Optional[str] = None
+        if authorization and authorization.startswith("Bearer "):
+            token = authorization[7:]
+        else:
+            token = request.cookies.get("access_token")
+        if not token or not verify_token(token):
+            raise HTTPException(status_code=401, detail="Missing or invalid authorization")
         # Delegate to StaticFiles — need request object for proper handling
-        request = Request(scope={"type": "http", "method": "GET", "path": f"/uploads/{path}",
+        static_request = Request(scope={"type": "http", "method": "GET", "path": f"/uploads/{path}",
                                "headers": [], "root_path": ""})
-        return await uploads_files.get_response(path, request)
+        return await uploads_files.get_response(path, static_request)
 
 frontend_dist = settings.runtime_path.parent / "frontend" / "dist"
 

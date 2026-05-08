@@ -20,6 +20,17 @@ from app.core.audit import write_audit_log
 router = APIRouter()
 
 
+async def _validate_role_permissions(uow: UnitOfWork, permissions: list) -> None:
+    """Validate that all permission codes in the list exist in the Permission table."""
+    if not permissions:
+        return
+    result = await uow.execute(select(Permission.code))
+    valid_codes = {row[0] for row in result.all()}
+    invalid = [code for code in permissions if code not in valid_codes]
+    if invalid:
+        raise HTTPException(status_code=400, detail=f"无效的权限代码: {invalid}")
+
+
 @router.get("/users")
 async def list_users(
     uow: UnitOfWork = Depends(get_uow),
@@ -329,6 +340,7 @@ async def create_role(
     existing = await uow.execute(select(Role).where(Role.code == code))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Role code already exists")
+    await _validate_role_permissions(uow, data.get("permissions", []))
     role = Role(
         name=name,
         code=code,
@@ -360,6 +372,7 @@ async def update_role(
     if "description" in data:
         role.description = data["description"]
     if "permissions" in data:
+        await _validate_role_permissions(uow, data["permissions"])
         role.permissions = data["permissions"]
     if "is_active" in data:
         role.is_active = data["is_active"]
