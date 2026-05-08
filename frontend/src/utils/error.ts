@@ -1,4 +1,3 @@
-import { message } from 'antd';
 import type { ApiError, ValidationError } from '@/types/api';
 
 /**
@@ -6,12 +5,15 @@ import type { ApiError, ValidationError } from '@/types/api';
  * FastAPI/Pydantic validation errors (422) have detail as an array.
  */
 export function getErrorMessage(error: unknown): string {
-  if (!(error instanceof Error)) return '请求失败';
-  
-  // Try to extract from response data
+  // Handle axios error with friendlyMessage (set by client interceptor)
+  const withFriendly = error as Error & { friendlyMessage?: string };
+  if (withFriendly.friendlyMessage) {
+    return withFriendly.friendlyMessage;
+  }
+
   const err = error as Error & { response?: { data?: ApiError } };
   const raw = err.response?.data?.detail;
-  
+
   if (typeof raw === 'string') return raw;
   if (Array.isArray(raw)) {
     return (raw as ValidationError[]).map((e) => {
@@ -24,12 +26,17 @@ export function getErrorMessage(error: unknown): string {
     const obj = raw as { msg?: string };
     return obj.msg || JSON.stringify(raw);
   }
-  return error.message || '请求失败';
+  return err.message || '请求失败';
 }
 
 /**
- * Show error message from Axios error safely (handles array details).
+ * Show error message from Axios error safely.
+ * NOTE: Toast is now handled by the client interceptor — use this only
+ * when you need to suppress the automatic toast (e.g., background requests).
  */
 export function showError(error: unknown, fallback?: string): void {
-  message.error(getErrorMessage(error) || fallback || '请求失败');
+  // Dynamically import antd to avoid coupling at module level
+  import('antd').then(({ message }) => {
+    message.error(getErrorMessage(error) || fallback || '请求失败');
+  });
 }

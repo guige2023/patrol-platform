@@ -1,8 +1,8 @@
 import axios, { AxiosError } from 'axios';
 
 const api = axios.create({
-  baseURL: '/api/v1',
-  timeout: 30000,
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
+  timeout: Number(import.meta.env.VITE_API_TIMEOUT) || 30000,
 });
 
 api.interceptors.request.use((config) => {
@@ -22,24 +22,17 @@ export const resetSupressErrorToast = () => { suppressErrorCount = 0; };
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  (error: unknown) => {
     const axiosError = error as AxiosError;
     const status = axiosError.response?.status;
-    const detail = (axiosError.response?.data as any)?.detail;
 
-    // Auth errors: clear token
-    if (status === 401) {
-      const detailStr = typeof detail === 'string' ? detail : '';
-      if (
-        detailStr === 'Invalid token' ||
-        detailStr.includes('token') ||
-        detailStr.includes('expired')
-      ) {
-        localStorage.removeItem('token');
-      }
+    // Auth errors: clear token on 401/403
+    if (status === 401 || status === 403) {
+      localStorage.removeItem('token');
     }
 
-    // Format error message (but don't toast here — let caller handle it)
+    // Format error message
+    const detail = (axiosError.response?.data as any)?.detail;
     let msg = '请求失败';
     if (typeof detail === 'string') {
       msg = detail;
@@ -54,19 +47,18 @@ api.interceptors.response.use(
     }
 
     // Attach formatted message to error for callers to handle
-    (error as any).friendlyMessage = msg;
+    (axiosError as any).friendlyMessage = msg;
 
     // Only show toast if not suppressed
     if (suppressErrorCount > 0) {
       suppressErrorCount--;
     } else {
-      // Dynamically import antd to avoid circular deps at module init
       import('antd').then(({ message }) => {
         message.error(msg);
       });
     }
 
-    return Promise.reject(error);
+    return Promise.reject(axiosError);
   }
 );
 

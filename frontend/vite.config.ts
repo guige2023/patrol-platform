@@ -26,33 +26,25 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          // Core React vendor chunk
-          if (id.includes('node_modules/react/') || 
-              id.includes('node_modules/react-dom/') || 
-              id.includes('node_modules/react-router-dom/')) {
+          if (!id.includes('node_modules')) return
+          // Core React vendor chunk — match any react/* or react-router-dom
+          if (/\bnode_modules\/react(-dom)?\//.test(id) || /\bnode_modules\/react-router(-dom)?\//.test(id)) {
             return 'vendor-react'
           }
           // Ant Design UI framework
-          if (id.includes('node_modules/antd/') || 
-              id.includes('node_modules/@ant-design/') ||
-              id.includes('node_modules/dayjs/')) {
+          if (/\bnode_modules\/(antd|@ant-design|dayjs)\//.test(id)) {
             return 'vendor-antd'
           }
           // ECharts for charts/visualizations
-          if (id.includes('node_modules/echarts/') || 
-              id.includes('node_modules/echarts-for-react/')) {
+          if (/\bnode_modules\/echarts(-for-react)?\//.test(id)) {
             return 'vendor-echarts'
           }
           // Rich text editor (TinyMCE)
-          if (id.includes('node_modules/@tinymce/')) {
+          if (/\bnode_modules\/@tinymce\//.test(id)) {
             return 'vendor-editor'
           }
-          // State management and utilities (avoiding axios to prevent circular)
-          if (id.includes('node_modules/zustand/') || 
-              id.includes('node_modules/@tanstack/') ||
-              id.includes('node_modules/lodash-es/') ||
-              id.includes('node_modules/react-use/') ||
-              id.includes('node_modules/sonner/')) {
+          // State management and utilities
+          if (/\bnode_modules\/(zustand|@tanstack|lodash-es|react-use|sonner)\//.test(id)) {
             return 'vendor-utils'
           }
         },

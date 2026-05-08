@@ -1,10 +1,16 @@
-version: '3.8'
-
 services:
   backend:
     build: ./backend
     ports:
       - "8000:8000"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:${PATROL_DB_PASSWORD}@db:5432/patrol
       - SYNC_DATABASE_URL=postgresql://postgres:${PATROL_DB_PASSWORD}@db:5432/patrol
@@ -48,6 +54,14 @@ services:
       - POSTGRES_PASSWORD=${PATROL_DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s

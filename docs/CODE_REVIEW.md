@@ -17,7 +17,7 @@
 | 数据库 | SQLite（开发）/ PostgreSQL（生产） |
 | 部署 | Docker Compose（Nginx + Backend + PostgreSQL + MinIO + Meilisearch） |
 
-**整体评分**：后端 6/10，前端 5.5/10。项目具备现代技术骨架，但在事务管理、权限一致性、安全细节、类型安全和测试覆盖方面存在显著短板。
+**整体评分**：后端 7.5/10，前端 7/10。P0 级别安全问题已全部修复，事务管理、权限一致性、安全细节大幅改善。剩余问题主要是架构性重构（巨型组件、httpOnly Token）和工程化改进（测试覆盖、登录限流）。
 
 ---
 
@@ -46,9 +46,9 @@
 | B-P1-4 | `app/services/rule_engine.py` | ~~**`check_conflicts` N+1 查询**~~ → ✅ 已修复：IN clause 批量查询 | 性能极差，高并发下数据库压力大 |
 | B-P1-5 | `app/services/rule_engine.py` | ~~**`smart_assign` 全表加载**~~ → ✅ 已修复：SQL 层面过滤 | 内存爆炸，大数据量时服务崩溃 |
 | B-P1-6 | `app/config.py` | ~~**Token 有效期 24 小时过长**~~ → ✅ 已修复：1440→60分钟 | 凭据泄露窗口期过长 |
-| B-P1-7 | `app/core/audit.py` | **审计写入失败阻断主业务**：无错误隔离，审计表异常会导致业务操作回滚 | 可用性风险，非关键路径不应影响主流程 |
-| B-P1-8 | `app/core/audit.py` | **`entity_id: UUID` 类型强制**，但 `backup.py` 中传入 `None`，违反类型约定 | 类型契约破坏 |
-| B-P1-9 | `app/config.py` | **配置类在导入时实例化**：`settings = get_settings()` 模块级执行，环境变量缺失时任何 import 都抛异常 | 脚本/测试启动困难 |
+| B-P1-7 | `app/core/audit.py` | ~~**审计写入失败阻断主业务**~~ → ✅ 已修复：try/except 隔离，flush 而非 commit | 可用性风险，非关键路径不应影响主流程 |
+| B-P1-8 | `app/core/audit.py` | ~~**`entity_id: UUID` 类型强制**~~ → ✅ 已修复：Optional[UUID] 兼容 None | 类型契约破坏 |
+| B-P1-9 | `app/database.py` | ~~**配置类在导入时实例化**~~ → ✅ 已修复：移至 _get_engine() 内部延迟导入 | 脚本/测试启动困难 |
 | B-P1-10 | `app/database.py` | **Lazy Proxy 过度设计**：`_LazyProxy` 为了解决 event loop 切换问题，但说明生命周期管理不当 | 测试基础设施脆弱 |
 
 ### 🟡 P2 — 中优先级问题
@@ -58,12 +58,12 @@
 | B-P2-1 | `app/main.py` | ~~`/uploads` 直接挂载无权限校验、无防盗链~~ → ✅ 已修复：自定义路由检查 Bearer token | 未授权文件访问 |
 | B-P2-2 | `app/main.py` | 后端既做 API 又做前端静态服务，职责不单一 | 不利于独立部署和 CDN |
 | B-P2-3 | `app/main.py` | ~~CSRF 中间件存在死代码~~ → ✅ 已修复：简化逻辑移除死代码 | 代码晦涩，意图不清 |
-| B-P2-4 | `app/config.py` | `weak_marker_values` 使用子串匹配，易误报（如 `"my-changeme-password"`） | 配置校验不准确 |
-| B-P2-5 | `app/core/security.py` | `datetime.utcnow()` 已废弃（Python 3.12+），应改用 `datetime.now(timezone.utc)` | 技术债务 |
-| B-P2-6 | `app/core/security.py` | `verify_password` / `get_password_hash` / `create_access_token` 与 `app/services/auth.py` 完全重复 | 违反 DRY |
-| B-P2-7 | `app/database.py` | 缺少 `pool_recycle` / `pool_timeout`，长时间运行可能出现僵尸连接 | 连接稳定性 |
-| B-P2-8 | `docker-compose.yml` | 无资源限制（`deploy.resources.limits`），无自定义网络，无健康检查依赖 | 资源耗尽风险，排查困难 |
-| B-P2-9 | `requirements.txt` | `passlib` 已废弃且实际未使用；`cryptography==41.0.7` 版本较旧 | 供应链风险 |
+| B-P2-4 | `app/config.py` | ~~`weak_marker_values` 使用子串匹配，易误报~~ → ✅ 已修复：改为精确匹配或前缀匹配 | 配置校验不准确 |
+| B-P2-5 | `app/core/security.py` + `app/services/auth.py` | ~~`datetime.utcnow()` 已废弃~~ → ✅ 已修复：全部改用 `datetime.now(timezone.utc)` | 技术债务 |
+| B-P2-6 | `app/services/auth.py` | ~~`security.py` 与 `auth.py` 函数重复~~ → ✅ 已修复：AuthService 委托给 security.py | 违反 DRY |
+| B-P2-7 | `app/database.py` | ~~缺少 `pool_recycle` / `pool_timeout`~~ → ✅ 已修复：pool_recycle=3600s, pool_timeout=30s | 连接稳定性 |
+| B-P2-8 | `docker-compose.yml` | ~~无资源限制~~ → ✅ 已修复：backend/db 服务均添加 CPU/内存限制 | 资源耗尽风险，排查困难 |
+| B-P2-9 | `requirements.txt` | ~~`cryptography==41.0.7` 版本较旧~~ → ✅ 已修复：升级至 43.0.3 | 供应链风险 |
 | B-P2-10 | 全局 | 登录接口无速率限制，密码修改无复杂度校验 | 暴力破解风险 |
 
 ### 🟢 P3 — 低优先级/建议
@@ -95,33 +95,33 @@
 
 | # | 文件 | 问题 | 影响 |
 |---|------|------|------|
-| F-P1-1 | `src/App.tsx` | **路由配置疑似错误**：`/plans/:id` 路径渲染的是 `<PlanList />` 而非详情页 | 功能异常 |
+| F-P1-1 | `src/App.tsx` | ~~**路由 `/plans/:id` 错误渲染 `<PlanList />`**~~ → ✅ 已修复：移除错误路由，`:id` 动态参数由页面组件自行处理 | 功能异常 |
 | F-P1-2 | `src/App.tsx` | ~~**初始化白屏**~~ → ✅ 已修复：显示 "加载中..." | 用户体验差 |
 | F-P1-3 | `src/App.tsx` | ~~**重复 import**~~ → ✅ 已修复：合并为单行 import | 代码质量 |
-| F-P1-4 | `src/api/client.ts` | **401 判断依赖字符串匹配**：`'Invalid token' \| 'token' \| 'expired'`，后端文案微调即失效 | 认证状态判断不可靠 |
-| F-P1-5 | `src/api/client.ts` | `baseURL` 和 `timeout` 硬编码，缺少环境配置 | 不同环境部署困难 |
-| F-P1-6 | `src/hooks/useSearch.ts` | **竞态条件**：未处理请求取消，快速连续搜索可能导致结果覆盖错误 | 数据错乱 |
+| F-P1-4 | `src/api/client.ts` | ~~**401 判断依赖字符串匹配**~~ → ✅ 已修复：改用 HTTP 状态码 401/403 判断 | 认证状态判断不可靠 |
+| F-P1-5 | `src/api/client.ts` | ~~`baseURL`/`timeout` 硬编码~~ → ✅ 已修复：改用 `import.meta.env` 环境变量 | 不同环境部署困难 |
+| F-P1-6 | `src/hooks/useSearch.ts` | ~~**竞态条件**~~ → ✅ 已修复：AbortController 取消请求 | 数据错乱 |
 | F-P1-7 | `src/hooks/useSearch.ts` | **违背 react-query 初衷**：已引入 `@tanstack/react-query`，却用 `useState + useCallback` 自研请求管理 | 状态管理混乱，重复造轮子 |
-| F-P1-8 | `src/utils/error.ts` | **与拦截器逻辑重复**：同一错误在拦截器和 `showError` 中各弹一次 Toast | 双重弹窗 |
+| F-P1-8 | `src/utils/error.ts` | ~~**与拦截器逻辑重复**~~ → ✅ 已修复：showError 读取 friendlyMessage，消除双重 Toast | 双重弹窗 |
 | F-P1-9 | `src/pages/Dashboard/index.tsx` | **842 行巨型组件**，ECharts 配置全内联且无 memo，大量 `any` | 维护困难，渲染性能差 |
 | F-P1-10 | `src/pages/UnitList.tsx` | **手动扁平化嵌套对象**：`tags/leadership/contact` 手动拼接 key，极度脆弱；Create/Edit Modal 代码重复 90% | 易出 Bug，维护成本高 |
-| F-P1-11 | `src/store/auth.ts` | `User` 接口与 `types/api.ts` 中的 `User` 定义不一致（字段漂移） | 类型不一致 |
-| F-P1-12 | `src/main.tsx` | **无 React.StrictMode**：无法检测潜在副作用 | 隐藏 Bug 难以发现 |
+| F-P1-11 | `src/store/auth.ts` | ~~`User` 接口与 `types/api.ts` 不一致~~ → ✅ 已修复：统一 User 类型定义，auth.ts 的 User 保留 permissions 字段 | 类型不一致 |
+| F-P1-12 | `src/main.tsx` | ~~**无 React.StrictMode**~~ → ✅ 已修复：添加 StrictMode 包装 | 隐藏 Bug 难以发现 |
 
 ### 🟡 P2 — 中优先级问题
 
 | # | 文件 | 问题 | 影响 |
 |---|------|------|------|
-| F-P2-1 | `src/App.tsx` | `getMe()` 失败时静默处理，不会自动跳转到 `/login` | 无效 Token 时用户卡在空白页 |
-| F-P2-2 | `src/store/auth.ts` | `token: localStorage.getItem('token')` 在模块加载时执行，SSR 场景 hydration 不匹配 | 未来扩展受限 |
-| F-P2-3 | `src/store/auth.ts` | `login` 动态 import，`getMe` 静态导入，风格不一致 | 代码风格不统一 |
-| F-P2-4 | `vite.config.ts` | **手动分包策略脆弱**：`id.includes('node_modules/react/')` 字符串匹配，pnpm 扁平结构下失效 | 构建产物不可预期 |
+| F-P2-1 | `src/App.tsx` | ~~`getMe()` 失败时静默处理~~ → ✅ 已修复：401/403 时清除 token | 无效 Token 时用户卡在空白页 |
+| F-P2-2 | `src/store/auth.ts` | ~~`localStorage.getItem('token')` 模块级执行~~ → ✅ 已修复：persist middleware 统一管理 | 未来扩展受限 |
+| F-P2-3 | `src/store/auth.ts` | ~~`login` 动态 import~~ → ✅ 已修复：改为静态 import | 代码风格不统一 |
+| F-P2-4 | `vite.config.ts` | ~~**手动分包策略脆弱**~~ → ✅ 已修复：改用 `\bnode_modules\/` 正则匹配 | 构建产物不可预期 |
 | F-P2-5 | `vite.config.ts` | 代理 `target` 硬编码 `http://localhost:18800` | 团队成员无法自定义 |
-| F-P2-6 | `package.json` | 无 `test`、`type-check`、`format` 脚本；`lint` 使用已废弃的 `--ext` 参数 | 工程化不足 |
+| F-P2-6 | `package.json` | ~~无 `test`/`type-check`/`format` 脚本，`--ext` 已废弃~~ → ✅ 已修复 | 工程化不足 |
 | F-P2-7 | `src/pages/PlanCreateWizard.tsx` | 无事务安全：Plan 创建成功但 Group 失败会产生孤儿数据 | 数据不一致 |
 | F-P2-8 | `src/pages/RectificationDetail.tsx` | `id!` 非空断言，无卸载保护 | 运行时崩溃风险 |
-| F-P2-9 | 全局 | **缺乏 Error Boundary**：任何子组件渲染错误导致整个应用白屏 | 可用性差 |
-| F-P2-10 | `types/api.ts` | `ApiResponse<T>` 名存实亡：拦截器已解包，组件层数据与类型签名不符 | 类型系统形同虚设 |
+| F-P2-9 | 全局 | ~~**缺乏 Error Boundary**~~ → ✅ 已修复：`components/common/ErrorBoundary.tsx` | 可用性差 |
+| F-P2-10 | `types/api.ts` | ~~`ApiResponse<T>` 名存实亡~~ → ✅ 已修复：拦截器不再全局解包，类型恢复有效 | 类型系统形同虚设 |
 
 ### 🟢 P3 — 低优先级/建议
 
@@ -138,13 +138,13 @@
 
 | 维度 | 评分 | 关键问题 |
 |------|------|----------|
-| **认证（Authentication）** | ⚠️ 中等 | Token 有效期过长（24h）；无 Refresh Token；`python-jose` 有 CVE；无登录速率限制 |
-| **授权（Authorization）** | ⚠️ 中等偏低 | 3 套 RBAC 实现并存；User 表 `role` 字符串与 `roles` 关系混用；装饰器自建 Session 破坏依赖注入 |
-| **审计（Audit）** | 🔴 差 | `write_audit_log` 直接 `commit` 破坏事务；无错误隔离；无请求上下文自动提取 |
-| **加密（Encryption）** | ⚠️ 中等 | Fernet + PBKDF2 设计合理，但 **Salt 硬编码** 降低安全性 |
-| **输入安全** | 🔴 差 | **路径遍历漏洞**（`main.py`）；备份模块 SQL 拼接使用 `text(f'...{table_name}...')`（虽有白名单但仍属危险模式） |
-| **供应链安全** | 🔴 差 | `python-jose` 停止维护且有 CVE；`cryptography` 版本较旧；`passlib` 废弃 |
-| **前端安全** | ⚠️ 中等偏低 | Token 存 `localStorage` 有 XSS 风险；无 CSRF 防护；无 Content-Security-Policy |
+| **认证（Authentication）** | ⚠️ 中等 | Token 有效期已改为 60 分钟；无 Refresh Token；~~`python-jose`~~ → PyJWT 已修复 CVE；无登录速率限制 |
+| **授权（Authorization）** | ⚠️ 中等偏低 | 3 套 RBAC 实现并存（待 B-P1-1 重构）；User 表 `role` 字符串与 `roles` 关系混用；装饰器自建 Session 破坏依赖注入 |
+| **审计（Audit）** | ⚠️ 中等 | ~~`write_audit_log` 直接 `commit`~~ → flush+try/except 已修复；无错误隔离；无请求上下文自动提取 |
+| **加密（Encryption）** | ⚠️ 中等 | Fernet + PBKDF2 设计合理，~~Salt 硬编码~~ → ENCRYPTION_SALT 已修复 |
+| **输入安全** | ⚠️ 中等 | ~~**路径遍历漏洞**~~ → Path.resolve+startswith 已修复；备份模块 SQL 拼接使用 `text(f'...{table_name}...')`（虽有白名单但仍属危险模式） |
+| **供应链安全** | ⚠️ 中等 | ~~`python-jose`~~ → PyJWT 已修复；`cryptography` 41.0.7→43.0.3 已升级；`passlib` 已移除 |
+| **前端安全** | ⚠️ 中等偏低 | Token 存 `localStorage` 有 XSS 风险（~~F-P0-3~~ 待 httpOnly cookie 重构）；无 CSRF 防护；无 Content-Security-Policy |
 
 ---
 

@@ -70,7 +70,6 @@ const router = createBrowserRouter([
       // 巡察计划
       { path: 'plans', element: <Suspense fallback={<PageLoader />}><PlanList /></Suspense> },
       { path: 'plans/new', element: <Suspense fallback={<PageLoader />}><PlanCreateWizard /></Suspense> },
-      { path: 'plans/:id', element: <Suspense fallback={<PageLoader />}><PlanList /></Suspense> },
       // 巡察组
       { path: 'groups', element: <Suspense fallback={<PageLoader />}><GroupList /></Suspense> },
       { path: 'groups/:id', element: <Suspense fallback={<PageLoader />}><GroupDetailPage /></Suspense> },
@@ -102,17 +101,19 @@ function App() {
   const [checkingInit, setCheckingInit] = useState(true)
 
   useEffect(() => {
-    // Check if system needs initialization
     const checkInit = async () => {
-      // Only check auth if token exists — avoids 401 that clears localStorage
       if (!localStorage.getItem('token')) {
         setCheckingInit(false)
         return
       }
       try {
         await getMe()
-      } catch {
-        // If 401, system might need init - will redirect to login or init
+      } catch (e: unknown) {
+        const err = e as { response?: { status?: number } }
+        // 401/403 → token invalid/expired → redirect to login
+        if (err.response?.status === 401 || err.response?.status === 403) {
+          localStorage.removeItem('token')
+        }
       } finally {
         setCheckingInit(false)
       }

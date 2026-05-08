@@ -43,6 +43,7 @@ export interface User extends BaseEntity {
   full_name?: string;
   is_active?: boolean;
   role_ids?: string[];
+  permissions?: string[];  // 合并所有角色的权限
 }
 
 export interface Role {
@@ -139,11 +140,5 @@ export interface SearchParams {
   page_size?: number;
 }
 
-// Axios error type for catch blocks
-export interface AxiosError {
-  response?: {
-    status?: number;
-    data?: ApiError;
-  };
-  message?: string;
-}
+// Axios error type for catch blocks — re-export real axios AxiosError
+export type { AxiosError } from 'axios';

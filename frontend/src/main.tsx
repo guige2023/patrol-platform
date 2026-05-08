@@ -1,4 +1,5 @@
 import ReactDOM from 'react-dom/client'
+import { StrictMode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ConfigProvider, App as AntApp } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
@@ -21,15 +22,17 @@ const queryClient = new QueryClient({
 })
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <QueryClientProvider client={queryClient}>
-    <ConfigProvider locale={zhCN}>
-      <AntApp>
-        <ErrorBoundary>
-          <FieldOptionsProvider>
-            <App />
-          </FieldOptionsProvider>
-        </ErrorBoundary>
-      </AntApp>
-    </ConfigProvider>
-  </QueryClientProvider>
+  <StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <ConfigProvider locale={zhCN}>
+        <AntApp>
+          <ErrorBoundary>
+            <FieldOptionsProvider>
+              <App />
+            </FieldOptionsProvider>
+          </ErrorBoundary>
+        </AntApp>
+      </ConfigProvider>
+    </QueryClientProvider>
+  </StrictMode>
 )

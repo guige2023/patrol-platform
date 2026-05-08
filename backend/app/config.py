@@ -71,7 +71,7 @@ class Settings(BaseSettings):
                     f"Configuration error: {field} is not set. "
                     f"Set the {field} environment variable in your .env file."
                 )
-            if any(w in current for w in weak_values):
+            if any(current == w or current.startswith(f"{w}@") for w in weak_values):
                 raise ValueError(
                     f"SECURITY WARNING: {field} is set to a known-weak default value. "
                     f"Please set a strong value in your .env file before running in production."

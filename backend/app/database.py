@@ -1,7 +1,6 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import String, TypeDecorator
-from app.config import settings
 import os
 
 
@@ -41,12 +40,16 @@ _async_session_local = None
 def _get_engine():
     global _engine
     if _engine is None:
+        # Lazy import to avoid settings() being called at module import time
+        from app.config import settings
         _engine = create_async_engine(
             settings.DATABASE_URL,
             echo=False,
             pool_pre_ping=True,
             pool_size=int(os.environ.get("DB_POOL_SIZE", "20")),
             max_overflow=int(os.environ.get("DB_MAX_OVERFLOW", "30")),
+            pool_recycle=int(os.environ.get("DB_POOL_RECYCLE", "3600")),
+            pool_timeout=int(os.environ.get("DB_POOL_TIMEOUT", "30")),
         )
     return _engine
 
