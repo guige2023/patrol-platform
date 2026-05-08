@@ -1,9 +1,11 @@
-from fastapi import FastAPI, Request, Response
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, Request, Response, Header, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from typing import Optional
 from app.api.v1 import router as v1_router
 from app.config import settings
+from app.core.security import verify_token
 
 app = FastAPI(
     title="巡察工作管理平台",
@@ -39,14 +41,8 @@ async def csrf_protection(request: Request, call_next):
         referer = request.headers.get("referer")
         allowed_origins = {f"http://{h}" if not h.startswith("http") else h for h in settings.cors_origin_list}
         allowed_origins.add(settings.cors_origin_list[0] if settings.cors_origin_list else "")
-        # Allow requests with matching origin or referer, skip for same-origin API calls
-        if origin and origin not in allowed_origins and not (
-            referer and any(referer.startswith(allowed) for allowed in allowed_origins)
-        ):
-            # Same-origin API call (no origin header) is safe
-            if not origin:
-                pass
-            else:
+        if origin and origin not in allowed_origins:
+            if not (referer and any(referer.startswith(allowed) for allowed in allowed_origins)):
                 return JSONResponse(
                     status_code=403,
                     content={"detail": "CSRF protection: invalid origin"},
@@ -56,8 +52,23 @@ async def csrf_protection(request: Request, call_next):
 app.include_router(v1_router, prefix=settings.API_V1_PREFIX)
 
 settings.upload_path.joinpath("knowledge").mkdir(parents=True, exist_ok=True)
+
 if settings.SERVE_UPLOADS:
-    app.mount("/uploads", StaticFiles(directory=settings.upload_path), name="uploads")
+    # Authenticated file serving — replaces raw StaticFiles mount
+    uploads_files = StaticFiles(directory=settings.upload_path)
+
+    @app.get("/uploads/{path:path}")
+    async def serve_upload(path: str, authorization: Optional[str] = Header(None)):
+        """Serve uploaded files only with a valid Bearer token."""
+        if not authorization or not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
+        token = authorization[7:]
+        if not verify_token(token):
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+        # Delegate to StaticFiles — need request object for proper handling
+        request = Request(scope={"type": "http", "method": "GET", "path": f"/uploads/{path}",
+                               "headers": [], "root_path": ""})
+        return await uploads_files.get_response(path, request)
 
 frontend_dist = settings.runtime_path.parent / "frontend" / "dist"
 
@@ -80,8 +91,12 @@ async def serve_spa(full_path: str):
     if full_path.startswith("api/") or full_path.startswith("uploads/"):
         return JSONResponse(content={"error": "Not found", "path": full_path}, status_code=404)
 
-    # 尝试直接服务文件
-    file_path = frontend_dist / full_path
+    # 安全检查：防止路径遍历
+    frontend_dist_resolved = frontend_dist.resolve()
+    file_path = (frontend_dist / full_path).resolve()
+    if not str(file_path).startswith(str(frontend_dist_resolved)):
+        return JSONResponse(content={"error": "Forbidden"}, status_code=403)
+
     if file_path.exists() and file_path.is_file():
         return FileResponse(file_path)
 

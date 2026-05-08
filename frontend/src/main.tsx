@@ -5,6 +5,7 @@ import zhCN from 'antd/locale/zh_CN'
 import dayjs from 'dayjs'
 import 'dayjs/locale/zh-cn'
 import App from './App'
+import { ErrorBoundary } from './components/common/ErrorBoundary'
 import './index.css'
 import { FieldOptionsProvider } from './hooks/useFieldOptions'
 
@@ -23,9 +24,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <QueryClientProvider client={queryClient}>
     <ConfigProvider locale={zhCN}>
       <AntApp>
-        <FieldOptionsProvider>
-          <App />
-        </FieldOptionsProvider>
+        <ErrorBoundary>
+          <FieldOptionsProvider>
+            <App />
+          </FieldOptionsProvider>
+        </ErrorBoundary>
       </AntApp>
     </ConfigProvider>
   </QueryClientProvider>

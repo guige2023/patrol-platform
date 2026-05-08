@@ -257,13 +257,9 @@ async def restore_backup(
                 if not records:
                     continue
 
-                # Clear existing data and insert new
+                # Clear existing data — always use DELETE (TRUNCATE is DDL and cannot be rolled back in PostgreSQL)
                 try:
-                    dialect = uow.session.get_bind().dialect.name
-                    if dialect == "postgresql":
-                        await uow.execute(text(f'TRUNCATE TABLE "{table_name}" RESTART IDENTITY CASCADE'))
-                    else:
-                        await uow.execute(text(f'DELETE FROM "{table_name}"'))
+                    await uow.execute(text(f'DELETE FROM "{table_name}"'))
                 except Exception as exc:
                     raise HTTPException(status_code=500, detail=f"Failed to clear table {table_name}: {exc}")
 

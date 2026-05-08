@@ -3,6 +3,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.audit_log import AuditLog
 from uuid import UUID
 from typing import Optional, Dict, Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 async def write_audit_log(
@@ -15,16 +18,19 @@ async def write_audit_log(
     ip_address: Optional[str] = None,
     user_agent: Optional[str] = None,
 ):
-    """Write an audit log entry. This is the ONLY way to write audit logs."""
-    audit_log = AuditLog(
-        user_id=user_id,
-        action=action,
-        entity_type=entity_type,
-        entity_id=entity_id,
-        detail=detail or {},
-        ip_address=ip_address,
-        user_agent=user_agent,
-    )
-    db.add(audit_log)
-    await db.flush()
-    await db.commit()
+    """Write an audit log entry. Uses flush() only — caller controls the transaction."""
+    try:
+        audit_log = AuditLog(
+            user_id=user_id,
+            action=action,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            detail=detail or {},
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        db.add(audit_log)
+        await db.flush()
+    except Exception as exc:
+        # Non-critical: never block business logic
+        logger.error(f"Failed to write audit log: {exc}")

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { setAuthToken, clearAuthToken } from '@/api/client';
+import { clearAuthToken } from '@/api/client';
 import { getMe } from '@/api/auth';
 
 interface User {
@@ -43,8 +43,6 @@ export const useAuthStore = create<AuthState>()(
   login: async (username, password) => {
     const { login } = await import('@/api/auth');
     const res = await login(username, password);
-    setAuthToken(res.access_token);
-    localStorage.setItem('token', res.access_token);
     set({ user: res.user, token: res.access_token });
   },
 

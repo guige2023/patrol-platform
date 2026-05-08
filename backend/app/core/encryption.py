@@ -7,11 +7,12 @@ import base64
 
 
 def _get_cipher():
-    # Use PBKDF2 with 100,000 iterations instead of raw SHA256 for key derivation
+    # Salt from config — each deployment should set a unique ENCRYPTION_SALT
+    salt = getattr(settings, 'ENCRYPTION_SALT', 'patrol-platform-salt').encode()
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=32,
-        salt=b"patrol-platform-v1",  # Application-specific salt (change on key rotation)
+        salt=salt,
         iterations=100000,
         backend=default_backend(),
     )

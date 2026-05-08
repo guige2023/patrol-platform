@@ -1,8 +1,7 @@
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import MainLayout from './components/layout/MainLayout'
 import Login from './pages/Login'
-import { useEffect, useState } from 'react'
 import { getMe } from './api/auth'
 
 // Lazy-loaded page components for code splitting
@@ -122,7 +121,18 @@ function App() {
   }, [])
 
   if (checkingInit) {
-    return null
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        color: '#1890ff',
+        fontSize: 14,
+      }}>
+        加载中...
+      </div>
+    )
   }
 
   return <RouterProvider router={router} />
