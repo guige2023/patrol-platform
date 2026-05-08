@@ -17,7 +17,7 @@
 | 数据库 | SQLite（开发）/ PostgreSQL（生产） |
 | 部署 | Docker Compose（Nginx + Backend + PostgreSQL + MinIO + Meilisearch） |
 
-**整体评分**：后端 8/10，前端 7.5/10。P0/P1/P2 级别安全问题已全部修复（除 httpOnly Token 需架构调整）。登录限流、事务回滚、id! 非空断言均已处理。剩余问题主要是架构性重构（巨型组件、httpOnly Token、三套权限统一）。
+**整体评分**：后端 8.5/10，前端 8/10。**P0/P1/P2/P3 级别问题已全部修复**。httpOnly Cookie Token 已实现；三套权限已统一（in-memory roles + DB fallback）；巨型组件已拆分；登录限流、事务回滚、id! 非空断言均已处理。
 
 ---
 
@@ -40,9 +40,9 @@
 
 | # | 文件 | 问题 | 影响 |
 |---|------|------|------|
-| B-P1-1 | `app/dependencies.py` | **三套权限检查逻辑并存**：`dependencies.py` / `security.py` / `rbac.py` 实现不一致，混用 `user.role` 字符串和 `user.roles` 关系 | 维护噩梦，行为不可预期 |
+| B-P1-1 | `app/dependencies.py` | ~~**三套权限检查逻辑并存**~~ → ✅ 已修复：`_check_user_permissions` 统一使用 in-memory `user.roles`（selectinload预加载，无N+1）；`core/rbac.py` 已删除；兼容 legacy `user.role` 字段 fallback | 维护噩梦，行为不可预期 |
 | B-P1-2 | `app/dependencies.py` | ~~**已停用用户返回 401**~~ → ✅ 已修复：返回 403 | 用户体验差，状态判断错误 |
-| B-P1-3 | `app/core/rbac.py` | **N+1 / 隐式懒加载风险**：`current_user.roles` 直接遍历，若未 `selectinload` 预加载，可能阻塞事件循环 | 性能急剧下降，异步环境异常 |
+| B-P1-3 | `app/core/rbac.py` | ~~**N+1 / 隐式懒加载风险**~~ → ✅ 已修复：`core/rbac.py` 已删除（死代码），权限逻辑统一到 `_check_user_permissions` in-memory 路径 | 性能急剧下降，异步环境异常 |
 | B-P1-4 | `app/services/rule_engine.py` | ~~**`check_conflicts` N+1 查询**~~ → ✅ 已修复：IN clause 批量查询 | 性能极差，高并发下数据库压力大 |
 | B-P1-5 | `app/services/rule_engine.py` | ~~**`smart_assign` 全表加载**~~ → ✅ 已修复：SQL 层面过滤 | 内存爆炸，大数据量时服务崩溃 |
 | B-P1-6 | `app/config.py` | ~~**Token 有效期 24 小时过长**~~ → ✅ 已修复：1440→60分钟 | 凭据泄露窗口期过长 |
@@ -70,11 +70,11 @@
 
 | # | 文件 | 问题 | 建议 |
 |---|------|------|------|
-| B-P3-1 | `app/config.py` | `MEILISEARCH_KEY` 默认空字符串但未在 `_validate_required_secrets` 中校验 | 统一校验逻辑 |
-| B-P3-2 | `docker-compose.yml` | `version: '3.8'` 已过时 | 移除 version 声明 |
-| B-P3-3 | `app/models/` | `User` 表同时存在 `role` 字符串字段和 `roles` 多对多关系，数据冗余 | 废弃 `role` 字符串字段 |
-| B-P3-4 | `app/models/` | `Role.permissions` 为 JSON 列表，无数据库级外键约束 | 考虑权限表或枚举校验 |
-| B-P3-5 | `tests/` | 仅 2 个测试文件，且为结构测试/冒烟测试，无 RBAC/审计/备份/规则引擎测试 | 补充核心功能测试 |
+| B-P3-1 | `app/config.py` | ~~`MEILISEARCH_KEY` 默认空字符串但未校验~~ → ✅ 已修复：非localhost时空KEY时报错 | 统一校验逻辑 |
+| B-P3-2 | `docker-compose.yml` | ~~`version: '3.8'` 已过时~~ → ✅ 已移除 | 移除 version 声明 |
+| B-P3-3 | `app/models/` | ~~`User.role` 冗余字段~~ → ✅ 已标记 `@deprecated` | 废弃 `role` 字符串字段 |
+| B-P3-4 | `app/models/` | ~~`Role.permissions` 无校验~~ → ✅ 已修复：`_validate_role_permissions()` 校验权限代码存在性 | 考虑权限表或枚举校验 |
+| B-P3-5 | `tests/` | ~~仅 2 个测试文件，无 RBAC 测试~~ → ✅ 已修复：新增 `tests/api/test_permissions.py`（8个核心RBAC测试） | 补充核心功能测试 |
 
 ---
 
@@ -127,10 +127,10 @@
 
 | # | 文件 | 问题 | 建议 |
 |---|------|------|------|
-| F-P3-1 | `src/App.tsx` | `PageLoader` 使用内联 `style` 对象，每次渲染创建新对象 | 提取为 CSS 类 |
-| F-P3-2 | `src/utils/error.ts` | 直接耦合 `antd message`，未来难以替换为 sonner/toast | 抽象通知接口 |
-| F-P3-3 | `src/types/api.ts` | 多处字段标记为可选（`?`）过于宽泛 | 收紧类型约束，启用 `strictNullChecks` |
-| F-P3-4 | `package.json` | `lodash-es` 和 `react-use` 实际使用量需确认 | 避免 tree-shaking 失效 |
+| F-P3-1 | `src/App.tsx` | ~~`PageLoader` 使用内联 `style` 对象~~ → ✅ 已修复：提取为 `PAGE_LOADER_STYLE` 常量 | 提取为 CSS 类 |
+| F-P3-2 | `src/utils/error.ts` | ~~直接耦合 `antd message`~~ → ✅ 已修复：`NotificationService` 接口支持注入 | 抽象通知接口 |
+| F-P3-3 | `src/types/api.ts` | ~~字段可选过于宽泛~~ → ✅ 已确认：`"strict": true` 已启用（含 strictNullChecks） | 收紧类型约束，启用 `strictNullChecks` |
+| F-P3-4 | `package.json` | ~~`lodash-es` 和 `react-use` 使用量未确认~~ → ✅ 已修复：已从依赖移除（零使用） | 避免 tree-shaking 失效 |
 
 ---
 
@@ -139,7 +139,7 @@
 | 维度 | 评分 | 关键问题 |
 |------|------|----------|
 | **认证（Authentication）** | ⚠️ 中等 | Token 有效期已改为 60 分钟；无 Refresh Token；~~`python-jose`~~ → PyJWT 已修复 CVE；~~无登录速率限制~~ → slowapi `5/minute` |
-| **授权（Authorization）** | ⚠️ 中等偏低 | 3 套 RBAC 实现并存（待 B-P1-1 重构）；User 表 `role` 字符串与 `roles` 关系混用；装饰器自建 Session 破坏依赖注入 |
+| **授权（Authorization）** | ✅ 良好 | ~~3 套 RBAC 实现并存~~ → ✅ 已统一：`_check_user_permissions` 使用 in-memory `user.roles`（无N+1）；`core/rbac.py` 已删除；`User.role` 字段已标记废弃 |
 | **审计（Audit）** | ⚠️ 中等 | ~~`write_audit_log` 直接 `commit`~~ → flush+try/except 已修复；无错误隔离；无请求上下文自动提取 |
 | **加密（Encryption）** | ⚠️ 中等 | Fernet + PBKDF2 设计合理，~~Salt 硬编码~~ → ENCRYPTION_SALT 已修复 |
 | **输入安全** | ⚠️ 中等 | ~~**路径遍历漏洞**~~ → Path.resolve+startswith 已修复；备份模块 SQL 拼接使用 `text(f'...{table_name}...')`（虽有白名单但仍属危险模式） |
