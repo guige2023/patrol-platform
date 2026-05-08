@@ -17,7 +17,7 @@
 | 数据库 | SQLite（开发）/ PostgreSQL（生产） |
 | 部署 | Docker Compose（Nginx + Backend + PostgreSQL + MinIO + Meilisearch） |
 
-**整体评分**：后端 7.5/10，前端 7/10。P0 级别安全问题已全部修复，事务管理、权限一致性、安全细节大幅改善。剩余问题主要是架构性重构（巨型组件、httpOnly Token）和工程化改进（测试覆盖、登录限流）。
+**整体评分**：后端 8/10，前端 7.5/10。P0/P1/P2 级别安全问题已全部修复（除 httpOnly Token 需架构调整）。登录限流、事务回滚、id! 非空断言均已处理。剩余问题主要是架构性重构（巨型组件、httpOnly Token、三套权限统一）。
 
 ---
 
@@ -64,7 +64,7 @@
 | B-P2-7 | `app/database.py` | ~~缺少 `pool_recycle` / `pool_timeout`~~ → ✅ 已修复：pool_recycle=3600s, pool_timeout=30s | 连接稳定性 |
 | B-P2-8 | `docker-compose.yml` | ~~无资源限制~~ → ✅ 已修复：backend/db 服务均添加 CPU/内存限制 | 资源耗尽风险，排查困难 |
 | B-P2-9 | `requirements.txt` | ~~`cryptography==41.0.7` 版本较旧~~ → ✅ 已修复：升级至 43.0.3 | 供应链风险 |
-| B-P2-10 | 全局 | 登录接口无速率限制，密码修改无复杂度校验 | 暴力破解风险 |
+| B-P2-10 | 全局 | ~~登录接口无速率限制~~ → ✅ 已修复：slowapi `5/minute` | 暴力破解风险 |
 
 ### 🟢 P3 — 低优先级/建议
 
@@ -118,8 +118,8 @@
 | F-P2-4 | `vite.config.ts` | ~~**手动分包策略脆弱**~~ → ✅ 已修复：改用 `\bnode_modules\/` 正则匹配 | 构建产物不可预期 |
 | F-P2-5 | `vite.config.ts` | 代理 `target` 硬编码 `http://localhost:18800` | 团队成员无法自定义 |
 | F-P2-6 | `package.json` | ~~无 `test`/`type-check`/`format` 脚本，`--ext` 已废弃~~ → ✅ 已修复 | 工程化不足 |
-| F-P2-7 | `src/pages/PlanCreateWizard.tsx` | 无事务安全：Plan 创建成功但 Group 失败会产生孤儿数据 | 数据不一致 |
-| F-P2-8 | `src/pages/RectificationDetail.tsx` | `id!` 非空断言，无卸载保护 | 运行时崩溃风险 |
+| F-P2-7 | `src/pages/PlanCreateWizard.tsx` | ~~无事务安全~~ → ✅ 已修复：catch 中调用 deletePlan 回滚 | 数据不一致 |
+| F-P2-8 | `src/pages/RectificationDetail.tsx` | ~~`id!` 非空断言~~ → ✅ 已修复：添加 isMountedRef + null check；CadreDetail/UnitDetail/KnowledgeDetail/PlanDetail 同理 | 运行时崩溃风险 |
 | F-P2-9 | 全局 | ~~**缺乏 Error Boundary**~~ → ✅ 已修复：`components/common/ErrorBoundary.tsx` | 可用性差 |
 | F-P2-10 | `types/api.ts` | ~~`ApiResponse<T>` 名存实亡~~ → ✅ 已修复：拦截器不再全局解包，类型恢复有效 | 类型系统形同虚设 |
 
@@ -138,7 +138,7 @@
 
 | 维度 | 评分 | 关键问题 |
 |------|------|----------|
-| **认证（Authentication）** | ⚠️ 中等 | Token 有效期已改为 60 分钟；无 Refresh Token；~~`python-jose`~~ → PyJWT 已修复 CVE；无登录速率限制 |
+| **认证（Authentication）** | ⚠️ 中等 | Token 有效期已改为 60 分钟；无 Refresh Token；~~`python-jose`~~ → PyJWT 已修复 CVE；~~无登录速率限制~~ → slowapi `5/minute` |
 | **授权（Authorization）** | ⚠️ 中等偏低 | 3 套 RBAC 实现并存（待 B-P1-1 重构）；User 表 `role` 字符串与 `roles` 关系混用；装饰器自建 Session 破坏依赖注入 |
 | **审计（Audit）** | ⚠️ 中等 | ~~`write_audit_log` 直接 `commit`~~ → flush+try/except 已修复；无错误隔离；无请求上下文自动提取 |
 | **加密（Encryption）** | ⚠️ 中等 | Fernet + PBKDF2 设计合理，~~Salt 硬编码~~ → ENCRYPTION_SALT 已修复 |
