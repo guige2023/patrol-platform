@@ -21,8 +21,28 @@ let suppressErrorCount = 0;
 export const suppressNextErrorToast = () => { suppressErrorCount++; };
 export const resetSupressErrorToast = () => { suppressErrorCount = 0; };
 
+// 响应拦截器：统一解包 {data, message} 结构
+// - 成功响应：返回 res.data（已是 Response<T> 的 data 字段）
+// - 列表响应（PaginatedResponse）：返回 res.data.data（PageResult）
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // 如果是数组（List响应）或 blob，直接返回
+    if (Array.isArray(response.data) || response.config.responseType === 'blob') {
+      return response;
+    }
+    // 如果有 data 字段且有 message（标准 Response 格式），解包
+    if (response.data && typeof response.data === 'object' && 'data' in response.data && 'message' in response.data) {
+      // 检查是否是 PaginatedResponse：data 包含 items/total
+      const inner = response.data.data;
+      if (inner && typeof inner === 'object' && 'items' in inner && 'total' in inner) {
+        // PaginatedResponse: 返回 PageResult {items, total, page, page_size}
+        return { ...response, data: inner };
+      }
+      // 普通 Response: 返回 data 字段内容
+      return { ...response, data: inner };
+    }
+    return response;
+  },
   (error: unknown) => {
     const axiosError = error as AxiosError;
     const status = axiosError.response?.status;

@@ -15,7 +15,6 @@ export interface Document {
 }
 
 export const getDocuments = (params?: { type?: string; plan_id?: string; page?: number; page_size?: number; search?: string }) =>
-  // Interceptor unwraps {data: {items,total,...}} → {items,total,...}
   api.get('/documents/', { params }).then(res => res.data);
 
 // Interceptor unwraps {data: {...doc...}} → {...doc...}

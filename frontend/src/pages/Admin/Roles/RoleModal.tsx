@@ -167,7 +167,7 @@ const RoleModal: React.FC<RoleModalProps> = ({ open, role, onClose, onSuccess })
                 <Checkbox
                   key={opt.code}
                   value={opt.code}
-                  disabled={selectedPerms.includes('*')}
+                  checked={selectedPerms.includes('*') || selectedPerms.includes(opt.code)}
                 >
                   {opt.name} <span style={{ color: '#999', fontSize: 12 }}>({opt.code})</span>
                 </Checkbox>
