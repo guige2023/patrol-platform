@@ -18,6 +18,8 @@ from app.database import UnitOfWork
 from app.models.user import User
 from app.models.knowledge import Knowledge
 from app.utils.watermark import apply_watermark
+import logging
+logger = logging.getLogger(__name__)
 from app.utils.text_extract import extract_text_from_file
 from app.services.search_service import SearchService
 from app.config import settings
@@ -48,7 +50,7 @@ def convert_to_pdf(file_path: str, output_dir: str) -> Optional[str]:
                 return pdf_path
         return None
     except Exception as e:
-        print(f"[CONVERT] Error converting to PDF: {e}")
+        logger.warning(f"[CONVERT] Error converting to PDF: {e}")
         return None
 
 UPLOAD_BASE = str(settings.upload_path / "knowledge")
@@ -121,7 +123,7 @@ async def upload_attachment(
     final_filename = filename
     final_ext = ext
     if ext in OFFICE_EXTS:
-        print(f"[UPLOAD] Converting Office to PDF: {filename}")
+        logger.info(f"[UPLOAD] Converting Office to PDF: {filename}")
         with tempfile.TemporaryDirectory() as tmp_dir:
             # 复制原文件到临时目录
             tmp_file = os.path.join(tmp_dir, filename)
@@ -168,9 +170,9 @@ async def upload_attachment(
     try:
         content_text = extract_text_from_file(content, final_filename)
         SearchService.index_attachment(str(knowledge_id), attachment_info, content_text)
-        print(f"[UPLOAD] Indexed attachment with {len(content_text)} chars of text")
+        logger.debug(f"[UPLOAD] Indexed attachment with {len(content_text)} chars of text")
     except Exception as e:
-        print(f"[UPLOAD] Failed to index attachment: {e}")
+        logger.warning(f"[UPLOAD] Failed to index attachment: {e}")
 
     return attachment_info
 
@@ -299,7 +301,7 @@ async def delete_attachment(
         attachment_doc_id = f"{knowledge_id}_{att['filename']}"
         SearchService.get_client().index("attachments").delete_document(attachment_doc_id)
     except Exception as e:
-        print(f"[DELETE] Failed to remove attachment from index: {e}")
+        logger.warning(f"[DELETE] Failed to remove attachment from index: {e}")
 
     attachments.pop(idx)
     knowledge.attachments = attachments if attachments else None
@@ -317,7 +319,7 @@ async def preview_attachment(
     current_user: User = Depends(get_current_user),
 ):
     """预览附件（文件已在上架时转换为 PDF 或图片，直接预览；支持水印）"""
-    print(f"[PREVIEW] knowledge_id={knowledge_id}, filename={repr(filename)}")
+    logger.debug(f"[PREVIEW] knowledge_id={knowledge_id}, filename={repr(filename)}")
     result = await uow.execute(select(Knowledge).where(Knowledge.id == knowledge_id))
     knowledge = result.scalar_one_or_none()
     if not knowledge:

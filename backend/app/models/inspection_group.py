@@ -2,7 +2,6 @@ import uuid
 from app.types import GUIDTypeDecorator as Guid
 from datetime import datetime
 from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Integer, Text, Enum, JSON
-# from sqlalchemy.dialects.postgresql import UUID (removed for cross-db)
 from sqlalchemy.orm import relationship
 from app.database import Base
 

@@ -2,8 +2,8 @@
 # E2E Smoke Tests - Tests key user flows
 # Run with: bash scripts/e2e_tests.sh
 
-BASE_URL="${BASE_URL:-http://localhost:3070}"
-API_URL="${API_URL:-http://localhost:18888}"
+BASE_URL="${BASE_URL:-http://localhost:3005}"
+API_URL="${API_URL:-http://localhost:18800}"
 
 echo "E2E Smoke Tests"
 echo "=========================================="

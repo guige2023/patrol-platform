@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -161,7 +162,8 @@ async def create_knowledge(knowledge_data: KnowledgeCreate, uow: UnitOfWork = De
             "is_active": True,
         })
     except Exception as e:
-        print(f"[KNOWLEDGE] Failed to index: {e}")
+        logger = logging.getLogger(__name__)
+        logger.warning(f"[KNOWLEDGE] Failed to index: {e}")
 
     return knowledge
 
@@ -197,7 +199,8 @@ async def update_knowledge(knowledge_id: UUID, knowledge_data: KnowledgeUpdate, 
             "is_active": knowledge.is_active,
         })
     except Exception as e:
-        print(f"[KNOWLEDGE] Failed to update index: {e}")
+        logger = logging.getLogger(__name__)
+        logger.warning(f"[KNOWLEDGE] Failed to update index: {e}")
 
     return knowledge
 
@@ -216,7 +219,8 @@ async def delete_knowledge(knowledge_id: UUID, uow: UnitOfWork = Depends(get_uow
     try:
         SearchService.delete_knowledge(str(knowledge_id))
     except Exception as e:
-        print(f"[KNOWLEDGE] Failed to delete from index: {e}")
+        logger = logging.getLogger(__name__)
+        logger.warning(f"[KNOWLEDGE] Failed to delete from index: {e}")
 
     return {"message": "Knowledge deleted"}
 

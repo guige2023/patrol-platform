@@ -2,6 +2,9 @@
 Meilisearch 全文搜索服务
 """
 
+import logging
+
+
 from typing import List, Dict, Any, Optional
 from app.config import settings
 
@@ -233,7 +236,8 @@ class SearchService:
                     if index_results:
                         results[index_name] = index_results
             except Exception as e:
-                print(f"[SEARCH] Error searching {index_name}: {e}")
+                logger = logging.getLogger(__name__)
+                logger.warning(f"[SEARCH] Error searching {index_name}: {e}")
 
         return results
 
@@ -255,7 +259,8 @@ class SearchService:
                 if normalize(hit.get(name_field, "") or "").startswith(q_norm)
             ]
         except Exception as e:
-            print(f"[SEARCH] Error searching {index_name}: {e}")
+            logger = logging.getLogger(__name__)
+            logger.warning(f"[SEARCH] Error searching {index_name}: {e}")
             return []
 
     # ==================== 删除操作 ====================
@@ -266,7 +271,7 @@ class SearchService:
         try:
             cls.get_client().index(INDEX_UNITS).delete_document(unit_id)
         except Exception as e:
-            print(f"[SEARCH] Error deleting unit {unit_id}: {e}")
+            logger.warning(f"[SEARCH] Error deleting unit {unit_id}: {e}")
 
     @classmethod
     def delete_cadre(cls, cadre_id: str):
@@ -274,7 +279,7 @@ class SearchService:
         try:
             cls.get_client().index(INDEX_CADRES).delete_document(cadre_id)
         except Exception as e:
-            print(f"[SEARCH] Error deleting cadre {cadre_id}: {e}")
+            logger.warning(f"[SEARCH] Error deleting cadre {cadre_id}: {e}")
 
     @classmethod
     def delete_knowledge(cls, knowledge_id: str):
@@ -287,7 +292,7 @@ class SearchService:
                  cls.get_client().index(INDEX_ATTACHMENTS).search(knowledge_id, {"limit": 100})["hits"]]
             )
         except Exception as e:
-            print(f"[SEARCH] Error deleting knowledge {knowledge_id}: {e}")
+            logger.warning(f"[SEARCH] Error deleting knowledge {knowledge_id}: {e}")
 
     @classmethod
     def delete_draft(cls, draft_id: str):
@@ -295,7 +300,7 @@ class SearchService:
         try:
             cls.get_client().index(INDEX_DRAFTS).delete_document(draft_id)
         except Exception as e:
-            print(f"[SEARCH] Error deleting draft {draft_id}: {e}")
+            logger.warning(f"[SEARCH] Error deleting draft {draft_id}: {e}")
 
     # ==================== 重建索引 ====================
 
@@ -361,6 +366,6 @@ class SearchService:
                 task = client.index(INDEX_DRAFTS).add_documents(draft_docs)
                 client.wait_for_task(task.task_uid)
 
-            print("[SEARCH] All indexes rebuilt successfully")
+            logger.info("[SEARCH] All indexes rebuilt successfully")
         except Exception as e:
-            print(f"[SEARCH] Error rebuilding indexes: {e}")
+            logger.error(f"[SEARCH] Error rebuilding indexes: {e}")

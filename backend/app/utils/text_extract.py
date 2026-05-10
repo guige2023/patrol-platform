@@ -3,6 +3,8 @@ PDF 文本提取工具 - 用于全文搜索索引
 """
 
 import io
+import logging
+logger = logging.getLogger(__name__)
 
 
 def extract_text_from_pdf(pdf_bytes: bytes) -> str:
@@ -16,7 +18,7 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
         doc.close()
         return "\n".join(text_parts)
     except Exception as e:
-        print(f"[TEXT_EXTRACT] Error extracting text from PDF: {e}")
+        logger.warning(f"[TEXT_EXTRACT] Error extracting text from PDF: {e}")
         return ""
 
 

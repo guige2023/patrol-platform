@@ -3,7 +3,7 @@
 # Tests key API endpoints to catch routing and configuration issues.
 # Run against a running server: bash scripts/test_api_endpoints.sh
 
-BASE_URL="${BASE_URL:-http://localhost:18888}"
+BASE_URL="${BASE_URL:-http://localhost:18800}"
 API_PREFIX="/api/v1"
 
 echo "Testing API endpoints at $BASE_URL"
