@@ -153,27 +153,53 @@ const RoleModal: React.FC<RoleModalProps> = ({ open, role, onClose, onSuccess })
         <Form.Item name="is_active" label="启用状态" valuePropName="checked" initialValue={true}>
           <Switch checkedChildren="启用" unCheckedChildren="禁用" />
         </Form.Item>
-        <Form.Item name="permissions" label="权限" valuePropName="value">
-          <Checkbox.Group onChange={handlePermChange}>
-            <Space direction="vertical" size={[4, 4]} style={{ width: '100%' }}>
+        <Form.Item label="权限" name="permissions">
+          <Space direction="vertical" size={[4, 4]} style={{ width: '100%' }}>
+            {/*
+              全部权限：独立Checkbox，不在CheckGroup内
+              勾选时 selectedPerms=['*']；取消时清空
+            */}
+            <Checkbox
+              checked={selectedPerms.includes('*')}
+              onChange={(e) => {
+                if (e.target.checked) {
+                  setSelectedPerms(['*']);
+                  form.setFieldsValue({ permissions: ['*'] });
+                } else {
+                  setSelectedPerms([]);
+                  form.setFieldsValue({ permissions: [] });
+                }
+              }}
+            >
+              全部权限
+            </Checkbox>
+            {/*
+              细粒度权限：独立Checkbox（不用CheckGroup）
+              checked 状态由 selectedPerms 决定，不受 Group 控制
+            */}
+            {PERMISSION_OPTIONS.map(opt => (
               <Checkbox
-                value="*"
-                checked={selectedPerms.includes('*')}
-                onChange={(e) => handleAllPermsChange(e.target.checked)}
+                key={opt.code}
+                checked={selectedPerms.includes('*') || selectedPerms.includes(opt.code)}
+                onChange={(e) => {
+                  if (selectedPerms.includes('*')) {
+                    // 全部权限模式下，取消单个权限
+                    const newPerms = [opt.code];
+                    setSelectedPerms(newPerms);
+                    form.setFieldsValue({ permissions: newPerms });
+                  } else {
+                    handlePermChange(
+                      e.target.checked
+                        ? [...selectedPerms, opt.code]
+                        : selectedPerms.filter(v => v !== opt.code)
+                    );
+                  }
+                }}
               >
-                全部权限
+                {opt.name} <span style={{ color: '#999', fontSize: 12 }}>({opt.code})</span>
               </Checkbox>
-              {PERMISSION_OPTIONS.map(opt => (
-                <Checkbox
-                  key={opt.code}
-                  value={opt.code}
-                  checked={selectedPerms.includes('*') || selectedPerms.includes(opt.code)}
-                >
-                  {opt.name} <span style={{ color: '#999', fontSize: 12 }}>({opt.code})</span>
-                </Checkbox>
-              ))}
-            </Space>
-          </Checkbox.Group>
+            ))}
+          </Space>
         </Form.Item>
       </Form>
     </Modal>
