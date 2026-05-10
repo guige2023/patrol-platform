@@ -31,7 +31,7 @@ router = APIRouter()
 
 
 @router.post("/login", response_model=LoginResponse)
-@limiter.limit("5/minute")
+@limiter.limit("60/minute")
 async def login(request: Request, login_request: LoginRequest, response: Response, uow: UnitOfWork = Depends(get_uow)):
     result = await uow.execute(
         select(User).where(User.username == login_request.username).options(selectinload(User.roles))
